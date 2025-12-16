@@ -1,0 +1,37 @@
+const User = require("./user");
+const Property = require("./property");
+const Application = require("./application");
+const Notification = require("./notification");
+const PropertyImage = require("./propertyImage");
+const StatusHistory = require("./statusHistory");
+
+User.hasMany(Property, { foreignKey: "developerId", as: "properties" });
+Property.belongsTo(User, { foreignKey: "developerId", as: "developer" });
+
+Property.hasMany(PropertyImage, { foreignKey: "propertyId", as: "images" });
+PropertyImage.belongsTo(Property, { foreignKey: "propertyId" });
+
+Property.hasMany(Application, { foreignKey: "propertyId", as: "applications" });
+Application.belongsTo(Property, { foreignKey: "propertyId" });
+
+User.hasMany(Application, { foreignKey: "agentId", as: "agentApplications" });
+Application.belongsTo(User, { foreignKey: "agentId", as: "agent" });
+
+Application.hasMany(StatusHistory, {
+  foreignKey: "applicationId",
+  as: "history",
+});
+StatusHistory.belongsTo(Application, { foreignKey: "applicationId" });
+StatusHistory.belongsTo(User, { foreignKey: "changedBy", as: "actor" });
+
+User.hasMany(Notification, { foreignKey: "userId", as: "notifications" });
+Notification.belongsTo(User, { foreignKey: "userId" });
+
+module.exports = {
+  User,
+  Property,
+  Application,
+  Notification,
+  PropertyImage,
+  StatusHistory,
+};
