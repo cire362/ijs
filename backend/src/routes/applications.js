@@ -7,6 +7,7 @@ const {
   listIncoming,
   createApplication,
   updateStatus,
+  extendInitialDeadline,
 } = require("../controllers/applicationController");
 
 router.get("/mine", authenticate, allowRoles("agent"), asyncHandler(listMine));
@@ -27,6 +28,13 @@ router.patch(
   authenticate,
   allowRoles("developer", "admin"),
   asyncHandler(updateStatus)
+);
+
+router.patch(
+  "/:id/extend",
+  authenticate,
+  allowRoles("developer", "admin"),
+  asyncHandler(extendInitialDeadline)
 );
 
 module.exports = router;

@@ -4,6 +4,17 @@ const { sequelize } = require("./db");
 const app = require("./app");
 const { Notification } = require("./models");
 const { Server } = require("socket.io");
+const { expireSentApplications } = require("./jobs/applicationExpiry");
+
+function dbInfo() {
+  const cfg = sequelize?.config;
+  if (!cfg) return "(unknown)";
+  const host = cfg.host || "localhost";
+  const port = cfg.port || 5432;
+  const db = cfg.database || "(db)";
+  const user = cfg.username || "(user)";
+  return `postgres://${user}:***@${host}:${port}/${db}`;
+}
 
 const port = process.env.PORT || 4000;
 const server = http.createServer(app);
@@ -25,6 +36,16 @@ async function bootstrap() {
   try {
     await sequelize.authenticate();
     await sequelize.sync({ alter: process.env.NODE_ENV !== "production" });
+
+    console.log(`DB connected: ${dbInfo()}`);
+
+    // Background: expire applications stuck at initial stage
+    setInterval(() => {
+      expireSentApplications().catch((err) =>
+        console.error("Failed to expire applications", err)
+      );
+    }, 60 * 1000);
+
     server.listen(port, () => {
       console.log(`API listening on port ${port}`);
     });

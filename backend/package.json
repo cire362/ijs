@@ -9,7 +9,8 @@
     "start": "node src/server.js",
     "lint": "eslint .",
     "test": "cross-env NODE_ENV=test jest --runInBand",
-    "seed": "node src/seed.js"
+    "seed": "node src/seed.js",
+    "db:clear": "node src/clear.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

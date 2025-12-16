@@ -14,6 +14,8 @@ const RESERVING_STATUSES = new Set([
   "commission_available",
 ]);
 
+const INITIAL_DEADLINE_DAYS = 7;
+
 function statusLabelRu(status) {
   switch (status) {
     case "sent":
@@ -30,6 +32,8 @@ function statusLabelRu(status) {
       return "Завершено";
     case "rejected":
       return "Отклонена";
+    case "expired":
+      return "Истек срок";
     default:
       return "Статус обновлен";
   }
@@ -135,10 +139,15 @@ async function createApplication(req, res) {
       }
     }
 
+    const expiresAt = new Date(
+      Date.now() + INITIAL_DEADLINE_DAYS * 24 * 60 * 60 * 1000
+    );
+
     const app = await Application.create({
       propertyId,
       agentId: req.user.id,
       status: "sent",
+      expiresAt,
       commissionAmount: computedCommission,
       comment,
     });
@@ -165,6 +174,7 @@ async function updateStatus(req, res) {
     "commission_available",
     "done",
     "rejected",
+    "expired",
   ];
   if (!allowed.includes(status))
     return res.status(400).json({ error: "Недопустимый статус" });
@@ -173,6 +183,14 @@ async function updateStatus(req, res) {
     include: [{ model: Property }],
   });
   if (!app) return res.status(404).json({ error: "Не найдено" });
+
+  if (app.status === "expired") {
+    return res.status(400).json({ error: "Срок заявки истек" });
+  }
+
+  if (status === "expired") {
+    return res.status(400).json({ error: "Нельзя установить вручную" });
+  }
   if (
     req.user.role === "developer" &&
     app.property.developerId !== req.user.id
@@ -225,4 +243,62 @@ async function updateStatus(req, res) {
   return res.json(app);
 }
 
-module.exports = { listMine, listIncoming, createApplication, updateStatus };
+async function extendInitialDeadline(req, res) {
+  const days =
+    req.body?.days == null || req.body?.days === ""
+      ? INITIAL_DEADLINE_DAYS
+      : Number(req.body.days);
+
+  if (!Number.isFinite(days) || days <= 0 || days > 60) {
+    return res.status(400).json({ error: "Некорректное количество дней" });
+  }
+
+  const app = await Application.findByPk(req.params.id, {
+    include: [{ model: Property }],
+  });
+  if (!app) return res.status(404).json({ error: "Не найдено" });
+
+  if (
+    req.user.role === "developer" &&
+    app.property?.developerId !== req.user.id
+  ) {
+    return res.status(403).json({ error: "Запрещено" });
+  }
+
+  if (app.status !== "sent") {
+    return res
+      .status(400)
+      .json({ error: "Продлить можно только на этапе отправки" });
+  }
+
+  const base = app.expiresAt ? new Date(app.expiresAt) : new Date();
+  const now = new Date();
+  const from = base.getTime() > now.getTime() ? base : now;
+  const newExpiresAt = new Date(from.getTime() + days * 24 * 60 * 60 * 1000);
+
+  await app.update({ expiresAt: newExpiresAt });
+
+  const msg = `Срок продлен до ${newExpiresAt.toLocaleDateString("ru-RU")}`;
+  await StatusHistory.create({
+    applicationId: app.id,
+    status: "sent",
+    changedBy: req.user.id,
+    comment: msg,
+  });
+  await Notification.create({
+    userId: app.agentId,
+    type: "application_status",
+    text: `Заявка №${app.id}: ${msg}`,
+    meta: { applicationId: app.id, status: "sent", expiresAt: newExpiresAt },
+  });
+
+  return res.json(app);
+}
+
+module.exports = {
+  listMine,
+  listIncoming,
+  createApplication,
+  updateStatus,
+  extendInitialDeadline,
+};

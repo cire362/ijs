@@ -111,6 +111,7 @@ describe("API routes", () => {
     expect(res.status).toBe(201);
     expect(res.body.propertyId).toBe(property.id);
     expect(res.body.status).toBe("sent");
+    expect(res.body.expiresAt).toBeDefined();
   });
 
   test("agent can see own applications", async () => {
@@ -145,6 +146,7 @@ describe("API routes", () => {
       where: { userId: agentUser.id },
     });
     expect(notes.length).toBeGreaterThanOrEqual(1);
+    expect(String(notes[notes.length - 1].text)).toMatch(/Заявка №/);
   });
 
   test("agent can read and update own profile", async () => {

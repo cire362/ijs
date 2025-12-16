@@ -26,6 +26,10 @@ pnpm-debug.log*
 # Runtime uploads (avatars/images)
 backend/uploads/
 
+# Keep seed assets tracked if present under uploads/seed
+!backend/uploads/seed/
+!backend/uploads/seed/**
+
 # OS / editor
 .DS_Store
 Thumbs.db

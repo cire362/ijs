@@ -66,11 +66,12 @@ function statusLabel(status) {
   const found = STATUS_FLOW.find((s) => s.key === status);
   if (found) return found.label;
   if (status === "rejected") return "Отклонена";
+  if (status === "expired") return "Истек срок";
   return status || "—";
 }
 
 function statusActiveIndex(status) {
-  if (status === "rejected") return 1;
+  if (status === "rejected" || status === "expired") return 1;
   const idx = STATUS_FLOW.findIndex((s) => s.key === status);
   return idx >= 0 ? idx + 1 : 1;
 }
@@ -107,6 +108,7 @@ function statusTag(status) {
   if (status === "done") return "success";
   if (status === "commission_available") return "success";
   if (status === "rejected") return "danger";
+  if (status === "expired") return "danger";
   if (status === "awaiting_payment" || status === "contract_signed")
     return "warning";
   return "info";
@@ -190,7 +192,9 @@ function statusTag(status) {
 
           <div style="margin-top: 12px">
             <el-steps
-              v-if="selected.status !== 'rejected'"
+              v-if="
+                selected.status !== 'rejected' && selected.status !== 'expired'
+              "
               :active="statusActiveIndex(selected.status)"
               finish-status="success"
               align-center
@@ -207,7 +211,9 @@ function statusTag(status) {
               <el-icon color="var(--el-color-danger)"
                 ><CircleCloseFilled
               /></el-icon>
-              <el-tag type="danger" effect="light">Отклонена</el-tag>
+              <el-tag type="danger" effect="light">{{
+                selected.status === "expired" ? "Истек срок" : "Отклонена"
+              }}</el-tag>
             </div>
           </div>
         </template>

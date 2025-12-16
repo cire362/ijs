@@ -25,10 +25,12 @@ Application.init(
         "awaiting_payment",
         "commission_available",
         "done",
-        "rejected"
+        "rejected",
+        "expired"
       ),
       defaultValue: "sent",
     },
+    expiresAt: { type: DataTypes.DATE },
     commissionAmount: { type: DataTypes.DECIMAL(14, 2) },
     comment: { type: DataTypes.TEXT },
   },
