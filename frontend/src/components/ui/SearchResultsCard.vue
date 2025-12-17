@@ -68,9 +68,14 @@ const props = defineProps({
 
 defineEmits(["details"]);
 
-const priceLabel = computed(() =>
-  props.property.price ? `${props.property.price.toLocaleString()} ₽` : ""
-);
+function formatMoney(v) {
+  if (v == null || v === "") return "";
+  const n = Number(v);
+  if (Number.isNaN(n)) return String(v);
+  return `${new Intl.NumberFormat("ru-RU").format(n)} ₽`;
+}
+
+const priceLabel = computed(() => formatMoney(props.property.price));
 
 const statusType = computed(() => {
   if (props.property.saleStatus === "available") return "success";

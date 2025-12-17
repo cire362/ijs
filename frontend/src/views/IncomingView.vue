@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useAuthStore, apiClient } from "../stores/auth";
 import { ElMessage } from "element-plus";
 import CRMTable from "@/components/ui/CRMTable.vue";
@@ -245,6 +245,16 @@ const filteredItems = computed(() => {
   });
 });
 
+const page = ref(1);
+const pageSize = ref(5);
+
+watch(
+  () => pageSize.value,
+  (v) => {
+    if (typeof v === "number" && v < 5) pageSize.value = 5;
+  }
+);
+
 const tableRows = computed(() =>
   filteredItems.value.map((a) => ({
     ...a,
@@ -266,6 +276,18 @@ const tableRows = computed(() =>
     deadline: a.expiresAt,
   }))
 );
+
+watch(
+  () => tableRows.value.length,
+  () => {
+    page.value = 1;
+  }
+);
+
+const pagedRows = computed(() => {
+  const start = (page.value - 1) * pageSize.value;
+  return tableRows.value.slice(start, start + pageSize.value);
+});
 </script>
 
 <template>
@@ -361,7 +383,7 @@ const tableRows = computed(() =>
         </div>
       </el-card>
 
-      <CRMTable :columns="columns" :rows="tableRows" :loading="loading" border>
+      <CRMTable :columns="columns" :rows="pagedRows" :loading="loading" border>
         <template #deadline="{ row }">
           <span v-if="!row.expiresAt">—</span>
           <el-tag v-else :type="deadlineTagType(row)" effect="light">
@@ -403,6 +425,24 @@ const tableRows = computed(() =>
           </div>
         </template>
       </CRMTable>
+
+      <div
+        v-if="tableRows.length"
+        style="
+          display: flex;
+          justify-content: center;
+          margin-top: var(--gap-md);
+        "
+      >
+        <el-pagination
+          v-model:current-page="page"
+          v-model:page-size="pageSize"
+          :total="tableRows.length"
+          :page-sizes="[5, 10, 20, 50, 100]"
+          :hide-on-single-page="false"
+          layout="total, sizes, prev, pager, next"
+        />
+      </div>
 
       <el-card shadow="never" style="margin-top: var(--gap-md)">
         <div class="pill">История</div>

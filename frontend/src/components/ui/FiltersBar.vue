@@ -8,6 +8,21 @@
     />
 
     <el-select
+      v-if="developerOptions.length"
+      v-model="developerId"
+      placeholder="Застройщик"
+      clearable
+      style="width: 240px"
+    >
+      <el-option
+        v-for="d in developerOptions"
+        :key="d.value"
+        :label="d.label"
+        :value="d.value"
+      />
+    </el-select>
+
+    <el-select
       v-model="region"
       placeholder="Регион"
       clearable
@@ -141,10 +156,12 @@ defineProps({
   contractTypes: { type: Array, default: () => [] },
   constructionTypes: { type: Array, default: () => [] },
   readinessTypes: { type: Array, default: () => [] },
+  developerOptions: { type: Array, default: () => [] },
 });
 
 const emit = defineEmits(["apply", "reset"]);
 const search = ref("");
+const developerId = ref("");
 const region = ref("");
 const city = ref("");
 const status = ref("");
@@ -164,6 +181,7 @@ const houseMax = ref(null);
 function apply() {
   emit("apply", {
     search: search.value,
+    developerId: developerId.value,
     region: region.value,
     city: city.value,
     status: status.value,
@@ -182,6 +200,7 @@ function apply() {
 }
 function reset() {
   search.value = "";
+  developerId.value = "";
   region.value = "";
   city.value = "";
   status.value = "";

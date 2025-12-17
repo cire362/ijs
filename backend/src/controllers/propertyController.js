@@ -1,11 +1,13 @@
 const { Property, PropertyImage, User } = require("../models");
 
 async function listProperties(req, res) {
-  const isManager =
-    req.user?.role === "developer" || req.user?.role === "admin";
+  const canSeeAllStatuses =
+    req.user?.role === "developer" ||
+    req.user?.role === "admin" ||
+    req.user?.role === "agent";
 
   const properties = await Property.findAll({
-    where: isManager ? undefined : { saleStatus: "available" },
+    where: canSeeAllStatuses ? undefined : { saleStatus: "available" },
     include: [
       {
         model: User,

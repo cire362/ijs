@@ -12,6 +12,19 @@ const loading = ref(false);
 const property = ref(null);
 const uploading = ref(false);
 
+const editForm = ref({
+  title: "",
+  region: "",
+  city: "",
+  street: "",
+  plotNumber: "",
+  landArea: "",
+  houseArea: "",
+  price: "",
+});
+
+const saving = ref(false);
+
 const isAgent = computed(() => auth.user?.role === "agent");
 const isManager = computed(
   () => auth.user?.role === "developer" || auth.user?.role === "admin"
@@ -97,6 +110,17 @@ async function load() {
   try {
     const { data } = await apiClient.get(`/properties/${id.value}`);
     property.value = data;
+
+    editForm.value = {
+      title: data?.title || "",
+      region: data?.region || "",
+      city: data?.city || "",
+      street: data?.street || "",
+      plotNumber: data?.plotNumber || "",
+      landArea: data?.landArea ?? "",
+      houseArea: data?.houseArea ?? "",
+      price: data?.price ?? "",
+    };
   } catch (err) {
     const msg = err.response?.data?.error || "Не удалось загрузить объект";
     ElMessage.error(msg);
@@ -138,6 +162,35 @@ async function updatePropertyStatus(status) {
   } catch (err) {
     property.value.saleStatus = prev;
     ElMessage.error(err.response?.data?.error || "Не удалось обновить статус");
+  }
+}
+
+async function saveEdits() {
+  if (!property.value?.id) return;
+  if (!editForm.value.title || !editForm.value.region || !editForm.value.city) {
+    ElMessage.error("Заполните название, регион и город");
+    return;
+  }
+
+  saving.value = true;
+  try {
+    const payload = {
+      title: editForm.value.title,
+      region: editForm.value.region,
+      city: editForm.value.city,
+      street: editForm.value.street,
+      plotNumber: editForm.value.plotNumber,
+      landArea: editForm.value.landArea,
+      houseArea: editForm.value.houseArea,
+      price: editForm.value.price,
+    };
+    await apiClient.patch(`/properties/${property.value.id}`, payload);
+    ElMessage.success("Изменения сохранены");
+    await load();
+  } catch (err) {
+    ElMessage.error(err.response?.data?.error || "Не удалось сохранить");
+  } finally {
+    saving.value = false;
   }
 }
 </script>
@@ -197,45 +250,73 @@ async function updatePropertyStatus(status) {
             {{ property?.description || "Описание не указано" }}
           </div>
         </el-card>
-      </div>
-
-      <div class="right">
-        <el-card shadow="never" v-loading="loading">
-          <div class="specs">
-            <div v-for="s in specs" :key="s.label" class="spec">
-              <div class="muted">{{ s.label }}</div>
-              <div class="strong">{{ s.value }}</div>
-            </div>
-          </div>
-        </el-card>
 
         <el-card
-          v-if="isAgent"
+          v-if="isManager"
           shadow="never"
           style="margin-top: var(--gap-md)"
           v-loading="loading"
         >
-          <div class="muted" style="margin-bottom: 8px">Заявка</div>
-          <el-input
-            v-model="applicationComment"
-            :rows="3"
-            type="textarea"
-            placeholder="Комментарий к заявке"
-          />
-          <div
-            style="display: flex; justify-content: flex-end; margin-top: 12px"
-          >
-            <el-button
-              type="primary"
-              :disabled="!property"
-              @click="applyToProperty"
-              >Подать заявку</el-button
-            >
-          </div>
+          <template #header>
+            <div class="section-head" style="margin: 0">
+              <div>
+                <div class="pill">Застройщик</div>
+                <div style="font-weight: 700">Редактирование</div>
+              </div>
+              <el-button type="primary" :loading="saving" @click="saveEdits"
+                >Сохранить</el-button
+              >
+            </div>
+          </template>
+
+          <el-form :model="editForm" label-position="top">
+            <el-row :gutter="12">
+              <el-col :span="12" :xs="24" :sm="12" :md="12">
+                <el-form-item label="Название">
+                  <el-input v-model="editForm.title" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12" :xs="24" :sm="12" :md="12">
+                <el-form-item label="Регион">
+                  <el-input v-model="editForm.region" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12" :xs="24" :sm="12" :md="12">
+                <el-form-item label="Город">
+                  <el-input v-model="editForm.city" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12" :xs="24" :sm="12" :md="12">
+                <el-form-item label="Улица">
+                  <el-input v-model="editForm.street" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12" :xs="24" :sm="12" :md="12">
+                <el-form-item label="№ участка">
+                  <el-input v-model="editForm.plotNumber" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12" :xs="24" :sm="12" :md="12">
+                <el-form-item label="Площадь участка (соток)">
+                  <el-input v-model.number="editForm.landArea" type="number" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12" :xs="24" :sm="12" :md="12">
+                <el-form-item label="Площадь дома (м²)">
+                  <el-input v-model.number="editForm.houseArea" type="number" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12" :xs="24" :sm="12" :md="12">
+                <el-form-item label="Цена (₽)">
+                  <el-input v-model.number="editForm.price" type="number" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+          </el-form>
         </el-card>
 
         <el-card
-          v-else-if="isManager"
+          v-if="isManager"
           shadow="never"
           style="margin-top: var(--gap-md)"
           v-loading="loading"
@@ -276,6 +357,42 @@ async function updatePropertyStatus(status) {
           </el-upload>
           <div class="muted" style="margin-top: 8px">
             Поддерживаются JPG/PNG/WebP.
+          </div>
+        </el-card>
+      </div>
+
+      <div class="right">
+        <el-card shadow="never" v-loading="loading">
+          <div class="specs">
+            <div v-for="s in specs" :key="s.label" class="spec">
+              <div class="muted">{{ s.label }}</div>
+              <div class="strong">{{ s.value }}</div>
+            </div>
+          </div>
+        </el-card>
+
+        <el-card
+          v-if="isAgent"
+          shadow="never"
+          style="margin-top: var(--gap-md)"
+          v-loading="loading"
+        >
+          <div class="muted" style="margin-bottom: 8px">Заявка</div>
+          <el-input
+            v-model="applicationComment"
+            :rows="3"
+            type="textarea"
+            placeholder="Комментарий к заявке"
+          />
+          <div
+            style="display: flex; justify-content: flex-end; margin-top: 12px"
+          >
+            <el-button
+              type="primary"
+              :disabled="!property"
+              @click="applyToProperty"
+              >Подать заявку</el-button
+            >
           </div>
         </el-card>
       </div>
