@@ -1,5 +1,12 @@
 <template>
   <el-card class="card lift-hover" shadow="hover">
+    <div class="preview" v-if="previewUrl">
+      <el-image :src="previewUrl" fit="cover" class="preview-img" />
+    </div>
+    <div class="preview placeholder" v-else>
+      <div class="placeholder-text muted">Нет фото</div>
+    </div>
+
     <div class="card-top">
       <div>
         <div class="eyebrow">{{ property.region || "Регион не указан" }}</div>
@@ -72,6 +79,11 @@ const statusType = computed(() => {
   return "info";
 });
 
+const previewUrl = computed(() => {
+  const first = props.property?.images?.[0];
+  return first?.url || "";
+});
+
 function saleStatusLabel(status) {
   if (status === "available" || !status) return "Свободен";
   if (status === "reserved") return "Бронь";
@@ -84,6 +96,26 @@ function saleStatusLabel(status) {
 .card {
   border-radius: var(--radius);
   box-shadow: var(--card-shadow);
+}
+.preview {
+  width: 100%;
+  height: 180px;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 12px;
+  background: var(--muted-bg);
+}
+.preview-img {
+  width: 100%;
+  height: 180px;
+}
+.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.placeholder-text {
+  font-size: 13px;
 }
 .card-top {
   display: flex;

@@ -16,6 +16,13 @@ const RESERVING_STATUSES = new Set([
 
 const INITIAL_DEADLINE_DAYS = 7;
 
+function stripDeadlineIfNotSent(app) {
+  if (!app) return;
+  if (app.status !== "sent") {
+    app.setDataValue("expiresAt", null);
+  }
+}
+
 function statusLabelRu(status) {
   switch (status) {
     case "sent":
@@ -63,6 +70,7 @@ async function listMine(req, res) {
     ],
     order: [["createdAt", "DESC"]],
   });
+  apps.forEach(stripDeadlineIfNotSent);
   return res.json(apps);
 }
 
@@ -118,6 +126,7 @@ async function listIncoming(req, res) {
     ],
     order: [["createdAt", "DESC"]],
   });
+  apps.forEach(stripDeadlineIfNotSent);
   return res.json(apps);
 }
 
@@ -227,7 +236,14 @@ async function updateStatus(req, res) {
     }
   }
 
-  await app.update({ status });
+  const updates = { status };
+  // Дедлайн действует только на этапе отправки (sent).
+  // После подтверждения (и любых дальнейших статусов) срок истечения не показываем.
+  if (status !== "sent") {
+    updates.expiresAt = null;
+  }
+
+  await app.update(updates);
   await StatusHistory.create({
     applicationId: app.id,
     status,

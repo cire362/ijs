@@ -10,6 +10,7 @@ const router = useRouter();
 
 const loading = ref(false);
 const property = ref(null);
+const uploading = ref(false);
 
 const isAgent = computed(() => auth.user?.role === "agent");
 const isManager = computed(
@@ -70,6 +71,24 @@ const specs = computed(() => {
 function imageSrc(url) {
   if (!url) return "";
   return url;
+}
+
+async function uploadPropertyImage({ file }) {
+  if (!property.value?.id) return;
+  uploading.value = true;
+  try {
+    const form = new FormData();
+    form.append("images", file);
+    await apiClient.post(`/properties/${property.value.id}/images`, form, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    ElMessage.success("Изображение загружено");
+    await load();
+  } catch (err) {
+    ElMessage.error(err.response?.data?.error || "Не удалось загрузить фото");
+  } finally {
+    uploading.value = false;
+  }
 }
 
 async function load() {
@@ -236,6 +255,28 @@ async function updatePropertyStatus(status) {
               :value="opt.value"
             />
           </el-select>
+        </el-card>
+
+        <el-card
+          v-if="isManager"
+          shadow="never"
+          style="margin-top: var(--gap-md)"
+          v-loading="loading"
+        >
+          <div class="muted" style="margin-bottom: 8px">Фото объекта</div>
+          <el-upload
+            :http-request="uploadPropertyImage"
+            :show-file-list="false"
+            accept="image/png,image/jpeg,image/webp"
+            :disabled="!property || uploading"
+          >
+            <el-button type="primary" plain :loading="uploading"
+              >Загрузить фото</el-button
+            >
+          </el-upload>
+          <div class="muted" style="margin-top: 8px">
+            Поддерживаются JPG/PNG/WebP.
+          </div>
         </el-card>
       </div>
     </div>

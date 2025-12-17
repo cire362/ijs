@@ -8,6 +8,6 @@
 .cards-list {
   display: grid;
   gap: var(--gap-md);
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(460px, 1fr));
 }
 </style>

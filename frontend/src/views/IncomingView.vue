@@ -25,6 +25,8 @@ const isAdmin = computed(() => auth.user?.role === "admin");
 const selectedDeveloperId = ref("");
 const developerOptions = ref([]);
 const developerLoading = ref(false);
+const q = ref("");
+const selectedStatus = ref("");
 const statusOptions = [
   { value: "confirmed", label: "Заявка подтверждена", type: "success" },
   { value: "contract_signed", label: "Договор заключен", type: "warning" },
@@ -56,6 +58,7 @@ const columns = computed(() => {
     { prop: "price", label: "Стоимость", minWidth: 130 },
     { prop: "commission", label: "Комиссия", minWidth: 130 },
     { prop: "agentFio", label: "ФИО", minWidth: 180 },
+    { prop: "deadline", label: "Срок до", minWidth: 130 },
     { prop: "status", label: "Статус", minWidth: 140 },
   ];
   if (isAdmin.value) {
@@ -97,6 +100,23 @@ function formatDate(v) {
   return d.toLocaleDateString("ru-RU");
 }
 
+function formatDateTime(v) {
+  if (!v) return "—";
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("ru-RU");
+}
+
+function deadlineTagType(row) {
+  const dt = row?.expiresAt ? new Date(row.expiresAt) : null;
+  if (!dt || Number.isNaN(dt.getTime())) return "info";
+  const diffMs = dt.getTime() - Date.now();
+  if (diffMs <= 0) return "danger";
+  const diffDays = diffMs / (1000 * 60 * 60 * 24);
+  if (diffDays <= 2) return "warning";
+  return "success";
+}
+
 function statusLabel(status) {
   const found = STATUS_FLOW.find((s) => s.key === status);
   if (found) return found.label;
@@ -115,6 +135,16 @@ const selectedId = ref(null);
 const selected = computed(() =>
   selectedId.value ? items.value.find((a) => a.id === selectedId.value) : null
 );
+
+const selectedHistory = computed(() => {
+  const h = selected.value?.history;
+  if (!Array.isArray(h)) return [];
+  return [...h].sort((a, b) => {
+    const ta = a?.createdAt ? new Date(a.createdAt).getTime() : 0;
+    const tb = b?.createdAt ? new Date(b.createdAt).getTime() : 0;
+    return ta - tb;
+  });
+});
 
 function selectForTracking(id) {
   selectedId.value = id;
@@ -183,6 +213,59 @@ function statusTag(status) {
     return "warning";
   return "info";
 }
+
+function normalizeText(v) {
+  return String(v || "")
+    .toLowerCase()
+    .trim();
+}
+
+const filteredItems = computed(() => {
+  const qq = normalizeText(q.value);
+  return items.value.filter((a) => {
+    if (selectedStatus.value && a.status !== selectedStatus.value) return false;
+    if (!qq) return true;
+
+    const p = a.property;
+    const hay = [
+      a.id,
+      p?.title,
+      p?.region,
+      p?.city,
+      p?.street,
+      p?.plotNumber,
+      personName(a.agent),
+      developerLabel(p?.developer),
+    ]
+      .filter(Boolean)
+      .map((x) => normalizeText(x))
+      .join(" ");
+
+    return hay.includes(qq);
+  });
+});
+
+const tableRows = computed(() =>
+  filteredItems.value.map((a) => ({
+    ...a,
+    date: formatDate(a.createdAt),
+    number: a.id,
+    title: a.property?.title,
+    address: [
+      a.property?.region,
+      a.property?.city,
+      a.property?.street,
+      a.property?.plotNumber,
+    ]
+      .filter(Boolean)
+      .join(", "),
+    price: formatMoney(a.property?.price),
+    commission: formatMoney(a.commissionAmount),
+    developer: developerLabel(a.property?.developer),
+    agentFio: personName(a.agent),
+    deadline: a.expiresAt,
+  }))
+);
 </script>
 
 <template>
@@ -241,38 +324,57 @@ function statusTag(status) {
       description="Доступно только для застройщика или админа"
     />
     <template v-else>
-      <CRMTable
-        :columns="columns"
-        :rows="
-          items.map((a) => ({
-            ...a,
-            date: formatDate(a.createdAt),
-            number: a.id,
-            title: a.property?.title,
-            address: [
-              a.property?.region,
-              a.property?.city,
-              a.property?.street,
-              a.property?.plotNumber,
-            ]
-              .filter(Boolean)
-              .join(', '),
-            price: formatMoney(a.property?.price),
-            commission: formatMoney(a.commissionAmount),
-            developer: developerLabel(a.property?.developer),
-            agentFio: personName(a.agent),
-          }))
-        "
-        :loading="loading"
-        border
-      >
+      <el-card shadow="never" style="margin-bottom: var(--gap-md)">
+        <div class="muted" style="margin-bottom: 8px">Фильтры</div>
+        <div
+          style="
+            display: flex;
+            gap: var(--gap-sm);
+            flex-wrap: wrap;
+            align-items: center;
+          "
+        >
+          <el-input
+            v-model="q"
+            clearable
+            placeholder="Поиск по объекту/адресу/агенту/ID"
+            style="min-width: 320px"
+          />
+          <el-select
+            v-model="selectedStatus"
+            clearable
+            placeholder="Все статусы"
+            style="min-width: 220px"
+          >
+            <el-option
+              v-for="s in [
+                ...STATUS_FLOW,
+                { key: 'rejected', label: 'Отклонена' },
+                { key: 'expired', label: 'Истек срок' },
+              ]"
+              :key="s.key"
+              :label="s.label"
+              :value="s.key"
+            />
+          </el-select>
+          <div class="muted">Найдено: {{ tableRows.length }}</div>
+        </div>
+      </el-card>
+
+      <CRMTable :columns="columns" :rows="tableRows" :loading="loading" border>
+        <template #deadline="{ row }">
+          <span v-if="!row.expiresAt">—</span>
+          <el-tag v-else :type="deadlineTagType(row)" effect="light">
+            {{ formatDate(row.expiresAt) }}
+          </el-tag>
+        </template>
         <template #status="{ row }">
           <el-tag :type="statusTag(row.status)" effect="light">{{
             statusLabel(row.status)
           }}</el-tag>
         </template>
         <template #actions="{ row }">
-          <el-button-group>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap">
             <el-button
               v-for="option in statusOptions"
               :key="option.value"
@@ -282,26 +384,23 @@ function statusTag(status) {
             >
               {{ option.label }}
             </el-button>
-          </el-button-group>
+            <el-button
+              v-if="row.status === 'sent'"
+              type="default"
+              plain
+              size="small"
+              @click="extendDeadline(row.id)"
+              >Продлить срок</el-button
+            >
 
-          <el-button
-            v-if="row.status === 'sent'"
-            style="margin-left: 8px"
-            type="default"
-            plain
-            size="small"
-            @click="extendDeadline(row.id)"
-            >Продлить срок</el-button
-          >
-
-          <el-button
-            style="margin-left: 8px"
-            type="primary"
-            plain
-            size="small"
-            @click="selectForTracking(row.id)"
-            >Отследить</el-button
-          >
+            <el-button
+              type="primary"
+              plain
+              size="small"
+              @click="selectForTracking(row.id)"
+              >Отследить</el-button
+            >
+          </div>
         </template>
       </CRMTable>
 
@@ -314,6 +413,19 @@ function statusTag(status) {
           <div style="margin-top: 8px; font-weight: 700">
             Заявка №{{ selected.id }} ·
             {{ selected.property?.title || "Объект" }}
+          </div>
+
+          <div class="muted" style="margin-top: 6px">
+            Срок до:
+            <template v-if="selected.expiresAt">
+              <el-tag
+                :type="deadlineTagType(selected)"
+                effect="light"
+                style="margin-left: 6px"
+                >{{ formatDate(selected.expiresAt) }}</el-tag
+              >
+            </template>
+            <template v-else>—</template>
           </div>
 
           <div style="margin-top: 12px">
@@ -340,6 +452,32 @@ function statusTag(status) {
               <el-tag type="danger" effect="light">{{
                 selected.status === "expired" ? "Истек срок" : "Отклонена"
               }}</el-tag>
+            </div>
+          </div>
+
+          <el-divider style="margin: 16px 0" />
+
+          <div class="muted">Дата изменения статуса</div>
+          <div
+            v-if="!selectedHistory.length"
+            class="muted"
+            style="margin-top: 8px"
+          >
+            История отсутствует.
+          </div>
+          <div v-else style="margin-top: 10px; display: grid; gap: 10px">
+            <div
+              v-for="h in selectedHistory"
+              :key="h.id"
+              style="
+                display: flex;
+                justify-content: space-between;
+                gap: 12px;
+                flex-wrap: wrap;
+              "
+            >
+              <div style="font-weight: 600">{{ statusLabel(h.status) }}</div>
+              <div class="muted">{{ formatDateTime(h.createdAt) }}</div>
             </div>
           </div>
         </template>

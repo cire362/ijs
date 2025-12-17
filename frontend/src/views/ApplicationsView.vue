@@ -17,6 +17,9 @@ const auth = useAuthStore();
 const items = ref([]);
 const loading = ref(false);
 
+const q = ref("");
+const selectedStatus = ref("");
+
 const isAgent = computed(() => auth.user?.role === "agent");
 const columns = [
   { prop: "date", label: "Дата", minWidth: 120 },
@@ -25,6 +28,7 @@ const columns = [
   { prop: "address", label: "Адрес", minWidth: 220 },
   { prop: "price", label: "Стоимость", minWidth: 130 },
   { prop: "commission", label: "Комиссия", minWidth: 130 },
+  { prop: "deadline", label: "Срок до", minWidth: 130 },
   { prop: "fio", label: "ФИО", minWidth: 180 },
   { prop: "status", label: "Статус", minWidth: 160 },
 ];
@@ -50,6 +54,19 @@ function formatDate(v) {
   const d = new Date(v);
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleDateString("ru-RU");
+}
+
+function formatDateTime(v) {
+  if (!v) return "—";
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("ru-RU", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function personName(u) {
@@ -80,6 +97,14 @@ const selectedId = ref(null);
 const selected = computed(() =>
   selectedId.value ? items.value.find((a) => a.id === selectedId.value) : null
 );
+
+const selectedHistory = computed(() => {
+  const h = selected.value?.history;
+  if (!Array.isArray(h)) return [];
+  return [...h].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
+});
 
 function selectForTracking(id) {
   selectedId.value = id;
@@ -113,6 +138,61 @@ function statusTag(status) {
     return "warning";
   return "info";
 }
+
+function deadlineTagType(row) {
+  if (!row?.expiresAt) return "info";
+  const t = new Date(row.expiresAt).getTime();
+  if (Number.isNaN(t)) return "info";
+  if (row.status === "expired") return "danger";
+  const now = Date.now();
+  if (now > t) return "danger";
+  const daysLeft = (t - now) / (24 * 60 * 60 * 1000);
+  if (row.status === "sent" && daysLeft <= 2) return "warning";
+  return "info";
+}
+
+function normalizeText(v) {
+  return String(v || "")
+    .toLowerCase()
+    .trim();
+}
+
+const filteredItems = computed(() => {
+  const qq = normalizeText(q.value);
+  return items.value.filter((a) => {
+    if (selectedStatus.value && a.status !== selectedStatus.value) return false;
+    if (!qq) return true;
+
+    const p = a.property;
+    const hay = [a.id, p?.title, p?.region, p?.city, p?.street, p?.plotNumber]
+      .filter(Boolean)
+      .map((x) => normalizeText(x))
+      .join(" ");
+
+    return hay.includes(qq);
+  });
+});
+
+const tableRows = computed(() =>
+  filteredItems.value.map((a) => ({
+    ...a,
+    date: formatDate(a.createdAt),
+    number: a.id,
+    title: a.property?.title,
+    address: [
+      a.property?.region,
+      a.property?.city,
+      a.property?.street,
+      a.property?.plotNumber,
+    ]
+      .filter(Boolean)
+      .join(", "),
+    price: formatMoney(a.property?.price),
+    commission: formatMoney(a.commissionAmount),
+    deadline: a.expiresAt ? formatDate(a.expiresAt) : "—",
+    fio: personName(a.agent) || personName(auth.user),
+  }))
+);
 </script>
 
 <template>
@@ -139,30 +219,50 @@ function statusTag(status) {
       description="Раздел доступен только агенту"
     />
     <template v-else>
-      <CRMTable
-        :columns="columns"
-        :rows="
-          items.map((a) => ({
-            ...a,
-            date: formatDate(a.createdAt),
-            number: a.id,
-            title: a.property?.title,
-            address: [
-              a.property?.region,
-              a.property?.city,
-              a.property?.street,
-              a.property?.plotNumber,
-            ]
-              .filter(Boolean)
-              .join(', '),
-            price: formatMoney(a.property?.price),
-            commission: formatMoney(a.commissionAmount),
-            fio: personName(a.agent) || personName(auth.user),
-          }))
-        "
-        :loading="loading"
-        stripe
-      >
+      <el-card shadow="never" style="margin-bottom: var(--gap-md)">
+        <div class="muted" style="margin-bottom: 8px">Фильтры</div>
+        <div
+          style="
+            display: flex;
+            gap: var(--gap-sm);
+            flex-wrap: wrap;
+            align-items: center;
+          "
+        >
+          <el-input
+            v-model="q"
+            clearable
+            placeholder="Поиск по названию/адресу/ID"
+            style="min-width: 320px"
+          />
+          <el-select
+            v-model="selectedStatus"
+            clearable
+            placeholder="Все статусы"
+            style="min-width: 220px"
+          >
+            <el-option
+              v-for="s in [
+                ...STATUS_FLOW,
+                { key: 'rejected', label: 'Отклонена' },
+                { key: 'expired', label: 'Истек срок' },
+              ]"
+              :key="s.key"
+              :label="s.label"
+              :value="s.key"
+            />
+          </el-select>
+          <div class="muted">Найдено: {{ tableRows.length }}</div>
+        </div>
+      </el-card>
+
+      <CRMTable :columns="columns" :rows="tableRows" :loading="loading" stripe>
+        <template #deadline="{ row }">
+          <span v-if="!row.expiresAt">—</span>
+          <el-tag v-else :type="deadlineTagType(row)" effect="light">
+            {{ formatDate(row.expiresAt) }}
+          </el-tag>
+        </template>
         <template #status="{ row }">
           <el-tag :type="statusTag(row.status)" effect="light">{{
             statusLabel(row.status)
@@ -190,6 +290,19 @@ function statusTag(status) {
             {{ selected.property?.title || "Объект" }}
           </div>
 
+          <div class="muted" style="margin-top: 6px">
+            Срок до:
+            <template v-if="selected.expiresAt">
+              <el-tag
+                :type="deadlineTagType(selected)"
+                effect="light"
+                style="margin-left: 6px"
+                >{{ formatDate(selected.expiresAt) }}</el-tag
+              >
+            </template>
+            <template v-else>—</template>
+          </div>
+
           <div style="margin-top: 12px">
             <el-steps
               v-if="
@@ -214,6 +327,32 @@ function statusTag(status) {
               <el-tag type="danger" effect="light">{{
                 selected.status === "expired" ? "Истек срок" : "Отклонена"
               }}</el-tag>
+            </div>
+          </div>
+
+          <el-divider style="margin: 16px 0" />
+
+          <div class="muted">Дата изменения статуса</div>
+          <div
+            v-if="!selectedHistory.length"
+            class="muted"
+            style="margin-top: 8px"
+          >
+            История отсутствует.
+          </div>
+          <div v-else style="margin-top: 10px; display: grid; gap: 10px">
+            <div
+              v-for="h in selectedHistory"
+              :key="h.id"
+              style="
+                display: flex;
+                justify-content: space-between;
+                gap: 12px;
+                flex-wrap: wrap;
+              "
+            >
+              <div style="font-weight: 600">{{ statusLabel(h.status) }}</div>
+              <div class="muted">{{ formatDateTime(h.createdAt) }}</div>
             </div>
           </div>
         </template>

@@ -116,9 +116,55 @@ async function updateProperty(req, res) {
   return res.json(property);
 }
 
+async function addPropertyImages(req, res) {
+  const property = await Property.findByPk(req.params.id);
+  if (!property) return res.status(404).json({ error: "Not found" });
+
+  if (req.user.role === "developer" && property.developerId !== req.user.id) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+
+  const files = Array.isArray(req.files) ? req.files : [];
+  if (!files.length) {
+    return res.status(400).json({ error: "No images uploaded" });
+  }
+
+  await PropertyImage.bulkCreate(
+    files.map((f) => ({
+      propertyId: property.id,
+      url: `/uploads/properties/${f.filename}`,
+      caption: f.originalname || null,
+    }))
+  );
+
+  const full = await Property.findByPk(property.id, {
+    include: [
+      {
+        model: User,
+        as: "developer",
+        attributes: [
+          "id",
+          "firstName",
+          "lastName",
+          "middleName",
+          "companyName",
+        ],
+      },
+      {
+        model: PropertyImage,
+        as: "images",
+        attributes: ["id", "url", "caption"],
+      },
+    ],
+  });
+
+  return res.status(201).json(full);
+}
+
 module.exports = {
   listProperties,
   getPropertyById,
   createProperty,
   updateProperty,
+  addPropertyImages,
 };

@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref, computed } from "vue";
+import { onMounted, ref, computed, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore, apiClient } from "../stores/auth";
 import { ElMessage } from "element-plus";
@@ -156,6 +156,21 @@ const filteredItems = computed(() => {
   });
 });
 
+const page = ref(1);
+const pageSize = ref(12);
+
+const pagedItems = computed(() => {
+  const start = (page.value - 1) * pageSize.value;
+  return filteredItems.value.slice(start, start + pageSize.value);
+});
+
+watch(
+  () => filteredItems.value.length,
+  () => {
+    page.value = 1;
+  }
+);
+
 const regions = computed(() =>
   Array.from(new Set(items.value.map((p) => p.region).filter(Boolean))).sort()
 );
@@ -290,6 +305,7 @@ async function applyToProperty(propertyId) {
 
 function onFiltersApply(payload) {
   filters.value = payload;
+  page.value = 1;
 }
 function onFiltersReset() {
   filters.value = {
@@ -309,6 +325,7 @@ function onFiltersReset() {
     houseMin: null,
     houseMax: null,
   };
+  page.value = 1;
 }
 
 async function updatePropertyStatus(property, status) {
@@ -470,7 +487,7 @@ function goDetails(propertyId) {
 
     <div style="margin-bottom: var(--gap-md)" v-loading="loading">
       <CardsList>
-        <SearchResultsCard v-for="p in filteredItems" :key="p.id" :property="p">
+        <SearchResultsCard v-for="p in pagedItems" :key="p.id" :property="p">
           <template #actions>
             <el-button type="warning" plain @click="goDetails(p.id)"
               >Детали</el-button
@@ -505,6 +522,19 @@ function goDetails(propertyId) {
           </template>
         </SearchResultsCard>
       </CardsList>
+    </div>
+
+    <div
+      v-if="filteredItems.length > pageSize"
+      style="display: flex; justify-content: center; margin-top: var(--gap-md)"
+    >
+      <el-pagination
+        v-model:current-page="page"
+        v-model:page-size="pageSize"
+        :total="filteredItems.length"
+        :page-sizes="[12, 24, 48]"
+        layout="total, sizes, prev, pager, next"
+      />
     </div>
   </div>
 </template>

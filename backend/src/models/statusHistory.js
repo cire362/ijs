@@ -15,7 +15,7 @@ StatusHistory.init(
     status: { type: DataTypes.STRING, allowNull: false },
     changedBy: {
       type: DataTypes.INTEGER,
-      allowNull: false,
+      allowNull: true,
       references: { model: User, key: "id" },
     },
     comment: { type: DataTypes.TEXT },

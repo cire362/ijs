@@ -11,7 +11,10 @@ const {
   getPropertyById,
   createProperty,
   updateProperty,
+  addPropertyImages,
 } = require("../controllers/propertyController");
+
+const { uploadPropertyImages } = require("../utils/upload");
 
 router.get("/", optionalAuthenticate, asyncHandler(listProperties));
 router.get("/:id", asyncHandler(getPropertyById));
@@ -26,6 +29,15 @@ router.patch(
   authenticate,
   allowRoles("developer", "admin"),
   asyncHandler(updateProperty)
+);
+
+router.post(
+  "/:id/images",
+  authenticate,
+  allowRoles("developer", "admin"),
+  (req, res, next) =>
+    uploadPropertyImages(req, res, (err) => (err ? next(err) : next())),
+  asyncHandler(addPropertyImages)
 );
 
 module.exports = router;
