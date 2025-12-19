@@ -42,6 +42,16 @@ const allowRoles =
     if (!req.user || !roles.includes(req.user.role)) {
       return res.status(403).json({ error: "Forbidden" });
     }
+
+    if (
+      req.user.role === "developer" &&
+      roles.includes("developer") &&
+      req.user.developerApproved === false
+    ) {
+      return res
+        .status(403)
+        .json({ error: "Developer account requires admin approval" });
+    }
     next();
   };
 

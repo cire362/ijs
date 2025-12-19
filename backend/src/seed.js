@@ -177,6 +177,8 @@ async function seed() {
     return {
       email: `dev${i + 1}@test.com`,
       role: "developer",
+      developerApproved: true,
+      developerRejected: false,
       companyName,
       lastName,
       firstName,
@@ -185,6 +187,49 @@ async function seed() {
     };
   });
 
+  // One pending developer registration for admin approval flow demo
+  developers.push({
+    email: "pending-dev@test.com",
+    role: "developer",
+    developerApproved: false,
+    developerRejected: false,
+    companyName: "СЗ Тест Ожидание",
+    lastName: "Тестов",
+    firstName: "Ожидает",
+    middleName: "Подтверждения",
+    phone: "+7 900 999-00-01",
+  });
+
+  // Additional mixed-status developers (deterministic via SEED_RANDOM_SEED)
+  const extraDevelopersCount = 8;
+  for (let i = 0; i < extraDevelopersCount; i++) {
+    const lastName = randomChoice(rng, lastNames);
+    const firstName = randomChoice(rng, firstNames);
+    const middleName = randomChoice(rng, middleNames);
+    const companyName = `${randomChoice(rng, companyPrefixes)} ${randomChoice(
+      rng,
+      companyWords
+    )} ${randomChoice(rng, companyWords)}`.replace(/\s+/g, " ");
+
+    // Ensure at least a couple of pending accounts exist
+    const developerApproved = i < 2 ? false : rng() < 0.7;
+    const email = developerApproved
+      ? `dev-extra-${i + 1}@test.com`
+      : `dev-pending-${i + 1}@test.com`;
+
+    developers.push({
+      email,
+      role: "developer",
+      developerApproved,
+      developerRejected: false,
+      companyName,
+      lastName,
+      firstName,
+      middleName,
+      phone: `+7 900 777-00-${String(i + 1).padStart(2, "0")}`,
+    });
+  }
+
   const agents = Array.from({ length: 12 }).map((_, i) => {
     const lastName = randomChoice(rng, lastNames);
     const firstName = randomChoice(rng, firstNames);
@@ -192,6 +237,8 @@ async function seed() {
     return {
       email: i === 0 ? "agent@test.com" : `agent${i + 1}@test.com`,
       role: "agent",
+      developerApproved: true,
+      developerRejected: false,
       companyName: `Агентство ${randomChoice(rng, companyWords)}`,
       lastName,
       firstName,
@@ -203,6 +250,8 @@ async function seed() {
   const admin = {
     email: "admin@test.com",
     role: "admin",
+    developerApproved: true,
+    developerRejected: false,
     companyName: "IJSHub",
     lastName: "Сидоров",
     firstName: "Админ",
@@ -221,6 +270,10 @@ async function seed() {
       })
     );
   }
+
+  const approvedDevelopers = createdDevelopers.filter(
+    (d) => d.role === "developer" && d.developerApproved
+  );
 
   for (const a of agents) {
     await findOrCreateUserByEmail({
@@ -267,6 +320,7 @@ async function seed() {
     "В строительстве",
     "На этапе коробки",
   ];
+  const registrationTypesList = ["ИЖС", "СНТ", "ЛПХ"];
   const buildStagesList = [
     "Готов",
     "Отделка",
@@ -285,7 +339,10 @@ async function seed() {
 
   const createdProperties = [];
   for (let i = 0; i < propertiesCount; i++) {
-    const dev = randomChoice(rng, createdDevelopers);
+    const dev = randomChoice(
+      rng,
+      approvedDevelopers.length ? approvedDevelopers : createdDevelopers
+    );
     const loc = randomChoice(rng, regions);
     const city = randomChoice(rng, loc.cities);
     const landArea = Math.round((rng() * 8 + 4) * 10) / 10; // 4..12
@@ -311,6 +368,7 @@ async function seed() {
       contractType: randomChoice(rng, contractTypesList),
       constructionType: randomChoice(rng, constructionTypesList),
       readinessType: randomChoice(rng, readinessTypesList),
+      registration: randomChoice(rng, registrationTypesList),
       saleStatus: "available",
       buildStage: randomChoice(rng, buildStagesList),
       price,
@@ -477,6 +535,7 @@ async function seed() {
   console.log("- dev1@test.com / password");
   console.log("- dev2@test.com / password");
   console.log("- dev10@test.com / password");
+  console.log("- pending-dev@test.com / password (needs admin approval)");
   console.log("- admin@test.com / password");
   console.log("Tip: set SEED_FORCE=1 to recreate tables.");
   console.log("Tip: set SEED_RANDOM_SEED=42 to get deterministic randomness.");

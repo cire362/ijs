@@ -24,6 +24,7 @@ Property.init(
     contractType: { type: DataTypes.STRING },
     constructionType: { type: DataTypes.STRING },
     readinessType: { type: DataTypes.STRING },
+    registration: { type: DataTypes.STRING },
     saleStatus: {
       type: DataTypes.ENUM("available", "reserved", "sold"),
       defaultValue: "available",

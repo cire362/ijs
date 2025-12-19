@@ -7,11 +7,17 @@ const {
   getMe,
   updateMe,
   uploadMyAvatar,
+  changeMyPassword,
   listDevelopers,
+  approveDeveloper,
+  rejectDeveloper,
+  deleteDeveloperRequest,
+  createDeveloperByAdmin,
 } = require("../controllers/userController");
 
 router.get("/me", authenticate, asyncHandler(getMe));
 router.patch("/me", authenticate, asyncHandler(updateMe));
+router.patch("/me/password", authenticate, asyncHandler(changeMyPassword));
 router.post(
   "/me/avatar",
   authenticate,
@@ -25,6 +31,34 @@ router.get(
   authenticate,
   allowRoles("admin"),
   asyncHandler(listDevelopers)
+);
+
+router.patch(
+  "/developers/:id/approve",
+  authenticate,
+  allowRoles("admin"),
+  asyncHandler(approveDeveloper)
+);
+
+router.patch(
+  "/developers/:id/reject",
+  authenticate,
+  allowRoles("admin"),
+  asyncHandler(rejectDeveloper)
+);
+
+router.delete(
+  "/developers/:id",
+  authenticate,
+  allowRoles("admin"),
+  asyncHandler(deleteDeveloperRequest)
+);
+
+router.post(
+  "/developers",
+  authenticate,
+  allowRoles("admin"),
+  asyncHandler(createDeveloperByAdmin)
 );
 
 module.exports = router;

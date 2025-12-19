@@ -2,7 +2,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { User } = require("../models");
 
-const allowedRoles = ["agent", "developer", "admin"];
+const allowedRoles = ["agent", "developer"];
 const jwtSecret = process.env.JWT_SECRET || "dev_jwt_secret";
 
 async function register(req, res) {
@@ -48,6 +48,7 @@ async function register(req, res) {
       passwordHash,
       role,
       companyName,
+      developerApproved: role === "developer" ? false : true,
     });
     return res
       .status(201)
@@ -77,6 +78,7 @@ async function login(req, res) {
       middleName: user.middleName,
       fullName: user.fullName,
       role: user.role,
+      developerApproved: user.developerApproved,
       avatarUrl: user.avatarUrl,
     },
   });

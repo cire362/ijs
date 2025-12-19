@@ -2,7 +2,7 @@ const { Property, PropertyImage, User } = require("../models");
 
 async function listProperties(req, res) {
   const canSeeAllStatuses =
-    req.user?.role === "developer" ||
+    (req.user?.role === "developer" && req.user?.developerApproved) ||
     req.user?.role === "admin" ||
     req.user?.role === "agent";
 

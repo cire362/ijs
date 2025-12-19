@@ -70,7 +70,9 @@ const active = computed(() => route.path);
 const isAuthed = computed(() => !!auth.user);
 const isAgent = computed(() => auth.user?.role === "agent");
 const isManager = computed(
-  () => auth.user?.role === "developer" || auth.user?.role === "admin"
+  () =>
+    (auth.user?.role === "developer" && auth.user?.developerApproved) ||
+    auth.user?.role === "admin"
 );
 
 const avatarSrc = computed(() => auth.user?.avatarUrl || "");

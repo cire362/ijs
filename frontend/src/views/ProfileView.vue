@@ -8,6 +8,13 @@ const auth = useAuthStore();
 const loading = ref(false);
 const saving = ref(false);
 
+const passwordSaving = ref(false);
+const passwordForm = ref({
+  currentPassword: "",
+  newPassword: "",
+  confirmPassword: "",
+});
+
 const form = ref({
   lastName: "",
   firstName: "",
@@ -120,6 +127,39 @@ async function save() {
     saving.value = false;
   }
 }
+
+async function changePassword() {
+  if (!passwordForm.value.currentPassword || !passwordForm.value.newPassword) {
+    ElMessage.error("Укажите текущий и новый пароль");
+    return;
+  }
+  if (passwordForm.value.newPassword.length < 6) {
+    ElMessage.error("Пароль должен быть минимум 6 символов");
+    return;
+  }
+  if (passwordForm.value.newPassword !== passwordForm.value.confirmPassword) {
+    ElMessage.error("Пароли не совпадают");
+    return;
+  }
+
+  passwordSaving.value = true;
+  try {
+    await apiClient.patch("/users/me/password", {
+      currentPassword: passwordForm.value.currentPassword,
+      newPassword: passwordForm.value.newPassword,
+    });
+    passwordForm.value = {
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    };
+    ElMessage.success("Пароль обновлён");
+  } catch (err) {
+    ElMessage.error(err.response?.data?.error || "Не удалось сменить пароль");
+  } finally {
+    passwordSaving.value = false;
+  }
+}
 </script>
 
 <template>
@@ -144,7 +184,12 @@ async function save() {
       description="Авторизуйтесь, чтобы редактировать профиль"
     />
 
-    <el-card v-else shadow="never" v-loading="loading">
+    <el-card
+      v-else
+      shadow="never"
+      v-loading="loading"
+      style="margin-bottom: var(--gap-md)"
+    >
       <el-form :model="form" label-position="top">
         <el-row :gutter="12" style="margin-bottom: 8px">
           <el-col :span="24">
@@ -208,6 +253,55 @@ async function save() {
               <el-input
                 v-model="form.companyName"
                 placeholder="Название компании"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+      </el-form>
+    </el-card>
+
+    <el-card v-if="isAuthed" shadow="never">
+      <template #header>
+        <div class="section-head" style="margin: 0">
+          <div>
+            <div class="pill">Безопасность</div>
+            <div style="font-weight: 700">Смена пароля</div>
+          </div>
+          <el-button
+            type="primary"
+            :loading="passwordSaving"
+            @click="changePassword"
+            >Сменить пароль</el-button
+          >
+        </div>
+      </template>
+
+      <el-form :model="passwordForm" label-position="top">
+        <el-row :gutter="12">
+          <el-col :span="12" :xs="24">
+            <el-form-item label="Текущий пароль">
+              <el-input
+                v-model="passwordForm.currentPassword"
+                type="password"
+                show-password
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12" :xs="24">
+            <el-form-item label="Новый пароль">
+              <el-input
+                v-model="passwordForm.newPassword"
+                type="password"
+                show-password
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12" :xs="24">
+            <el-form-item label="Повторите новый пароль">
+              <el-input
+                v-model="passwordForm.confirmPassword"
+                type="password"
+                show-password
               />
             </el-form-item>
           </el-col>

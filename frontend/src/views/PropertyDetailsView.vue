@@ -20,14 +20,25 @@ const editForm = ref({
   plotNumber: "",
   landArea: "",
   houseArea: "",
+  floors: "",
+  rooms: "",
+  buildStage: "",
+  constructionType: "",
+  finishingType: "",
+  contractType: "",
+  readinessType: "",
+  registration: "",
   price: "",
+  description: "",
 });
 
 const saving = ref(false);
 
 const isAgent = computed(() => auth.user?.role === "agent");
 const isManager = computed(
-  () => auth.user?.role === "developer" || auth.user?.role === "admin"
+  () =>
+    (auth.user?.role === "developer" && auth.user?.developerApproved) ||
+    auth.user?.role === "admin"
 );
 
 const statusOptions = [
@@ -35,6 +46,38 @@ const statusOptions = [
   { value: "reserved", label: "Бронь" },
   { value: "sold", label: "Продан" },
 ];
+
+const buildStageOptions = [
+  "Котлован",
+  "Фундамент",
+  "Коробка",
+  "Кровля",
+  "Инженерные сети",
+  "Отделка",
+  "Готовый дом",
+];
+
+const constructionTypeOptions = [
+  "Кирпич",
+  "Газобетон",
+  "Монолит",
+  "Каркас",
+  "Дерево",
+  "СИП-панели",
+];
+
+const finishingTypeOptions = [
+  "Без отделки",
+  "Предчистовая",
+  "Чистовая",
+  "С ремонтом",
+];
+
+const contractTypeOptions = ["ДКП", "ДДУ", "Подряд", "Аренда", "Иное"];
+
+const readinessTypeOptions = ["Строится", "Готовый дом", "Сдан"];
+
+const registrationOptions = ["ИЖС", "СНТ", "ЛПХ", "ДНП", "Другое"];
 
 const applicationComment = ref("");
 
@@ -77,7 +120,7 @@ const specs = computed(() => {
     { label: "Отделка", value: p.finishingType || "—" },
     { label: "Тип договора", value: p.contractType || "—" },
     { label: "Готовность", value: p.readinessType || "—" },
-    { label: "Регистрация", value: "Не указано сервером" },
+    { label: "Регистрация", value: p.registration || "—" },
   ];
 });
 
@@ -119,7 +162,16 @@ async function load() {
       plotNumber: data?.plotNumber || "",
       landArea: data?.landArea ?? "",
       houseArea: data?.houseArea ?? "",
+      floors: data?.floors ?? "",
+      rooms: data?.rooms ?? "",
+      buildStage: data?.buildStage || "",
+      constructionType: data?.constructionType || "",
+      finishingType: data?.finishingType || "",
+      contractType: data?.contractType || "",
+      readinessType: data?.readinessType || "",
+      registration: data?.registration || "",
       price: data?.price ?? "",
+      description: data?.description || "",
     };
   } catch (err) {
     const msg = err.response?.data?.error || "Не удалось загрузить объект";
@@ -182,7 +234,16 @@ async function saveEdits() {
       plotNumber: editForm.value.plotNumber,
       landArea: editForm.value.landArea,
       houseArea: editForm.value.houseArea,
+      floors: editForm.value.floors,
+      rooms: editForm.value.rooms,
+      buildStage: editForm.value.buildStage,
+      constructionType: editForm.value.constructionType,
+      finishingType: editForm.value.finishingType,
+      contractType: editForm.value.contractType,
+      readinessType: editForm.value.readinessType,
+      registration: editForm.value.registration,
       price: editForm.value.price,
+      description: editForm.value.description,
     };
     await apiClient.patch(`/properties/${property.value.id}`, payload);
     ElMessage.success("Изменения сохранены");
@@ -309,6 +370,134 @@ async function saveEdits() {
               <el-col :span="12" :xs="24" :sm="12" :md="12">
                 <el-form-item label="Цена (₽)">
                   <el-input v-model.number="editForm.price" type="number" />
+                </el-form-item>
+              </el-col>
+
+              <el-col :span="12" :xs="24" :sm="12" :md="12">
+                <el-form-item label="Этажность">
+                  <el-input v-model.number="editForm.floors" type="number" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12" :xs="24" :sm="12" :md="12">
+                <el-form-item label="Комнат">
+                  <el-input v-model.number="editForm.rooms" type="number" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12" :xs="24" :sm="12" :md="12">
+                <el-form-item label="Стадия строительства">
+                  <el-select
+                    v-model="editForm.buildStage"
+                    clearable
+                    filterable
+                    placeholder="Выберите"
+                    style="width: 100%"
+                  >
+                    <el-option
+                      v-for="opt in buildStageOptions"
+                      :key="opt"
+                      :label="opt"
+                      :value="opt"
+                    />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12" :xs="24" :sm="12" :md="12">
+                <el-form-item label="Конструкция">
+                  <el-select
+                    v-model="editForm.constructionType"
+                    clearable
+                    filterable
+                    placeholder="Выберите"
+                    style="width: 100%"
+                  >
+                    <el-option
+                      v-for="opt in constructionTypeOptions"
+                      :key="opt"
+                      :label="opt"
+                      :value="opt"
+                    />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12" :xs="24" :sm="12" :md="12">
+                <el-form-item label="Отделка">
+                  <el-select
+                    v-model="editForm.finishingType"
+                    clearable
+                    filterable
+                    placeholder="Выберите"
+                    style="width: 100%"
+                  >
+                    <el-option
+                      v-for="opt in finishingTypeOptions"
+                      :key="opt"
+                      :label="opt"
+                      :value="opt"
+                    />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12" :xs="24" :sm="12" :md="12">
+                <el-form-item label="Тип договора">
+                  <el-select
+                    v-model="editForm.contractType"
+                    clearable
+                    filterable
+                    placeholder="Выберите"
+                    style="width: 100%"
+                  >
+                    <el-option
+                      v-for="opt in contractTypeOptions"
+                      :key="opt"
+                      :label="opt"
+                      :value="opt"
+                    />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12" :xs="24" :sm="12" :md="12">
+                <el-form-item label="Готовность">
+                  <el-select
+                    v-model="editForm.readinessType"
+                    clearable
+                    filterable
+                    placeholder="Выберите"
+                    style="width: 100%"
+                  >
+                    <el-option
+                      v-for="opt in readinessTypeOptions"
+                      :key="opt"
+                      :label="opt"
+                      :value="opt"
+                    />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :span="12" :xs="24" :sm="12" :md="12">
+                <el-form-item label="Регистрация">
+                  <el-select
+                    v-model="editForm.registration"
+                    clearable
+                    filterable
+                    placeholder="Выберите"
+                    style="width: 100%"
+                  >
+                    <el-option
+                      v-for="opt in registrationOptions"
+                      :key="opt"
+                      :label="opt"
+                      :value="opt"
+                    />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :span="24">
+                <el-form-item label="Описание">
+                  <el-input
+                    v-model="editForm.description"
+                    type="textarea"
+                    :rows="4"
+                  />
                 </el-form-item>
               </el-col>
             </el-row>

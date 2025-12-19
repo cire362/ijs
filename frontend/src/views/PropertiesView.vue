@@ -15,21 +15,72 @@ const loading = ref(false);
 
 const isAgent = computed(() => auth.user?.role === "agent");
 const isManager = computed(
-  () => auth.user?.role === "developer" || auth.user?.role === "admin"
+  () =>
+    (auth.user?.role === "developer" && auth.user?.developerApproved) ||
+    auth.user?.role === "admin"
 );
 const isAdmin = computed(() => auth.user?.role === "admin");
-const isDeveloper = computed(() => auth.user?.role === "developer");
+const isDeveloper = computed(
+  () => auth.user?.role === "developer" && auth.user?.developerApproved
+);
 
 const activeTab = ref("catalog");
 
 const developers = ref([]);
 const developersListLoading = ref(false);
 const selectedDeveloper = ref(null);
+const developersQ = ref("");
+
+const pendingDevelopers = ref([]);
+const pendingDevelopersLoading = ref(false);
+
+const adminCreateDevLoading = ref(false);
+const adminCreateDevForm = ref({
+  companyName: "",
+  email: "",
+  phone: "",
+  lastName: "",
+  firstName: "",
+  middleName: "",
+  password: "",
+});
 const statusOptions = [
   { value: "available", label: "Свободен" },
   { value: "reserved", label: "Бронь" },
   { value: "sold", label: "Продан" },
 ];
+
+const buildStageOptions = [
+  "Котлован",
+  "Фундамент",
+  "Коробка",
+  "Кровля",
+  "Инженерные сети",
+  "Отделка",
+  "Готовый дом",
+];
+
+const constructionTypeOptions = [
+  "Кирпич",
+  "Газобетон",
+  "Монолит",
+  "Каркас",
+  "Дерево",
+  "СИП-панели",
+];
+
+const finishingTypeOptions = [
+  "Без отделки",
+  "Предчистовая",
+  "Чистовая",
+  "С ремонтом",
+];
+
+const contractTypeOptions = ["ДКП", "ДДУ", "Подряд", "Аренда", "Иное"];
+
+const readinessTypeOptions = ["Строится", "Готовый дом", "Сдан"];
+
+const registrationOptions = ["ИЖС", "СНТ", "ЛПХ", "ДНП", "Другое"];
 
 const filters = ref({
   search: "",
@@ -59,8 +110,45 @@ const form = ref({
   plotNumber: "",
   landArea: "",
   houseArea: "",
+  floors: "",
+  rooms: "",
+  buildStage: "",
+  constructionType: "",
+  finishingType: "",
+  contractType: "",
+  readinessType: "",
+  registration: "",
   price: "",
+  description: "",
 });
+
+const creatingProperty = ref(false);
+const createImages = ref([]);
+
+function onCreateImagesExceed() {
+  ElMessage.warning("Можно загрузить до 10 изображений");
+}
+
+function onCreateImagesChange(file, fileList) {
+  const raw = file?.raw;
+  if (!raw) return;
+
+  const okType = ["image/jpeg", "image/png", "image/webp"].includes(raw.type);
+  if (!okType) {
+    ElMessage.error("Допустимы только JPG/PNG/WEBP");
+    createImages.value = (fileList || []).filter((f) => f.uid !== file.uid);
+    return;
+  }
+
+  const maxSize = 6 * 1024 * 1024;
+  if (raw.size > maxSize) {
+    ElMessage.error("Файл слишком большой (макс 6 МБ)");
+    createImages.value = (fileList || []).filter((f) => f.uid !== file.uid);
+    return;
+  }
+
+  createImages.value = fileList || [];
+}
 
 const developerOptions = ref([]);
 const developerLoading = ref(false);
@@ -328,6 +416,14 @@ watch(
     ) {
       loadDevelopersList();
     }
+
+    if (
+      tab === "developer_registration" &&
+      isAdmin.value &&
+      pendingDevelopers.value.length === 0
+    ) {
+      loadPendingDevelopers();
+    }
   },
   { immediate: true }
 );
@@ -358,6 +454,86 @@ async function loadDevelopersList() {
   }
 }
 
+async function loadPendingDevelopers() {
+  pendingDevelopersLoading.value = true;
+  try {
+    const { data } = await apiClient.get("/users/developers", {
+      params: { status: "pending" },
+    });
+    pendingDevelopers.value = Array.isArray(data) ? data : [];
+  } catch (err) {
+    pendingDevelopers.value = [];
+  } finally {
+    pendingDevelopersLoading.value = false;
+  }
+}
+
+async function approveDeveloper(dev) {
+  try {
+    await apiClient.patch(`/users/developers/${dev.id}/approve`);
+    ElMessage.success("Застройщик подтверждён");
+    await loadPendingDevelopers();
+    await loadDevelopersList();
+  } catch (err) {
+    ElMessage.error(err.response?.data?.error || "Не удалось подтвердить");
+  }
+}
+
+async function rejectDeveloper(dev) {
+  try {
+    await apiClient.patch(`/users/developers/${dev.id}/reject`);
+    ElMessage.success("Заявка отклонена");
+    await loadPendingDevelopers();
+  } catch (err) {
+    ElMessage.error(err.response?.data?.error || "Не удалось отклонить");
+  }
+}
+
+async function deleteDeveloperRequest(dev) {
+  const ok = window.confirm(
+    "Удалить заявку и аккаунт застройщика? Действие необратимо."
+  );
+  if (!ok) return;
+  try {
+    await apiClient.delete(`/users/developers/${dev.id}`);
+    ElMessage.success("Заявка удалена");
+    await loadPendingDevelopers();
+  } catch (err) {
+    ElMessage.error(err.response?.data?.error || "Не удалось удалить");
+  }
+}
+
+function resetAdminCreateDevForm() {
+  adminCreateDevForm.value = {
+    companyName: "",
+    email: "",
+    phone: "",
+    lastName: "",
+    firstName: "",
+    middleName: "",
+    password: "",
+  };
+}
+
+async function adminCreateDeveloper() {
+  if (!adminCreateDevForm.value.email || !adminCreateDevForm.value.password) {
+    ElMessage.error("Укажите email и пароль");
+    return;
+  }
+
+  adminCreateDevLoading.value = true;
+  try {
+    await apiClient.post("/users/developers", { ...adminCreateDevForm.value });
+    ElMessage.success("Застройщик создан");
+    resetAdminCreateDevForm();
+    await loadDevelopersList();
+  } catch (err) {
+    ElMessage.error(err.response?.data?.error || "Не удалось создать");
+  } finally {
+    adminCreateDevLoading.value = false;
+  }
+}
+
 function resetCreateForm(preservedDeveloperId = "") {
   form.value = {
     developerId: preservedDeveloperId,
@@ -368,14 +544,26 @@ function resetCreateForm(preservedDeveloperId = "") {
     plotNumber: "",
     landArea: "",
     houseArea: "",
+    floors: "",
+    rooms: "",
+    buildStage: "",
+    constructionType: "",
+    finishingType: "",
+    contractType: "",
+    readinessType: "",
+    registration: "",
     price: "",
+    description: "",
   };
+
+  createImages.value = [];
 }
 
 function openDeveloper(dev) {
   selectedDeveloper.value = dev;
   devQ.value = "";
   devStatus.value = "";
+  developersQ.value = "";
   resetCreateForm(String(dev?.id || ""));
 }
 
@@ -404,6 +592,18 @@ function normalizeText(v) {
     .toLowerCase()
     .trim();
 }
+
+const filteredDevelopers = computed(() => {
+  const qq = normalizeText(developersQ.value);
+  if (!qq) return developers.value;
+  return developers.value.filter((d) => {
+    const hay = [d?.companyName, d?.fullName, d?.email, d?.phone, d?.id]
+      .filter(Boolean)
+      .map((x) => normalizeText(x))
+      .join(" ");
+    return hay.includes(qq);
+  });
+});
 
 const filteredMyProperties = computed(() => {
   const qq = normalizeText(myQ.value);
@@ -441,6 +641,8 @@ const filteredSelectedDeveloperProperties = computed(() => {
 });
 
 async function createProperty() {
+  if (creatingProperty.value) return;
+  creatingProperty.value = true;
   try {
     if (!form.value.title || !form.value.region || !form.value.city) {
       ElMessage.error("Заполните название, регион и город");
@@ -453,13 +655,42 @@ async function createProperty() {
     }
 
     const payload = { ...form.value };
-    const { data } = await apiClient.post("/properties", payload);
-    items.value.unshift(data);
-    ElMessage.success("Объект создан");
+    const { data: created } = await apiClient.post("/properties", payload);
+
+    let finalProperty = created;
+    if (Array.isArray(createImages.value) && createImages.value.length) {
+      const fd = new FormData();
+      for (const f of createImages.value) {
+        if (f?.raw) fd.append("images", f.raw);
+      }
+      if ([...fd.keys()].length) {
+        try {
+          const { data: full } = await apiClient.post(
+            `/properties/${created.id}/images`,
+            fd,
+            { headers: { "Content-Type": "multipart/form-data" } }
+          );
+          finalProperty = full;
+          ElMessage.success("Объект создан и изображения загружены");
+        } catch (err) {
+          ElMessage.error(
+            err.response?.data?.error ||
+              "Объект создан, но не удалось загрузить изображения"
+          );
+        }
+      }
+    }
+
+    items.value.unshift(finalProperty);
+    if (finalProperty === created) {
+      ElMessage.success("Объект создан");
+    }
     const preservedDeveloperId = isAdmin.value ? form.value.developerId : "";
     resetCreateForm(preservedDeveloperId);
   } catch (err) {
     ElMessage.error(err.response?.data?.error || "Не удалось создать");
+  } finally {
+    creatingProperty.value = false;
   }
 }
 
@@ -732,7 +963,10 @@ function goDetails(propertyId) {
                   <div class="pill">Застройщик</div>
                   <div style="font-weight: 700">Создать объект</div>
                 </div>
-                <el-button type="primary" @click="createProperty"
+                <el-button
+                  type="primary"
+                  @click="createProperty"
+                  :loading="creatingProperty"
                   >Сохранить</el-button
                 >
               </div>
@@ -784,6 +1018,158 @@ function goDetails(propertyId) {
                 <el-col :span="12" :xs="24" :sm="12" :md="8">
                   <el-form-item label="Цена (₽)">
                     <el-input v-model.number="form.price" type="number" />
+                  </el-form-item>
+                </el-col>
+
+                <el-col :span="12" :xs="24" :sm="12" :md="8">
+                  <el-form-item label="Этажность">
+                    <el-input v-model.number="form.floors" type="number" />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12" :xs="24" :sm="12" :md="8">
+                  <el-form-item label="Комнат">
+                    <el-input v-model.number="form.rooms" type="number" />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12" :xs="24" :sm="12" :md="8">
+                  <el-form-item label="Стадия строительства">
+                    <el-select
+                      v-model="form.buildStage"
+                      clearable
+                      filterable
+                      placeholder="Выберите"
+                      style="width: 100%"
+                    >
+                      <el-option
+                        v-for="opt in buildStageOptions"
+                        :key="opt"
+                        :label="opt"
+                        :value="opt"
+                      />
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12" :xs="24" :sm="12" :md="8">
+                  <el-form-item label="Конструкция">
+                    <el-select
+                      v-model="form.constructionType"
+                      clearable
+                      filterable
+                      placeholder="Выберите"
+                      style="width: 100%"
+                    >
+                      <el-option
+                        v-for="opt in constructionTypeOptions"
+                        :key="opt"
+                        :label="opt"
+                        :value="opt"
+                      />
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12" :xs="24" :sm="12" :md="8">
+                  <el-form-item label="Отделка">
+                    <el-select
+                      v-model="form.finishingType"
+                      clearable
+                      filterable
+                      placeholder="Выберите"
+                      style="width: 100%"
+                    >
+                      <el-option
+                        v-for="opt in finishingTypeOptions"
+                        :key="opt"
+                        :label="opt"
+                        :value="opt"
+                      />
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12" :xs="24" :sm="12" :md="8">
+                  <el-form-item label="Тип договора">
+                    <el-select
+                      v-model="form.contractType"
+                      clearable
+                      filterable
+                      placeholder="Выберите"
+                      style="width: 100%"
+                    >
+                      <el-option
+                        v-for="opt in contractTypeOptions"
+                        :key="opt"
+                        :label="opt"
+                        :value="opt"
+                      />
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12" :xs="24" :sm="12" :md="8">
+                  <el-form-item label="Готовность">
+                    <el-select
+                      v-model="form.readinessType"
+                      clearable
+                      filterable
+                      placeholder="Выберите"
+                      style="width: 100%"
+                    >
+                      <el-option
+                        v-for="opt in readinessTypeOptions"
+                        :key="opt"
+                        :label="opt"
+                        :value="opt"
+                      />
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12" :xs="24" :sm="12" :md="8">
+                  <el-form-item label="Регистрация">
+                    <el-select
+                      v-model="form.registration"
+                      clearable
+                      filterable
+                      placeholder="Выберите"
+                      style="width: 100%"
+                    >
+                      <el-option
+                        v-for="opt in registrationOptions"
+                        :key="opt"
+                        :label="opt"
+                        :value="opt"
+                      />
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="24">
+                  <el-form-item label="Описание">
+                    <el-input
+                      v-model="form.description"
+                      type="textarea"
+                      :rows="3"
+                      placeholder="Описание объекта"
+                    />
+                  </el-form-item>
+                </el-col>
+
+                <el-col :span="24">
+                  <el-form-item label="Фотографии (до 10 шт.)">
+                    <el-upload
+                      v-model:file-list="createImages"
+                      drag
+                      multiple
+                      :auto-upload="false"
+                      :limit="10"
+                      :disabled="creatingProperty"
+                      accept="image/jpeg,image/png,image/webp"
+                      :on-exceed="onCreateImagesExceed"
+                      :on-change="onCreateImagesChange"
+                    >
+                      <div class="muted">
+                        Перетащите файлы сюда или нажмите для выбора
+                      </div>
+                      <div class="muted" style="margin-top: 4px">
+                        JPG/PNG/WEBP, до 6 МБ
+                      </div>
+                    </el-upload>
                   </el-form-item>
                 </el-col>
               </el-row>
@@ -870,7 +1256,135 @@ function goDetails(propertyId) {
           </el-card>
         </el-tab-pane>
 
-        <el-tab-pane v-else-if="isAdmin" label="Застройщики" name="developers">
+        <el-tab-pane
+          v-if="isAdmin"
+          label="Регистрация застройщика"
+          name="developer_registration"
+        >
+          <el-card shadow="never" style="margin-bottom: var(--gap-md)">
+            <template #header>
+              <div class="section-head" style="margin: 0">
+                <div>
+                  <div class="pill">Админ</div>
+                  <div style="font-weight: 700">Создать застройщика</div>
+                </div>
+                <el-button
+                  type="primary"
+                  :loading="adminCreateDevLoading"
+                  @click="adminCreateDeveloper"
+                  >Создать</el-button
+                >
+              </div>
+            </template>
+
+            <el-form :model="adminCreateDevForm" label-position="top">
+              <el-row :gutter="12">
+                <el-col :span="12" :xs="24" :sm="12" :md="8">
+                  <el-form-item label="Компания">
+                    <el-input v-model="adminCreateDevForm.companyName" />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12" :xs="24" :sm="12" :md="8">
+                  <el-form-item label="Email">
+                    <el-input v-model="adminCreateDevForm.email" />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12" :xs="24" :sm="12" :md="8">
+                  <el-form-item label="Телефон">
+                    <el-input v-model="adminCreateDevForm.phone" />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12" :xs="24" :sm="12" :md="8">
+                  <el-form-item label="Фамилия">
+                    <el-input v-model="adminCreateDevForm.lastName" />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12" :xs="24" :sm="12" :md="8">
+                  <el-form-item label="Имя">
+                    <el-input v-model="adminCreateDevForm.firstName" />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12" :xs="24" :sm="12" :md="8">
+                  <el-form-item label="Отчество">
+                    <el-input v-model="adminCreateDevForm.middleName" />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12" :xs="24" :sm="12" :md="8">
+                  <el-form-item label="Пароль">
+                    <el-input
+                      v-model="adminCreateDevForm.password"
+                      type="password"
+                      show-password
+                    />
+                  </el-form-item>
+                </el-col>
+              </el-row>
+            </el-form>
+          </el-card>
+
+          <el-card shadow="never" style="margin-bottom: var(--gap-md)">
+            <div class="section-head" style="margin: 0">
+              <div>
+                <div class="pill">Админ</div>
+                <div style="font-weight: 700">Регистрация застройщика</div>
+              </div>
+              <el-button
+                type="default"
+                :loading="pendingDevelopersLoading"
+                @click="loadPendingDevelopers"
+                >Обновить</el-button
+              >
+            </div>
+            <div class="muted" style="margin-top: 8px">
+              Ожидают подтверждения: {{ pendingDevelopers.length }}
+            </div>
+          </el-card>
+
+          <div v-loading="pendingDevelopersLoading">
+            <el-empty
+              v-if="!pendingDevelopersLoading && pendingDevelopers.length === 0"
+              description="Нет заявок на подтверждение"
+            />
+            <CardsList v-else>
+              <el-card
+                v-for="d in pendingDevelopers"
+                :key="d.id"
+                shadow="never"
+              >
+                <div class="dev-reg-card">
+                  <div class="dev-reg-main">
+                    <div class="dev-reg-title">
+                      {{ developerCardSubtitle(d) }}
+                    </div>
+                    <div class="muted" style="margin-top: 6px">
+                      {{ d.email || "—" }}
+                    </div>
+                    <div class="muted" style="margin-top: 4px">
+                      {{ d.phone || "—" }}
+                    </div>
+                  </div>
+
+                  <div class="dev-reg-actions">
+                    <el-button type="primary" @click="approveDeveloper(d)"
+                      >Подтвердить</el-button
+                    >
+                    <el-button type="warning" plain @click="rejectDeveloper(d)"
+                      >Отклонить</el-button
+                    >
+                    <el-button
+                      type="danger"
+                      plain
+                      @click="deleteDeveloperRequest(d)"
+                      >Удалить заявку</el-button
+                    >
+                  </div>
+                </div>
+              </el-card>
+            </CardsList>
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane v-if="isAdmin" label="Застройщики" name="developers">
           <template v-if="!selectedDeveloper">
             <el-card shadow="never" style="margin-bottom: var(--gap-md)">
               <div class="section-head" style="margin: 0">
@@ -878,19 +1392,32 @@ function goDetails(propertyId) {
                   <div class="pill">Админ</div>
                   <div style="font-weight: 700">Застройщики</div>
                 </div>
-                <el-button
-                  type="default"
-                  :loading="developersListLoading"
-                  @click="loadDevelopersList"
-                  >Обновить</el-button
+                <div
+                  style="display: flex; gap: var(--gap-sm); align-items: center"
                 >
+                  <el-input
+                    v-model="developersQ"
+                    clearable
+                    placeholder="Поиск по названию застройщика"
+                    style="min-width: 320px"
+                  />
+                  <el-button
+                    type="default"
+                    :loading="developersListLoading"
+                    @click="loadDevelopersList"
+                    >Обновить</el-button
+                  >
+                </div>
+              </div>
+              <div class="muted" style="margin-top: 8px">
+                Найдено: {{ filteredDevelopers.length }}
               </div>
             </el-card>
 
             <div v-loading="developersListLoading">
               <CardsList>
                 <el-card
-                  v-for="d in developers"
+                  v-for="d in filteredDevelopers"
                   :key="d.id"
                   shadow="never"
                   class="lift-hover"
@@ -933,7 +1460,10 @@ function goDetails(propertyId) {
                     <div class="pill">Админ</div>
                     <div style="font-weight: 700">Добавить объект</div>
                   </div>
-                  <el-button type="primary" @click="createProperty"
+                  <el-button
+                    type="primary"
+                    @click="createProperty"
+                    :loading="creatingProperty"
                     >Сохранить</el-button
                   >
                 </div>
@@ -985,6 +1515,158 @@ function goDetails(propertyId) {
                   <el-col :span="12" :xs="24" :sm="12" :md="8">
                     <el-form-item label="Цена (₽)">
                       <el-input v-model.number="form.price" type="number" />
+                    </el-form-item>
+                  </el-col>
+
+                  <el-col :span="12" :xs="24" :sm="12" :md="8">
+                    <el-form-item label="Этажность">
+                      <el-input v-model.number="form.floors" type="number" />
+                    </el-form-item>
+                  </el-col>
+                  <el-col :span="12" :xs="24" :sm="12" :md="8">
+                    <el-form-item label="Комнат">
+                      <el-input v-model.number="form.rooms" type="number" />
+                    </el-form-item>
+                  </el-col>
+                  <el-col :span="12" :xs="24" :sm="12" :md="8">
+                    <el-form-item label="Стадия строительства">
+                      <el-select
+                        v-model="form.buildStage"
+                        clearable
+                        filterable
+                        placeholder="Выберите"
+                        style="width: 100%"
+                      >
+                        <el-option
+                          v-for="opt in buildStageOptions"
+                          :key="opt"
+                          :label="opt"
+                          :value="opt"
+                        />
+                      </el-select>
+                    </el-form-item>
+                  </el-col>
+                  <el-col :span="12" :xs="24" :sm="12" :md="8">
+                    <el-form-item label="Конструкция">
+                      <el-select
+                        v-model="form.constructionType"
+                        clearable
+                        filterable
+                        placeholder="Выберите"
+                        style="width: 100%"
+                      >
+                        <el-option
+                          v-for="opt in constructionTypeOptions"
+                          :key="opt"
+                          :label="opt"
+                          :value="opt"
+                        />
+                      </el-select>
+                    </el-form-item>
+                  </el-col>
+                  <el-col :span="12" :xs="24" :sm="12" :md="8">
+                    <el-form-item label="Отделка">
+                      <el-select
+                        v-model="form.finishingType"
+                        clearable
+                        filterable
+                        placeholder="Выберите"
+                        style="width: 100%"
+                      >
+                        <el-option
+                          v-for="opt in finishingTypeOptions"
+                          :key="opt"
+                          :label="opt"
+                          :value="opt"
+                        />
+                      </el-select>
+                    </el-form-item>
+                  </el-col>
+                  <el-col :span="12" :xs="24" :sm="12" :md="8">
+                    <el-form-item label="Тип договора">
+                      <el-select
+                        v-model="form.contractType"
+                        clearable
+                        filterable
+                        placeholder="Выберите"
+                        style="width: 100%"
+                      >
+                        <el-option
+                          v-for="opt in contractTypeOptions"
+                          :key="opt"
+                          :label="opt"
+                          :value="opt"
+                        />
+                      </el-select>
+                    </el-form-item>
+                  </el-col>
+                  <el-col :span="12" :xs="24" :sm="12" :md="8">
+                    <el-form-item label="Готовность">
+                      <el-select
+                        v-model="form.readinessType"
+                        clearable
+                        filterable
+                        placeholder="Выберите"
+                        style="width: 100%"
+                      >
+                        <el-option
+                          v-for="opt in readinessTypeOptions"
+                          :key="opt"
+                          :label="opt"
+                          :value="opt"
+                        />
+                      </el-select>
+                    </el-form-item>
+                  </el-col>
+                  <el-col :span="12" :xs="24" :sm="12" :md="8">
+                    <el-form-item label="Регистрация">
+                      <el-select
+                        v-model="form.registration"
+                        clearable
+                        filterable
+                        placeholder="Выберите"
+                        style="width: 100%"
+                      >
+                        <el-option
+                          v-for="opt in registrationOptions"
+                          :key="opt"
+                          :label="opt"
+                          :value="opt"
+                        />
+                      </el-select>
+                    </el-form-item>
+                  </el-col>
+                  <el-col :span="24">
+                    <el-form-item label="Описание">
+                      <el-input
+                        v-model="form.description"
+                        type="textarea"
+                        :rows="3"
+                        placeholder="Описание объекта"
+                      />
+                    </el-form-item>
+                  </el-col>
+
+                  <el-col :span="24">
+                    <el-form-item label="Фотографии (до 10 шт.)">
+                      <el-upload
+                        v-model:file-list="createImages"
+                        drag
+                        multiple
+                        :auto-upload="false"
+                        :limit="10"
+                        :disabled="creatingProperty"
+                        accept="image/jpeg,image/png,image/webp"
+                        :on-exceed="onCreateImagesExceed"
+                        :on-change="onCreateImagesChange"
+                      >
+                        <div class="muted">
+                          Перетащите файлы сюда или нажмите для выбора
+                        </div>
+                        <div class="muted" style="margin-top: 4px">
+                          JPG/PNG/WEBP, до 6 МБ
+                        </div>
+                      </el-upload>
                     </el-form-item>
                   </el-col>
                 </el-row>
@@ -1075,3 +1757,32 @@ function goDetails(propertyId) {
     </template>
   </div>
 </template>
+
+<style scoped>
+.dev-reg-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--gap-md);
+  flex-wrap: wrap;
+}
+
+.dev-reg-main {
+  min-width: 240px;
+  flex: 1 1 320px;
+}
+
+.dev-reg-title {
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.dev-reg-actions {
+  display: flex;
+  gap: var(--gap-sm);
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  flex: 0 1 520px;
+}
+</style>

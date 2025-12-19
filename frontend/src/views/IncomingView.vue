@@ -18,7 +18,9 @@ const items = ref([]);
 const loading = ref(false);
 
 const isManager = computed(
-  () => auth.user?.role === "developer" || auth.user?.role === "admin"
+  () =>
+    (auth.user?.role === "developer" && auth.user?.developerApproved) ||
+    auth.user?.role === "admin"
 );
 const isAdmin = computed(() => auth.user?.role === "admin");
 

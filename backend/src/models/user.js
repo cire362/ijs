@@ -36,6 +36,10 @@ User.init(
       type: DataTypes.ENUM("agent", "developer", "admin"),
       allowNull: false,
     },
+    // For developers: access is blocked until admin approval
+    developerApproved: { type: DataTypes.BOOLEAN, defaultValue: false },
+    // If admin rejects a developer registration request
+    developerRejected: { type: DataTypes.BOOLEAN, defaultValue: false },
     companyName: { type: DataTypes.STRING },
     avatarUrl: { type: DataTypes.STRING },
   },
