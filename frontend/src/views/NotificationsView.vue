@@ -1,74 +1,93 @@
 <script setup>
-import { onMounted, onBeforeUnmount, ref, watch } from "vue";
-import { apiClient, useAuthStore } from "../stores/auth";
+import { computed, onMounted, ref, watch } from "vue";
+import { useAuthStore } from "../stores/auth";
 import { ElMessage } from "element-plus";
-import { getSocket } from "@/utils/socket";
+import { useNotificationsStore } from "@/stores/notifications";
 
 const auth = useAuthStore();
-const items = ref([]);
-const loading = ref(false);
-let socket;
+const notifications = useNotificationsStore();
 
-onMounted(() => {
-  if (auth.user) {
-    subscribeSocket();
-    load();
+const typeFilter = ref("");
+const readFilter = ref("all"); // all | unread | read
+const q = ref("");
+
+const loading = computed(() => notifications.loading);
+const items = computed(() => notifications.items);
+
+const TYPE_LABELS = {
+  application_new: "Новая заявка",
+  application_status: "Статус заявки (агент)",
+  application_status_changed: "Изменение статуса заявки",
+  developer_registration: "Новая регистрация застройщика",
+  developer_status: "Статус регистрации застройщика",
+  event_registration: "Заявка на мероприятие",
+  event_registration_status: "Статус заявки на мероприятие",
+  event_reminder: "Напоминание о мероприятии",
+};
+
+function typeLabel(type) {
+  if (!type) return "Уведомление";
+  return TYPE_LABELS[type] || type;
+}
+
+const typeOptions = computed(() => {
+  const set = new Set();
+  for (const n of items.value || []) {
+    if (n?.type) set.add(n.type);
   }
+  return Array.from(set).sort((a, b) => a.localeCompare(b));
 });
 
-watch(
-  () => auth.user?.id,
-  (id) => {
-    if (id) {
-      subscribeSocket();
-      load();
-    } else {
-      teardownSocket();
-    }
-  }
-);
-
-onBeforeUnmount(teardownSocket);
-
-function subscribeSocket() {
-  socket = getSocket();
-  socket.emit("subscribe", auth.user.id);
-  socket.off("notification", handleIncoming);
-  socket.on("notification", handleIncoming);
+function buildParams() {
+  const params = {};
+  if (typeFilter.value) params.type = typeFilter.value;
+  if (q.value && String(q.value).trim()) params.q = String(q.value).trim();
+  if (readFilter.value === "unread") params.isRead = false;
+  if (readFilter.value === "read") params.isRead = true;
+  params.page = notifications.page;
+  params.limit = notifications.limit;
+  return params;
 }
 
-function teardownSocket() {
-  if (socket) {
-    socket.off("notification", handleIncoming);
-  }
-}
-
-function handleIncoming(note) {
-  // Prepend live notifications for quick testing
-  items.value = [note, ...items.value];
+async function onFiltersChanged() {
+  notifications.page = 1;
+  await load();
 }
 
 async function load() {
-  loading.value = true;
+  if (!auth.user) return;
   try {
-    const { data } = await apiClient.get("/notifications");
-    items.value = data;
+    await notifications.load(buildParams());
   } catch (err) {
     ElMessage.error(err.response?.data?.error || "Не удалось загрузить");
-  } finally {
-    loading.value = false;
   }
 }
 
 async function markRead(id) {
   try {
-    await apiClient.post(`/notifications/${id}/read`);
+    await notifications.markRead(id);
     ElMessage.success("Отмечено как прочитано");
-    await load();
   } catch (err) {
     ElMessage.error(err.response?.data?.error || "Не удалось обновить");
   }
 }
+
+onMounted(async () => {
+  if (auth.user) {
+    await load();
+    await notifications.refreshUnreadCount();
+  }
+});
+
+watch(
+  () => auth.user?.id,
+  async (id) => {
+    if (id) {
+      await load();
+      await notifications.refreshUnreadCount();
+    }
+  }
+);
 </script>
 
 <template>
@@ -90,6 +109,55 @@ async function markRead(id) {
     <template v-else>
       <div v-loading="loading" style="min-height: 200px">
         <el-card shadow="never">
+          <div
+            style="
+              display: flex;
+              gap: var(--gap-md);
+              flex-wrap: wrap;
+              margin-bottom: 12px;
+            "
+          >
+            <div style="min-width: 240px">
+              <div class="muted" style="margin-bottom: 6px">Тип</div>
+              <el-select
+                v-model="typeFilter"
+                clearable
+                placeholder="Все"
+                style="width: 100%"
+                @change="onFiltersChanged"
+                @clear="onFiltersChanged"
+              >
+                <el-option
+                  v-for="t in typeOptions"
+                  :key="t"
+                  :label="typeLabel(t)"
+                  :value="t"
+                />
+              </el-select>
+            </div>
+            <div style="min-width: 200px">
+              <div class="muted" style="margin-bottom: 6px">Статус</div>
+              <el-select
+                v-model="readFilter"
+                style="width: 100%"
+                @change="onFiltersChanged"
+              >
+                <el-option label="Все" value="all" />
+                <el-option label="Только новые" value="unread" />
+                <el-option label="Только прочитанные" value="read" />
+              </el-select>
+            </div>
+            <div style="min-width: 280px; flex: 1">
+              <div class="muted" style="margin-bottom: 6px">Поиск</div>
+              <el-input
+                v-model="q"
+                clearable
+                placeholder="Поиск по тексту"
+                @input="onFiltersChanged"
+              />
+            </div>
+          </div>
+
           <el-timeline>
             <el-timeline-item
               v-for="n in items"
@@ -103,12 +171,18 @@ async function markRead(id) {
                   style="margin-bottom: 8px; gap: var(--gap-sm)"
                 >
                   <div>
-                    <div class="pill">{{ n.type || "Уведомление" }}</div>
+                    <div class="pill">{{ typeLabel(n.type) }}</div>
                     <div style="font-weight: 700; margin-top: 6px">
                       {{ n.text }}
                     </div>
                   </div>
-                  <el-badge v-if="!n.isRead" value="Новое" type="success" />
+                  <el-tag
+                    v-if="!n.isRead"
+                    type="success"
+                    size="small"
+                    style="margin-top: 18px"
+                    >Новое</el-tag
+                  >
                   <el-tag v-else type="info" size="small">Прочитано</el-tag>
                 </div>
                 <el-button
@@ -123,6 +197,20 @@ async function markRead(id) {
               </el-card>
             </el-timeline-item>
           </el-timeline>
+
+          <div
+            style="display: flex; justify-content: flex-end; margin-top: 12px"
+          >
+            <el-pagination
+              v-if="notifications.total > notifications.limit"
+              v-model:current-page="notifications.page"
+              v-model:page-size="notifications.limit"
+              :total="notifications.total"
+              layout="prev, pager, next"
+              @current-change="load"
+              @size-change="onFiltersChanged"
+            />
+          </div>
         </el-card>
       </div>
     </template>

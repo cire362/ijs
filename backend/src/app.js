@@ -7,6 +7,8 @@ const propertyRoutes = require("./routes/properties");
 const applicationRoutes = require("./routes/applications");
 const notificationRoutes = require("./routes/notifications");
 const userRoutes = require("./routes/users");
+const newsRoutes = require("./routes/news");
+const eventsRoutes = require("./routes/events");
 
 const app = express();
 
@@ -22,6 +24,8 @@ app.use("/properties", propertyRoutes);
 app.use("/applications", applicationRoutes);
 app.use("/notifications", notificationRoutes);
 app.use("/users", userRoutes);
+app.use("/news", newsRoutes);
+app.use("/events", eventsRoutes);
 
 app.use((err, req, res, next) => {
   // Fallback error handler with minimal noise

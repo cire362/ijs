@@ -341,6 +341,15 @@ function isWithinLastDays(dateLike, days) {
   return Date.now() - t <= days * 24 * 60 * 60 * 1000;
 }
 
+function isHouseProperty(p) {
+  if (!p) return false;
+  const ha = Number(p.houseArea);
+  if (!Number.isNaN(ha) && ha > 0) return true;
+  if (p.rooms != null) return true;
+  if (p.floors != null) return true;
+  return false;
+}
+
 const agentScopeItems = computed(() => {
   const devId = filters.value.developerId;
   if (!devId) return items.value;
@@ -350,7 +359,14 @@ const agentScopeItems = computed(() => {
 });
 
 const agentAnalytics = computed(() => {
-  const base = agentScopeItems.value;
+  const raw = agentScopeItems.value;
+  const base = auth.user
+    ? raw
+    : raw.filter(
+        (p) =>
+          p.saleStatus === "available" ||
+          (p.saleStatus === "reserved" && isHouseProperty(p))
+      );
   const total = base.length;
   const available = base.filter((p) => p.saleStatus === "available").length;
   const reserved = base.filter((p) => p.saleStatus === "reserved").length;
@@ -400,8 +416,10 @@ const analytics = computed(() => {
   };
 });
 
-const analyticsScopeHint = computed(
-  () => "Все объекты (включая бронь и проданные)"
+const analyticsScopeHint = computed(() =>
+  auth.user
+    ? "Все объекты (включая бронь и проданные)"
+    : "Только доступные (и дома в брони)"
 );
 
 onMounted(load);
@@ -756,9 +774,7 @@ function goDetails(propertyId) {
       <div>
         <div class="pill">Каталог</div>
         <h1 style="margin: 4px 0">Объекты ИЖС</h1>
-        <div class="muted">
-          Подберите готовые дома и участки — все заявки уходят в CRM.
-        </div>
+        <div class="muted">Подберите готовые дома и участки</div>
       </div>
       <el-button @click="load" :loading="loading" type="default"
         >Обновить</el-button

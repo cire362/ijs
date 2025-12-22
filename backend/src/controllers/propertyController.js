@@ -1,13 +1,30 @@
+const { Op } = require("sequelize");
 const { Property, PropertyImage, User } = require("../models");
 
 async function listProperties(req, res) {
   const canSeeAllStatuses =
     (req.user?.role === "developer" && req.user?.developerApproved) ||
-    req.user?.role === "admin" ||
-    req.user?.role === "agent";
+    req.user?.role === "admin";
+
+  // Дома: при брони объявление остается в каталоге.
+  // Участки: при брони объявление скрываем из каталога.
+  // Для гостя/агента показываем: available + reserved(только дома).
+  const publicWhere = {
+    [Op.or]: [
+      { saleStatus: "available" },
+      {
+        saleStatus: "reserved",
+        [Op.or]: [
+          { houseArea: { [Op.gt]: 0 } },
+          { rooms: { [Op.not]: null } },
+          { floors: { [Op.not]: null } },
+        ],
+      },
+    ],
+  };
 
   const properties = await Property.findAll({
-    where: canSeeAllStatuses ? undefined : { saleStatus: "available" },
+    where: canSeeAllStatuses ? undefined : publicWhere,
     include: [
       {
         model: User,

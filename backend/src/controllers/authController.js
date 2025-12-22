@@ -1,6 +1,6 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { User } = require("../models");
+const { User, Notification } = require("../models");
 
 const allowedRoles = ["agent", "developer"];
 const jwtSecret = process.env.JWT_SECRET || "dev_jwt_secret";
@@ -50,6 +50,31 @@ async function register(req, res) {
       companyName,
       developerApproved: role === "developer" ? false : true,
     });
+
+    if (role === "developer") {
+      const admins = await User.findAll({ where: { role: "admin" } });
+      if (admins.length) {
+        const display =
+          user.companyName ||
+          [user.lastName, user.firstName, user.middleName]
+            .filter(Boolean)
+            .join(" ") ||
+          user.email;
+        await Notification.bulkCreate(
+          admins.map((a) => ({
+            userId: a.id,
+            type: "developer_registration",
+            text: `Новая регистрация застройщика: ${display}`,
+            meta: {
+              developerId: user.id,
+              email: user.email,
+              companyName: user.companyName,
+            },
+          }))
+        );
+      }
+    }
+
     return res
       .status(201)
       .json({ id: user.id, email: user.email, role: user.role });

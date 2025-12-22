@@ -4,6 +4,10 @@ const Application = require("./application");
 const Notification = require("./notification");
 const PropertyImage = require("./propertyImage");
 const StatusHistory = require("./statusHistory");
+const News = require("./news");
+const NewsImage = require("./newsImage");
+const Event = require("./event");
+const EventRegistration = require("./eventRegistration");
 
 User.hasMany(Property, { foreignKey: "developerId", as: "properties" });
 Property.belongsTo(User, { foreignKey: "developerId", as: "developer" });
@@ -27,6 +31,27 @@ StatusHistory.belongsTo(User, { foreignKey: "changedBy", as: "actor" });
 User.hasMany(Notification, { foreignKey: "userId", as: "notifications" });
 Notification.belongsTo(User, { foreignKey: "userId" });
 
+User.hasMany(News, { foreignKey: "authorId", as: "news" });
+News.belongsTo(User, { foreignKey: "authorId", as: "author" });
+
+News.hasMany(NewsImage, { foreignKey: "newsId", as: "images" });
+NewsImage.belongsTo(News, { foreignKey: "newsId" });
+
+User.hasMany(Event, { foreignKey: "createdBy", as: "createdEvents" });
+Event.belongsTo(User, { foreignKey: "createdBy", as: "creator" });
+
+Event.hasMany(EventRegistration, {
+  foreignKey: "eventId",
+  as: "registrations",
+});
+EventRegistration.belongsTo(Event, { foreignKey: "eventId", as: "event" });
+
+User.hasMany(EventRegistration, {
+  foreignKey: "agentId",
+  as: "eventRegistrations",
+});
+EventRegistration.belongsTo(User, { foreignKey: "agentId", as: "agent" });
+
 module.exports = {
   User,
   Property,
@@ -34,4 +59,8 @@ module.exports = {
   Notification,
   PropertyImage,
   StatusHistory,
+  News,
+  NewsImage,
+  Event,
+  EventRegistration,
 };

@@ -82,8 +82,7 @@ function personName(u) {
 function statusLabel(status) {
   const found = STATUS_FLOW.find((s) => s.key === status);
   if (found) return found.label;
-  if (status === "rejected") return "Отклонена";
-  if (status === "expired") return "Истек срок";
+  if (status === "rejected" || status === "expired") return "Отменена";
   return status || "—";
 }
 
@@ -244,7 +243,7 @@ const tableRows = computed(() =>
             <el-option
               v-for="s in [
                 ...STATUS_FLOW,
-                { key: 'rejected', label: 'Отклонена' },
+                { key: 'rejected', label: 'Отменена' },
                 { key: 'expired', label: 'Истек срок' },
               ]"
               :key="s.key"
@@ -324,9 +323,7 @@ const tableRows = computed(() =>
               <el-icon color="var(--el-color-danger)"
                 ><CircleCloseFilled
               /></el-icon>
-              <el-tag type="danger" effect="light">{{
-                selected.status === "expired" ? "Истек срок" : "Отклонена"
-              }}</el-tag>
+              <el-tag type="danger" effect="light">{{ "Отменена" }}</el-tag>
             </div>
           </div>
 

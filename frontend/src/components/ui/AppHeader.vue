@@ -2,10 +2,10 @@
   <el-header class="app-header">
     <div class="header-inner">
       <div class="brand">
-        <div class="brand-mark">NM</div>
+        <div class="brand-mark">ИЖС</div>
         <div>
-          <div class="brand-title">ИЖС Hub</div>
-          <div class="brand-sub">B2B маркетплейс</div>
+          <div class="brand-title">ИЖС</div>
+          <div class="brand-sub">ИЖС</div>
         </div>
       </div>
       <el-menu
@@ -16,13 +16,23 @@
         :ellipsis="false"
       >
         <el-menu-item index="/properties">Поиск</el-menu-item>
+        <el-menu-item index="/news">Новости</el-menu-item>
+        <el-menu-item index="/events">Мероприятия</el-menu-item>
         <el-menu-item v-if="isAgent" index="/applications"
           >Мои заявки</el-menu-item
         >
         <el-menu-item v-if="isManager" index="/incoming">Входящие</el-menu-item>
-        <el-menu-item v-if="isAuthed" index="/notifications"
-          >Уведомления</el-menu-item
-        >
+        <el-menu-item v-if="isAuthed" index="/notifications">
+          <el-badge
+            v-if="notifications.unreadBadge"
+            :value="notifications.unreadBadge"
+            type="danger"
+            :offset="[0, 10]"
+          >
+            <span>Уведомления</span>
+          </el-badge>
+          <span v-else>Уведомления</span>
+        </el-menu-item>
       </el-menu>
       <div class="header-actions">
         <el-button v-if="!auth.user" type="warning" @click="goLogin"
@@ -57,12 +67,14 @@
 </template>
 
 <script setup>
-import { computed } from "vue";
+import { computed, onBeforeUnmount, watch } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useAuthStore } from "@/stores/auth";
+import { useNotificationsStore } from "@/stores/notifications";
 import { ArrowDown } from "@element-plus/icons-vue";
 
 const auth = useAuthStore();
+const notifications = useNotificationsStore();
 const router = useRouter();
 const route = useRoute();
 
@@ -92,6 +104,24 @@ const initials = computed(() => {
   if (!u) return "U";
   const s = (u.firstName || displayName.value || "U").trim();
   return s ? s[0].toUpperCase() : "U";
+});
+
+watch(
+  () => auth.user?.id,
+  async (id) => {
+    if (id) {
+      notifications.connect(id);
+      await notifications.refreshUnreadCount();
+    } else {
+      notifications.disconnect();
+    }
+  },
+  { immediate: true }
+);
+
+onBeforeUnmount(() => {
+  // Keep store alive, but avoid dangling listeners if header is remounted
+  if (!auth.user?.id) notifications.disconnect();
 });
 
 function goLogin() {

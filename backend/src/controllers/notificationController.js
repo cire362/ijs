@@ -1,11 +1,72 @@
+const { Op } = require("sequelize");
 const { Notification } = require("../models");
 
+function normalizeText(v) {
+  return String(v || "")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function toBool(v) {
+  if (v === true || v === false) return v;
+  if (v == null) return null;
+  const s = String(v).toLowerCase().trim();
+  if (["1", "true", "yes", "y"].includes(s)) return true;
+  if (["0", "false", "no", "n"].includes(s)) return false;
+  return null;
+}
+
+function parsePositiveInt(v, fallback) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return fallback;
+  const i = Math.floor(n);
+  if (i <= 0) return fallback;
+  return i;
+}
+
 async function listNotifications(req, res) {
+  const q = normalizeText(req.query?.q);
+  const type = normalizeText(req.query?.type);
+  const isRead = toBool(req.query?.isRead);
+
+  const where = { userId: req.user.id };
+  if (type) where.type = type;
+  if (isRead != null) where.isRead = isRead;
+  if (q) {
+    where[Op.or] = [
+      { text: { [Op.iLike]: `%${q}%` } },
+      { type: { [Op.iLike]: `%${q}%` } },
+    ];
+  }
+
+  const page = parsePositiveInt(req.query?.page, null);
+  const limitRaw = parsePositiveInt(req.query?.limit, null);
+  const limit = limitRaw ? Math.min(limitRaw, 200) : null;
+
+  if (page && limit) {
+    const offset = (page - 1) * limit;
+    const result = await Notification.findAndCountAll({
+      where,
+      order: [["createdAt", "DESC"]],
+      limit,
+      offset,
+    });
+    return res.json({ items: result.rows, total: result.count, page, limit });
+  }
+
   const items = await Notification.findAll({
-    where: { userId: req.user.id },
+    where,
     order: [["createdAt", "DESC"]],
+    limit: limit || 200,
   });
   return res.json(items);
+}
+
+async function unreadCount(req, res) {
+  const count = await Notification.count({
+    where: { userId: req.user.id, isRead: false },
+  });
+  return res.json({ count });
 }
 
 async function markRead(req, res) {
@@ -16,4 +77,4 @@ async function markRead(req, res) {
   return res.json(note);
 }
 
-module.exports = { listNotifications, markRead };
+module.exports = { listNotifications, markRead, unreadCount };

@@ -1,0 +1,39 @@
+const express = require("express");
+const router = express.Router();
+const asyncHandler = require("../utils/asyncHandler");
+const {
+  authenticate,
+  optionalAuthenticate,
+  allowRoles,
+} = require("../middleware/auth");
+const {
+  listNews,
+  getNewsById,
+  createNews,
+  updateNews,
+  addNewsImages,
+} = require("../controllers/newsController");
+
+const { uploadNewsImages } = require("../utils/upload");
+
+router.get("/", optionalAuthenticate, asyncHandler(listNews));
+router.get("/:id", optionalAuthenticate, asyncHandler(getNewsById));
+
+router.post("/", authenticate, allowRoles("admin"), asyncHandler(createNews));
+router.patch(
+  "/:id",
+  authenticate,
+  allowRoles("admin"),
+  asyncHandler(updateNews)
+);
+
+router.post(
+  "/:id/images",
+  authenticate,
+  allowRoles("admin"),
+  (req, res, next) =>
+    uploadNewsImages(req, res, (err) => (err ? next(err) : next())),
+  asyncHandler(addNewsImages)
+);
+
+module.exports = router;

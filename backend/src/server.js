@@ -5,6 +5,7 @@ const app = require("./app");
 const { Notification } = require("./models");
 const { Server } = require("socket.io");
 const { expireSentApplications } = require("./jobs/applicationExpiry");
+const { sendEventReminders } = require("./jobs/eventReminders");
 
 function dbInfo() {
   const cfg = sequelize?.config;
@@ -43,6 +44,13 @@ async function bootstrap() {
     setInterval(() => {
       expireSentApplications().catch((err) =>
         console.error("Failed to expire applications", err)
+      );
+    }, 60 * 1000);
+
+    // Background: event reminders (best-effort)
+    setInterval(() => {
+      sendEventReminders().catch((err) =>
+        console.error("Failed to send event reminders", err)
       );
     }, 60 * 1000);
 

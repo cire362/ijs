@@ -1,7 +1,6 @@
 const { Op } = require("sequelize");
 const bcrypt = require("bcryptjs");
-const { Property } = require("../models");
-const { User } = require("../models");
+const { Property, User, Notification } = require("../models");
 
 function toPublicUser(user) {
   return {
@@ -161,6 +160,14 @@ async function approveDeveloper(req, res) {
   }
 
   await user.update({ developerApproved: true, developerRejected: false });
+
+  await Notification.create({
+    userId: user.id,
+    type: "developer_status",
+    text: "Ваша регистрация застройщика подтверждена администратором.",
+    meta: { developerId: user.id, status: "approved" },
+  });
+
   return res.json(toPublicUser(user));
 }
 
@@ -180,6 +187,14 @@ async function rejectDeveloper(req, res) {
   }
 
   await user.update({ developerApproved: false, developerRejected: true });
+
+  await Notification.create({
+    userId: user.id,
+    type: "developer_status",
+    text: "Ваша регистрация застройщика отклонена администратором.",
+    meta: { developerId: user.id, status: "rejected" },
+  });
+
   return res.json(toPublicUser(user));
 }
 

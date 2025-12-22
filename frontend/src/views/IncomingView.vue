@@ -39,7 +39,7 @@ const statusOptions = [
     type: "success",
   },
   { value: "done", label: "Завершено", type: "success" },
-  { value: "rejected", label: "Отклонена", type: "danger" },
+  { value: "rejected", label: "Отменена", type: "danger" },
 ];
 
 const STATUS_FLOW = [
@@ -60,6 +60,7 @@ const columns = computed(() => {
     { prop: "price", label: "Стоимость", minWidth: 130 },
     { prop: "commission", label: "Комиссия", minWidth: 130 },
     { prop: "agentFio", label: "ФИО", minWidth: 180 },
+    { prop: "comment", label: "Комментарий", minWidth: 220 },
     { prop: "deadline", label: "Срок до", minWidth: 130 },
     { prop: "status", label: "Статус", minWidth: 140 },
   ];
@@ -122,8 +123,7 @@ function deadlineTagType(row) {
 function statusLabel(status) {
   const found = STATUS_FLOW.find((s) => s.key === status);
   if (found) return found.label;
-  if (status === "rejected") return "Отклонена";
-  if (status === "expired") return "Истек срок";
+  if (status === "rejected" || status === "expired") return "Отменена";
   return status || "—";
 }
 
@@ -275,6 +275,8 @@ const tableRows = computed(() =>
     commission: formatMoney(a.commissionAmount),
     developer: developerLabel(a.property?.developer),
     agentFio: personName(a.agent),
+    comment:
+      a.comment != null && String(a.comment).trim() ? String(a.comment) : "—",
     deadline: a.expiresAt,
   }))
 );
@@ -373,7 +375,7 @@ const pagedRows = computed(() => {
             <el-option
               v-for="s in [
                 ...STATUS_FLOW,
-                { key: 'rejected', label: 'Отклонена' },
+                { key: 'rejected', label: 'Отменена' },
                 { key: 'expired', label: 'Истек срок' },
               ]"
               :key="s.key"
@@ -491,9 +493,7 @@ const pagedRows = computed(() => {
               <el-icon color="var(--el-color-danger)"
                 ><CircleCloseFilled
               /></el-icon>
-              <el-tag type="danger" effect="light">{{
-                selected.status === "expired" ? "Истек срок" : "Отклонена"
-              }}</el-tag>
+              <el-tag type="danger" effect="light">{{ "Отменена" }}</el-tag>
             </div>
           </div>
 

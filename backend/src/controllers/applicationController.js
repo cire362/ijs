@@ -166,6 +166,37 @@ async function createApplication(req, res) {
       changedBy: req.user.id,
       comment: "Заявка отправлена",
     });
+
+    // Notify developer and admins about incoming application
+    if (property.developerId) {
+      await Notification.create({
+        userId: property.developerId,
+        type: "application_new",
+        text: `Новая заявка №${app.id} по объекту «${property.title}»`,
+        meta: {
+          applicationId: app.id,
+          propertyId: property.id,
+          agentId: req.user.id,
+        },
+      });
+    }
+
+    const admins = await User.findAll({ where: { role: "admin" } });
+    if (admins.length) {
+      await Notification.bulkCreate(
+        admins.map((a) => ({
+          userId: a.id,
+          type: "application_new",
+          text: `Новая заявка №${app.id} по объекту «${property.title}»`,
+          meta: {
+            applicationId: app.id,
+            propertyId: property.id,
+            agentId: req.user.id,
+          },
+        }))
+      );
+    }
+
     return res.status(201).json(app);
   } catch (err) {
     console.error(err);
@@ -250,6 +281,31 @@ async function updateStatus(req, res) {
     changedBy: req.user.id,
     comment: effectiveComment,
   });
+
+  // Notify developer and admins about status change
+  if (app.property?.developerId) {
+    await Notification.create({
+      userId: app.property.developerId,
+      type: "application_status_changed",
+      text: `Заявка №${app.id}: ${statusLabelRu(status)}`,
+      meta: { applicationId: app.id, status, changedBy: req.user.id },
+    });
+  }
+
+  const admins2 = await User.findAll({
+    where: { role: "admin", id: { [Op.ne]: req.user.id } },
+  });
+  if (admins2.length) {
+    await Notification.bulkCreate(
+      admins2.map((a) => ({
+        userId: a.id,
+        type: "application_status_changed",
+        text: `Заявка №${app.id}: ${statusLabelRu(status)}`,
+        meta: { applicationId: app.id, status, changedBy: req.user.id },
+      }))
+    );
+  }
+
   await Notification.create({
     userId: app.agentId,
     type: "application_status",

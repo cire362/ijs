@@ -6,12 +6,18 @@ import LoginView from "../views/LoginView.vue";
 import IncomingView from "../views/IncomingView.vue";
 import NotificationsView from "../views/NotificationsView.vue";
 import ProfileView from "../views/ProfileView.vue";
+import NewsView from "../views/NewsView.vue";
+import NewsDetailsView from "../views/NewsDetailsView.vue";
+import EventsView from "../views/EventsView.vue";
 import { useAuthStore } from "../stores/auth";
 
 const routes = [
   { path: "/", redirect: "/properties" },
   { path: "/properties", component: PropertiesView },
   { path: "/properties/:id", component: PropertyDetailsView },
+  { path: "/news", component: NewsView },
+  { path: "/news/:id", component: NewsDetailsView },
+  { path: "/events", component: EventsView },
   {
     path: "/applications",
     component: ApplicationsView,

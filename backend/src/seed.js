@@ -1,6 +1,8 @@
 require("dotenv").config();
 
 const bcrypt = require("bcryptjs");
+const fs = require("fs");
+const path = require("path");
 const { sequelize } = require("./db");
 const {
   User,
@@ -8,6 +10,9 @@ const {
   PropertyImage,
   Application,
   StatusHistory,
+  News,
+  NewsImage,
+  Event,
 } = require("./models");
 
 async function findOrCreateUserByEmail(payload) {
@@ -36,6 +41,55 @@ async function upsertImage(propertyId, url, caption) {
   });
   await img.update({ caption });
   return img;
+}
+
+async function upsertNewsImage(newsId, url, caption) {
+  const [img] = await NewsImage.findOrCreate({
+    where: { newsId, url },
+    defaults: { newsId, url, caption },
+  });
+  await img.update({ caption });
+  return img;
+}
+
+async function findOrCreateNewsByTitle(payload) {
+  const [news] = await News.findOrCreate({
+    where: { title: payload.title },
+    defaults: payload,
+  });
+  await news.update(payload);
+  return news;
+}
+
+function ensureDir(dirPath) {
+  fs.mkdirSync(dirPath, { recursive: true });
+}
+
+function ensureSvg(filePath, title) {
+  if (fs.existsSync(filePath)) return;
+  ensureDir(path.dirname(filePath));
+  const safeTitle = String(title || "image").slice(0, 60);
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="675" viewBox="0 0 1200 675">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f3f4f6"/>
+      <stop offset="1" stop-color="#e5e7eb"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="675" fill="url(#g)"/>
+  <rect x="60" y="60" width="1080" height="555" rx="28" fill="#ffffff" opacity="0.75"/>
+  <text x="120" y="190" font-family="Arial, sans-serif" font-size="44" font-weight="700" fill="#111827">${safeTitle.replace(
+    /[<>]/g,
+    ""
+  )}</text>
+  <text x="120" y="260" font-family="Arial, sans-serif" font-size="22" fill="#374151">Автосгенерированная тестовая картинка (seed)</text>
+  <text x="120" y="320" font-family="Arial, sans-serif" font-size="18" fill="#6b7280">${path.basename(
+    filePath
+  )}</text>
+</svg>
+`;
+  fs.writeFileSync(filePath, svg, "utf8");
 }
 
 function mulberry32(seed) {
@@ -337,6 +391,14 @@ async function seed() {
     { url: "/uploads/seed/prop-3-1.svg", caption: "Визуализация" },
   ];
 
+  // Ensure seed SVGs exist (so the UI doesn't show broken images)
+  const uploadsRoot = path.join(__dirname, "..", "uploads");
+  for (const img of imagePool) {
+    if (!img?.url) continue;
+    const rel = img.url.replace(/^\/uploads\//, "");
+    ensureSvg(path.join(uploadsRoot, rel), img.caption);
+  }
+
   const createdProperties = [];
   for (let i = 0; i < propertiesCount; i++) {
     const dev = randomChoice(
@@ -526,6 +588,147 @@ async function seed() {
       : "available";
     if (prop.saleStatus !== nextStatus) {
       await prop.update({ saleStatus: nextStatus });
+    }
+  }
+
+  // News
+  const adminUser = await User.findOne({ where: { email: "admin@test.com" } });
+  if (adminUser) {
+    const newsCount = randomInt(rng, 12, 22);
+    const newsTitles = [
+      "Запуск нового раздела Новости",
+      "Обновление каталога объектов",
+      "Новые правила бронирования",
+      "Технические работы",
+      "Новые застройщики на платформе",
+      "Снижение комиссий по ряду объектов",
+      "Поддержка загрузки изображений",
+      "Обновление интерфейса",
+      "Итоги недели",
+      "Важное объявление",
+    ];
+
+    const newsImagesDir = path.join(uploadsRoot, "news");
+    ensureDir(newsImagesDir);
+
+    for (let i = 0; i < newsCount; i++) {
+      const baseTitle = randomChoice(rng, newsTitles);
+      const title = `${baseTitle} #${i + 1}`;
+      const isPublished = rng() < 0.85;
+      const publishedAt = isPublished ? daysAgo(randomInt(rng, 0, 25)) : null;
+      const subtitle = rng() < 0.6 ? "Короткий подзаголовок" : "";
+      const excerpt =
+        rng() < 0.7 ? "Краткое описание для карточки новости (seed)." : "";
+
+      const paragraphs = Array.from({ length: randomInt(rng, 3, 7) }).map(
+        (_, p) =>
+          `Абзац ${
+            p + 1
+          }. Это тестовый текст новости для демонстрации. Seed: ${seedValue}.`
+      );
+
+      const content = paragraphs.join("\n\n");
+
+      const news = await findOrCreateNewsByTitle({
+        title,
+        subtitle: subtitle || null,
+        excerpt: excerpt || null,
+        content,
+        isPublished,
+        publishedAt,
+        authorId: adminUser.id,
+      });
+
+      // Add 0..3 images. If images are expected but file is missing, generate it.
+      const wantImages = rng() < 0.65;
+      const count = wantImages ? randomInt(rng, 1, 3) : 0;
+      for (let k = 0; k < count; k++) {
+        const filename = `seed-news-${news.id}-${k + 1}.svg`;
+        const abs = path.join(newsImagesDir, filename);
+        ensureSvg(abs, `Новость #${news.id}`);
+        await upsertNewsImage(news.id, `/uploads/news/${filename}`, filename);
+      }
+    }
+  }
+
+  // Events
+  if (adminUser) {
+    const eventCount = randomInt(rng, 18, 36);
+    const formats = ["offline", "online", "hybrid"];
+    const locationsOffline = [
+      "Офис компании",
+      "Конференц-зал",
+      "Шоурум",
+      "Коворкинг",
+      "Презентационный зал",
+    ];
+    const locationsOnline = ["Zoom", "Google Meet", "MS Teams", "Онлайн"];
+    const eventTitles = [
+      "Обучение по продажам",
+      "Встреча с застройщиком",
+      "Разбор кейсов",
+      "Презентация проекта",
+      "Вебинар для агентов",
+      "День открытых дверей",
+      "Обновления платформы",
+      "Юридические нюансы сделок",
+    ];
+
+    const eventImagesDir = path.join(uploadsRoot, "events");
+    ensureDir(eventImagesDir);
+
+    for (let i = 0; i < eventCount; i++) {
+      const isTraining = rng() < 0.6;
+      const format = randomChoice(rng, formats);
+      const baseTitle = randomChoice(rng, eventTitles);
+      const title = `${baseTitle} #${i + 1}`;
+
+      const dayShift = randomInt(rng, -7, 45);
+      const startBase = daysFromNow(dayShift);
+      const startAt = new Date(startBase);
+      startAt.setHours(
+        randomInt(rng, 10, 19),
+        randomChoice(rng, [0, 0, 15, 30, 45]),
+        0,
+        0
+      );
+      const endAt = new Date(
+        startAt.getTime() + randomInt(rng, 60, 180) * 60 * 1000
+      );
+
+      const location =
+        format === "online"
+          ? randomChoice(rng, locationsOnline)
+          : format === "hybrid"
+          ? `${randomChoice(rng, locationsOffline)} + ${randomChoice(
+              rng,
+              locationsOnline
+            )}`
+          : randomChoice(rng, locationsOffline);
+
+      const capacity = rng() < 0.75 ? randomInt(rng, 10, 80) : null;
+
+      const wantCover = rng() < 0.8;
+      const filename = wantCover ? `seed-event-${i + 1}.svg` : null;
+      if (filename) {
+        ensureSvg(path.join(eventImagesDir, filename), title);
+      }
+
+      await Event.create({
+        title,
+        description:
+          rng() < 0.75
+            ? `Описание мероприятия (seed). Формат: ${format}. Seed: ${seedValue}.`
+            : null,
+        location: location || null,
+        format,
+        coverImageUrl: filename ? `/uploads/events/${filename}` : null,
+        startAt,
+        endAt,
+        isTraining,
+        capacity,
+        createdBy: adminUser.id,
+      });
     }
   }
 
