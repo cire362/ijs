@@ -2,6 +2,10 @@
 import { computed, onMounted, ref } from "vue";
 import { useAuthStore, apiClient } from "../stores/auth";
 import { ElMessage } from "element-plus";
+import SearchCard from "@/components/ui/SearchCard.vue";
+import EventsCardsList from "@/components/events/EventsCardsList.vue";
+import { normalizeText } from "@/utils/text";
+import { formatDateTime } from "@/utils/datetime";
 
 const auth = useAuthStore();
 
@@ -66,24 +70,7 @@ const registrationsStats = computed(() => {
   return { total, ...by, event, capacity, remaining };
 });
 
-function normalizeText(v) {
-  return String(v || "")
-    .toLowerCase()
-    .trim();
-}
-
-function formatDateTime(v) {
-  if (!v) return "—";
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString("ru-RU", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+// normalizeText / formatDateTime вынесены в utils
 
 function formatLabel(v) {
   if (v === "online") return "Онлайн";
@@ -430,104 +417,44 @@ onMounted(async () => {
           </el-form>
         </el-card>
 
-        <el-card shadow="never" style="margin-bottom: var(--gap-md)">
-          <div class="muted" style="margin-bottom: 8px">Поиск</div>
-          <el-input
-            v-model="q"
-            clearable
-            placeholder="Поиск по названию/описанию/месту"
-            style="min-width: 320px"
-            @input="
-              () => {
-                page.value = 1;
+        <SearchCard
+          v-model:q="q"
+          :count="total"
+          placeholder="Поиск по названию/описанию/месту"
+          @input="
+            () => {
+              page.value = 1;
+              load();
+            }
+          "
+        />
+
+        <EventsCardsList
+          :events="filtered"
+          :loading="loading"
+          emptyText="Мероприятий пока нет"
+          :formatDateTime="formatDateTime"
+          :formatLabel="formatLabel"
+          :formatTagType="formatTagType"
+        />
+
+        <div
+          v-if="total > limit"
+          style="display: flex; justify-content: flex-end"
+        >
+          <el-pagination
+            background
+            layout="prev, pager, next"
+            :total="total"
+            :page-size="limit"
+            :current-page="page"
+            @current-change="
+              (p) => {
+                page.value = p;
                 load();
               }
             "
           />
-          <div class="muted" style="margin-top: 8px">Найдено: {{ total }}</div>
-        </el-card>
-
-        <div v-loading="loading" style="display: grid; gap: var(--gap-md)">
-          <el-empty
-            v-if="!filtered.length"
-            description="Мероприятий пока нет"
-          />
-
-          <el-card v-for="e in filtered" :key="e.id" shadow="hover">
-            <img
-              v-if="e.coverImageUrl"
-              :src="e.coverImageUrl"
-              alt=""
-              style="
-                width: 100%;
-                height: 200px;
-                object-fit: cover;
-                border-radius: 12px;
-                margin-bottom: 10px;
-              "
-            />
-            <div
-              style="
-                display: flex;
-                justify-content: space-between;
-                gap: 12px;
-                flex-wrap: wrap;
-              "
-            >
-              <div>
-                <div style="font-weight: 800; font-size: 18px">
-                  {{ e.title }}
-                  <el-tag
-                    v-if="e.isTraining"
-                    type="success"
-                    effect="light"
-                    style="margin-left: 8px"
-                    >Обучение</el-tag
-                  >
-                  <el-tag
-                    v-if="e.format"
-                    :type="formatTagType(e.format)"
-                    effect="light"
-                    style="margin-left: 8px"
-                  >
-                    {{ formatLabel(e.format) }}
-                  </el-tag>
-                </div>
-                <div class="muted" style="margin-top: 6px">
-                  {{ formatDateTime(e.startAt)
-                  }}<span v-if="e.endAt"> — {{ formatDateTime(e.endAt) }}</span>
-                </div>
-                <div v-if="e.location" class="muted" style="margin-top: 6px">
-                  {{ e.location }}
-                </div>
-                <div
-                  v-if="e.description"
-                  style="margin-top: 10px; white-space: pre-wrap"
-                >
-                  {{ e.description }}
-                </div>
-              </div>
-            </div>
-          </el-card>
-
-          <div
-            v-if="total > limit"
-            style="display: flex; justify-content: flex-end"
-          >
-            <el-pagination
-              background
-              layout="prev, pager, next"
-              :total="total"
-              :page-size="limit"
-              :current-page="page"
-              @current-change="
-                (p) => {
-                  page.value = p;
-                  load();
-                }
-              "
-            />
-          </div>
         </div>
       </el-tab-pane>
 
@@ -751,121 +678,54 @@ onMounted(async () => {
       style="margin-bottom: var(--gap-md)"
     >
       <el-tab-pane label="Все мероприятия" name="all">
-        <el-card shadow="never" style="margin-bottom: var(--gap-md)">
-          <div class="muted" style="margin-bottom: 8px">Поиск</div>
-          <el-input
-            v-model="q"
-            clearable
-            placeholder="Поиск по названию/описанию/месту"
-            style="min-width: 320px"
-            @input="
-              () => {
-                page.value = 1;
+        <SearchCard
+          v-model:q="q"
+          :count="total"
+          placeholder="Поиск по названию/описанию/месту"
+          @input="
+            () => {
+              page.value = 1;
+              load();
+            }
+          "
+        />
+
+        <EventsCardsList
+          :events="filtered"
+          :loading="loading"
+          emptyText="Мероприятий пока нет"
+          :formatDateTime="formatDateTime"
+          :formatLabel="formatLabel"
+          :formatTagType="formatTagType"
+        >
+          <template #actions="{ event: e }">
+            <el-button
+              v-if="isAgent"
+              type="primary"
+              @click="registerForEvent(e)"
+            >
+              Записаться
+            </el-button>
+          </template>
+        </EventsCardsList>
+
+        <div
+          v-if="total > limit"
+          style="display: flex; justify-content: flex-end"
+        >
+          <el-pagination
+            background
+            layout="prev, pager, next"
+            :total="total"
+            :page-size="limit"
+            :current-page="page"
+            @current-change="
+              (p) => {
+                page = p;
                 load();
               }
             "
           />
-          <div class="muted" style="margin-top: 8px">Найдено: {{ total }}</div>
-        </el-card>
-
-        <div v-loading="loading" style="display: grid; gap: var(--gap-md)">
-          <el-empty
-            v-if="!filtered.length"
-            description="Мероприятий пока нет"
-          />
-
-          <el-card v-for="e in filtered" :key="e.id" shadow="hover">
-            <img
-              v-if="e.coverImageUrl"
-              :src="e.coverImageUrl"
-              alt=""
-              style="
-                width: 100%;
-                height: 200px;
-                object-fit: cover;
-                border-radius: 12px;
-                margin-bottom: 10px;
-              "
-            />
-            <div
-              style="
-                display: flex;
-                justify-content: space-between;
-                gap: 12px;
-                flex-wrap: wrap;
-              "
-            >
-              <div>
-                <div style="font-weight: 800; font-size: 18px">
-                  {{ e.title }}
-                  <el-tag
-                    v-if="e.isTraining"
-                    type="success"
-                    effect="light"
-                    style="margin-left: 8px"
-                    >Обучение</el-tag
-                  >
-                  <el-tag
-                    v-if="e.format"
-                    :type="formatTagType(e.format)"
-                    effect="light"
-                    style="margin-left: 8px"
-                  >
-                    {{ formatLabel(e.format) }}
-                  </el-tag>
-                </div>
-                <div class="muted" style="margin-top: 6px">
-                  {{ formatDateTime(e.startAt)
-                  }}<span v-if="e.endAt"> — {{ formatDateTime(e.endAt) }}</span>
-                </div>
-                <div v-if="e.location" class="muted" style="margin-top: 6px">
-                  {{ e.location }}
-                </div>
-                <div
-                  v-if="e.description"
-                  style="margin-top: 10px; white-space: pre-wrap"
-                >
-                  {{ e.description }}
-                </div>
-              </div>
-
-              <div
-                style="
-                  display: flex;
-                  align-items: flex-start;
-                  gap: 8px;
-                  flex-wrap: wrap;
-                "
-              >
-                <el-button
-                  v-if="isAgent"
-                  type="primary"
-                  @click="registerForEvent(e)"
-                >
-                  Записаться
-                </el-button>
-              </div>
-            </div>
-          </el-card>
-
-          <div
-            v-if="total > limit"
-            style="display: flex; justify-content: flex-end"
-          >
-            <el-pagination
-              background
-              layout="prev, pager, next"
-              :total="total"
-              :page-size="limit"
-              :current-page="page"
-              @current-change="
-                (p) => {
-                  page.value = p;
-                  load();
-                }
-              "
-            />
-          </div>
         </div>
       </el-tab-pane>
 
@@ -962,101 +822,44 @@ onMounted(async () => {
     </el-tabs>
 
     <template v-else>
-      <el-card shadow="never" style="margin-bottom: var(--gap-md)">
-        <div class="muted" style="margin-bottom: 8px">Поиск</div>
-        <el-input
-          v-model="q"
-          clearable
-          placeholder="Поиск по названию/описанию/месту"
-          style="min-width: 320px"
-          @input="
-            () => {
-              page.value = 1;
+      <SearchCard
+        v-model:q="q"
+        :count="total"
+        placeholder="Поиск по названию/описанию/месту"
+        @input="
+          () => {
+            page.value = 1;
+            load();
+          }
+        "
+      />
+
+      <EventsCardsList
+        :events="filtered"
+        :loading="loading"
+        emptyText="Мероприятий пока нет"
+        :formatDateTime="formatDateTime"
+        :formatLabel="formatLabel"
+        :formatTagType="formatTagType"
+      />
+
+      <div
+        v-if="total > limit"
+        style="display: flex; justify-content: flex-end"
+      >
+        <el-pagination
+          background
+          layout="prev, pager, next"
+          :total="total"
+          :page-size="limit"
+          :current-page="page"
+          @current-change="
+            (p) => {
+              page.value = p;
               load();
             }
           "
         />
-        <div class="muted" style="margin-top: 8px">Найдено: {{ total }}</div>
-      </el-card>
-
-      <div v-loading="loading" style="display: grid; gap: var(--gap-md)">
-        <el-empty v-if="!filtered.length" description="Мероприятий пока нет" />
-
-        <el-card v-for="e in filtered" :key="e.id" shadow="hover">
-          <img
-            v-if="e.coverImageUrl"
-            :src="e.coverImageUrl"
-            alt=""
-            style="
-              width: 100%;
-              height: 200px;
-              object-fit: cover;
-              border-radius: 12px;
-              margin-bottom: 10px;
-            "
-          />
-          <div
-            style="
-              display: flex;
-              justify-content: space-between;
-              gap: 12px;
-              flex-wrap: wrap;
-            "
-          >
-            <div>
-              <div style="font-weight: 800; font-size: 18px">
-                {{ e.title }}
-                <el-tag
-                  v-if="e.isTraining"
-                  type="success"
-                  effect="light"
-                  style="margin-left: 8px"
-                  >Обучение</el-tag
-                >
-                <el-tag
-                  v-if="e.format"
-                  :type="formatTagType(e.format)"
-                  effect="light"
-                  style="margin-left: 8px"
-                >
-                  {{ formatLabel(e.format) }}
-                </el-tag>
-              </div>
-              <div class="muted" style="margin-top: 6px">
-                {{ formatDateTime(e.startAt)
-                }}<span v-if="e.endAt"> — {{ formatDateTime(e.endAt) }}</span>
-              </div>
-              <div v-if="e.location" class="muted" style="margin-top: 6px">
-                {{ e.location }}
-              </div>
-              <div
-                v-if="e.description"
-                style="margin-top: 10px; white-space: pre-wrap"
-              >
-                {{ e.description }}
-              </div>
-            </div>
-          </div>
-        </el-card>
-
-        <div
-          v-if="total > limit"
-          style="display: flex; justify-content: flex-end"
-        >
-          <el-pagination
-            background
-            layout="prev, pager, next"
-            :total="total"
-            :page-size="limit"
-            :current-page="page"
-            @current-change="
-              (p) => {
-                page.value = p;
-                load();
-              }
-            "
-          />
-        </div>
       </div>
     </template>
   </div>

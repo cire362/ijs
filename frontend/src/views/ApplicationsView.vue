@@ -1,8 +1,12 @@
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { useAuthStore, apiClient } from "../stores/auth";
 import { ElMessage } from "element-plus";
 import CRMTable from "@/components/ui/CRMTable.vue";
+import SearchStatusFiltersCard from "@/components/ui/SearchStatusFiltersCard.vue";
+import { normalizeText } from "@/utils/text";
+import { formatDate, formatDateTime } from "@/utils/datetime";
+import { personName } from "@/utils/person";
 import {
   UploadFilled,
   CircleCheckFilled,
@@ -49,35 +53,7 @@ function formatMoney(v) {
   return `${n.toLocaleString()} ₽`;
 }
 
-function formatDate(v) {
-  if (!v) return "—";
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("ru-RU");
-}
-
-function formatDateTime(v) {
-  if (!v) return "—";
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString("ru-RU", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function personName(u) {
-  if (!u) return "";
-  return (
-    u.fullName ||
-    [u.lastName, u.firstName, u.middleName].filter(Boolean).join(" ") ||
-    u.name ||
-    ""
-  );
-}
+// formatDate/formatDateTime вынесены в utils
 
 function statusLabel(status) {
   const found = STATUS_FLOW.find((s) => s.key === status);
@@ -150,11 +126,7 @@ function deadlineTagType(row) {
   return "info";
 }
 
-function normalizeText(v) {
-  return String(v || "")
-    .toLowerCase()
-    .trim();
-}
+// normalizeText вынесен в utils
 
 const filteredItems = computed(() => {
   const qq = normalizeText(q.value);
@@ -192,6 +164,30 @@ const tableRows = computed(() =>
     fio: personName(a.agent) || personName(auth.user),
   }))
 );
+
+const page = ref(1);
+const pageSize = ref(10);
+
+watch([q, selectedStatus], () => {
+  page.value = 1;
+});
+
+watch(
+  () => tableRows.value.length,
+  (len) => {
+    const totalPages = Math.max(1, Math.ceil(len / pageSize.value));
+    if (page.value > totalPages) page.value = totalPages;
+  }
+);
+
+watch(pageSize, () => {
+  page.value = 1;
+});
+
+const pagedRows = computed(() => {
+  const start = (page.value - 1) * pageSize.value;
+  return tableRows.value.slice(start, start + pageSize.value);
+});
 </script>
 
 <template>
@@ -218,44 +214,21 @@ const tableRows = computed(() =>
       description="Раздел доступен только агенту"
     />
     <template v-else>
-      <el-card shadow="never" style="margin-bottom: var(--gap-md)">
-        <div class="muted" style="margin-bottom: 8px">Фильтры</div>
-        <div
-          style="
-            display: flex;
-            gap: var(--gap-sm);
-            flex-wrap: wrap;
-            align-items: center;
-          "
-        >
-          <el-input
-            v-model="q"
-            clearable
-            placeholder="Поиск по названию/адресу/ID"
-            style="min-width: 320px"
-          />
-          <el-select
-            v-model="selectedStatus"
-            clearable
-            placeholder="Все статусы"
-            style="min-width: 220px"
-          >
-            <el-option
-              v-for="s in [
-                ...STATUS_FLOW,
-                { key: 'rejected', label: 'Отменена' },
-                { key: 'expired', label: 'Истек срок' },
-              ]"
-              :key="s.key"
-              :label="s.label"
-              :value="s.key"
-            />
-          </el-select>
-          <div class="muted">Найдено: {{ tableRows.length }}</div>
-        </div>
-      </el-card>
+      <SearchStatusFiltersCard
+        v-model:q="q"
+        v-model:status="selectedStatus"
+        :options="[
+          ...STATUS_FLOW,
+          { key: 'rejected', label: 'Отменена' },
+          { key: 'expired', label: 'Истек срок' },
+        ]"
+        optionValueKey="key"
+        optionLabelKey="label"
+        :count="tableRows.length"
+        placeholder="Поиск по названию/адресу/ID"
+      />
 
-      <CRMTable :columns="columns" :rows="tableRows" :loading="loading" stripe>
+      <CRMTable :columns="columns" :rows="pagedRows" :loading="loading" stripe>
         <template #deadline="{ row }">
           <span v-if="!row.expiresAt">—</span>
           <el-tag v-else :type="deadlineTagType(row)" effect="light">
@@ -277,6 +250,19 @@ const tableRows = computed(() =>
           >
         </template>
       </CRMTable>
+
+      <div
+        v-if="tableRows.length > pageSize"
+        style="display: flex; justify-content: flex-end; margin-top: var(--gap-md)"
+      >
+        <el-pagination
+          v-model:current-page="page"
+          v-model:page-size="pageSize"
+          :total="tableRows.length"
+          :page-sizes="[5, 10, 20, 50]"
+          layout="total, sizes, prev, pager, next"
+        />
+      </div>
 
       <el-card shadow="never" style="margin-top: var(--gap-md)">
         <div class="pill">История</div>

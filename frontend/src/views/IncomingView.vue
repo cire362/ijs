@@ -3,6 +3,10 @@ import { computed, onMounted, ref, watch } from "vue";
 import { useAuthStore, apiClient } from "../stores/auth";
 import { ElMessage } from "element-plus";
 import CRMTable from "@/components/ui/CRMTable.vue";
+import SearchStatusFiltersCard from "@/components/ui/SearchStatusFiltersCard.vue";
+import { normalizeText } from "@/utils/text";
+import { formatDate, formatDateTime } from "@/utils/datetime";
+import { personName } from "@/utils/person";
 import {
   UploadFilled,
   CircleCheckFilled,
@@ -74,16 +78,6 @@ const columns = computed(() => {
   return base;
 });
 
-function personName(u) {
-  if (!u) return "";
-  return (
-    u.fullName ||
-    [u.lastName, u.firstName, u.middleName].filter(Boolean).join(" ") ||
-    u.name ||
-    ""
-  );
-}
-
 function developerLabel(d) {
   if (!d) return "";
   return d.companyName || personName(d) || d.email || `#${d.id}`;
@@ -96,19 +90,7 @@ function formatMoney(v) {
   return `${n.toLocaleString()} ₽`;
 }
 
-function formatDate(v) {
-  if (!v) return "—";
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("ru-RU");
-}
-
-function formatDateTime(v) {
-  if (!v) return "—";
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString("ru-RU");
-}
+// formatDate/formatDateTime вынесены в utils
 
 function deadlineTagType(row) {
   const dt = row?.expiresAt ? new Date(row.expiresAt) : null;
@@ -216,11 +198,7 @@ function statusTag(status) {
   return "info";
 }
 
-function normalizeText(v) {
-  return String(v || "")
-    .toLowerCase()
-    .trim();
-}
+// normalizeText вынесен в utils
 
 const filteredItems = computed(() => {
   const qq = normalizeText(q.value);
@@ -350,42 +328,19 @@ const pagedRows = computed(() => {
       description="Доступно только для застройщика или админа"
     />
     <template v-else>
-      <el-card shadow="never" style="margin-bottom: var(--gap-md)">
-        <div class="muted" style="margin-bottom: 8px">Фильтры</div>
-        <div
-          style="
-            display: flex;
-            gap: var(--gap-sm);
-            flex-wrap: wrap;
-            align-items: center;
-          "
-        >
-          <el-input
-            v-model="q"
-            clearable
-            placeholder="Поиск по объекту/адресу/агенту/ID"
-            style="min-width: 320px"
-          />
-          <el-select
-            v-model="selectedStatus"
-            clearable
-            placeholder="Все статусы"
-            style="min-width: 220px"
-          >
-            <el-option
-              v-for="s in [
-                ...STATUS_FLOW,
-                { key: 'rejected', label: 'Отменена' },
-                { key: 'expired', label: 'Истек срок' },
-              ]"
-              :key="s.key"
-              :label="s.label"
-              :value="s.key"
-            />
-          </el-select>
-          <div class="muted">Найдено: {{ tableRows.length }}</div>
-        </div>
-      </el-card>
+      <SearchStatusFiltersCard
+        v-model:q="q"
+        v-model:status="selectedStatus"
+        :options="[
+          ...STATUS_FLOW,
+          { key: 'rejected', label: 'Отменена' },
+          { key: 'expired', label: 'Истек срок' },
+        ]"
+        optionValueKey="key"
+        optionLabelKey="label"
+        :count="tableRows.length"
+        placeholder="Поиск по объекту/адресу/агенту/ID"
+      />
 
       <CRMTable :columns="columns" :rows="pagedRows" :loading="loading" border>
         <template #deadline="{ row }">

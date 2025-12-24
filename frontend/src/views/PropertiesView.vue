@@ -3,10 +3,13 @@ import { onMounted, ref, computed, watch, nextTick } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore, apiClient } from "../stores/auth";
 import { ElMessage } from "element-plus";
-import FiltersBar from "@/components/ui/FiltersBar.vue";
 import CardsList from "@/components/ui/CardsList.vue";
 import SearchResultsCard from "@/components/ui/SearchResultsCard.vue";
-import AnalyticsWidget from "@/components/ui/AnalyticsWidget.vue";
+import PropertiesAnalyticsRow from "@/components/properties/PropertiesAnalyticsRow.vue";
+import PropertiesSearchSection from "@/components/properties/PropertiesSearchSection.vue";
+import PropertyCreateFormCard from "@/components/properties/PropertyCreateFormCard.vue";
+import SearchStatusFiltersCard from "@/components/ui/SearchStatusFiltersCard.vue";
+import { normalizeText } from "@/utils/text";
 
 const auth = useAuthStore();
 const router = useRouter();
@@ -124,31 +127,6 @@ const form = ref({
 
 const creatingProperty = ref(false);
 const createImages = ref([]);
-
-function onCreateImagesExceed() {
-  ElMessage.warning("Можно загрузить до 10 изображений");
-}
-
-function onCreateImagesChange(file, fileList) {
-  const raw = file?.raw;
-  if (!raw) return;
-
-  const okType = ["image/jpeg", "image/png", "image/webp"].includes(raw.type);
-  if (!okType) {
-    ElMessage.error("Допустимы только JPG/PNG/WEBP");
-    createImages.value = (fileList || []).filter((f) => f.uid !== file.uid);
-    return;
-  }
-
-  const maxSize = 6 * 1024 * 1024;
-  if (raw.size > maxSize) {
-    ElMessage.error("Файл слишком большой (макс 6 МБ)");
-    createImages.value = (fileList || []).filter((f) => f.uid !== file.uid);
-    return;
-  }
-
-  createImages.value = fileList || [];
-}
 
 const developerOptions = ref([]);
 const developerLoading = ref(false);
@@ -605,11 +583,7 @@ const myProperties = computed(() => {
 const myQ = ref("");
 const myStatus = ref("");
 
-function normalizeText(v) {
-  return String(v || "")
-    .toLowerCase()
-    .trim();
-}
+// normalizeText вынесен в utils
 
 const filteredDevelopers = computed(() => {
   const qq = normalizeText(developersQ.value);
@@ -782,35 +756,14 @@ function goDetails(propertyId) {
     </div>
 
     <template v-if="!isManager">
-      <el-row :gutter="16" style="margin-bottom: var(--gap-md)">
-        <el-col :span="8" :xs="24" :sm="12" :md="8">
-          <AnalyticsWidget
-            label="Объектов в базе"
-            :value="String(agentAnalytics.total)"
-            :delta="`+${agentAnalytics.createdLast7} за 7 дней`"
-            :hint="analyticsScopeHint"
-          />
-        </el-col>
-        <el-col :span="8" :xs="24" :sm="12" :md="8">
-          <AnalyticsWidget
-            label="Свободны"
-            :value="String(agentAnalytics.available)"
-            :delta="`${agentAnalytics.availablePct}% от базы`"
-            hint="Можно бронировать"
-          />
-        </el-col>
-        <el-col :span="8" :xs="24" :sm="12" :md="8">
-          <AnalyticsWidget
-            label="В работе (бронь)"
-            :value="String(agentAnalytics.reserved)"
-            :delta="`${agentAnalytics.sold} продано`"
-            trend="up"
-            hint="Объекты со статусом «Бронь»"
-          />
-        </el-col>
-      </el-row>
+      <PropertiesAnalyticsRow
+        :analytics="agentAnalytics"
+        :scopeHint="analyticsScopeHint"
+      />
 
-      <FiltersBar
+      <PropertiesSearchSection
+        v-model:page="page"
+        v-model:pageSize="pageSize"
         :regions="regions"
         :cities="cities"
         :stages="stages"
@@ -819,91 +772,47 @@ function goDetails(propertyId) {
         :constructionTypes="constructionTypes"
         :readinessTypes="readinessTypes"
         :developerOptions="developerFilterOptions"
-        @apply="onFiltersApply"
-        @reset="onFiltersReset"
-        style="margin-bottom: var(--gap-md)"
-      />
-
-      <div class="muted" style="margin-bottom: 8px">
-        Всего: {{ agentScopeItems.length }} · Найдено:
-        {{ filteredItems.length }}
-      </div>
-
-      <div ref="resultsTop" />
-      <div style="margin-bottom: var(--gap-md)" v-loading="loading">
-        <CardsList>
-          <SearchResultsCard v-for="p in pagedItems" :key="p.id" :property="p">
-            <template #actions>
-              <el-button type="warning" plain @click="goDetails(p.id)"
-                >Детали</el-button
-              >
-              <template v-if="isAgent && p.saleStatus === 'available'">
-                <el-input
-                  v-model="applicationComments[p.id]"
-                  :rows="2"
-                  type="textarea"
-                  placeholder="Комментарий к заявке"
-                  style="flex: 1; min-width: 220px"
-                />
-                <el-button type="primary" @click="applyToProperty(p.id)"
-                  >Подать заявку</el-button
-                >
-              </template>
-            </template>
-          </SearchResultsCard>
-        </CardsList>
-      </div>
-
-      <div
-        v-if="filteredItems.length > pageSize"
-        style="
-          display: flex;
-          justify-content: center;
-          margin-top: var(--gap-md);
-        "
+        :loading="loading"
+        :totalAll="agentScopeItems.length"
+        :totalFound="filteredItems.length"
+        :pagedItems="pagedItems"
+        @filters-apply="onFiltersApply"
+        @filters-reset="onFiltersReset"
       >
-        <el-pagination
-          v-model:current-page="page"
-          v-model:page-size="pageSize"
-          :total="filteredItems.length"
-          :page-sizes="[5, 12, 24, 48]"
-          layout="total, sizes, prev, pager, next"
-        />
-      </div>
+        <template #resultsTop>
+          <div ref="resultsTop" />
+        </template>
+        <template #actions="{ property: p }">
+          <el-button type="warning" plain @click="goDetails(p.id)"
+            >Детали</el-button
+          >
+          <template v-if="isAgent && p.saleStatus === 'available'">
+            <el-input
+              v-model="applicationComments[p.id]"
+              :rows="2"
+              type="textarea"
+              placeholder="Комментарий к заявке"
+              style="flex: 1; min-width: 220px"
+            />
+            <el-button type="primary" @click="applyToProperty(p.id)"
+              >Подать заявку</el-button
+            >
+          </template>
+        </template>
+      </PropertiesSearchSection>
     </template>
 
     <template v-else>
       <el-tabs v-model="activeTab" style="margin-top: var(--gap-md)">
         <el-tab-pane label="Поиск" name="catalog">
-          <el-row :gutter="16" style="margin-bottom: var(--gap-md)">
-            <el-col :span="8" :xs="24" :sm="12" :md="8">
-              <AnalyticsWidget
-                label="Объектов в базе"
-                :value="String(agentAnalytics.total)"
-                :delta="`+${agentAnalytics.createdLast7} за 7 дней`"
-                :hint="analyticsScopeHint"
-              />
-            </el-col>
-            <el-col :span="8" :xs="24" :sm="12" :md="8">
-              <AnalyticsWidget
-                label="Свободны"
-                :value="String(agentAnalytics.available)"
-                :delta="`${agentAnalytics.availablePct}% от базы`"
-                hint="Можно бронировать"
-              />
-            </el-col>
-            <el-col :span="8" :xs="24" :sm="12" :md="8">
-              <AnalyticsWidget
-                label="В работе (бронь)"
-                :value="String(agentAnalytics.reserved)"
-                :delta="`${agentAnalytics.sold} продано`"
-                trend="up"
-                hint="Объекты со статусом «Бронь»"
-              />
-            </el-col>
-          </el-row>
+          <PropertiesAnalyticsRow
+            :analytics="agentAnalytics"
+            :scopeHint="analyticsScopeHint"
+          />
 
-          <FiltersBar
+          <PropertiesSearchSection
+            v-model:page="page"
+            v-model:pageSize="pageSize"
             :regions="regions"
             :cities="cities"
             :stages="stages"
@@ -912,307 +821,26 @@ function goDetails(propertyId) {
             :constructionTypes="constructionTypes"
             :readinessTypes="readinessTypes"
             :developerOptions="developerFilterOptions"
-            @apply="onFiltersApply"
-            @reset="onFiltersReset"
-            style="margin-bottom: var(--gap-md)"
-          />
-
-          <div class="muted" style="margin-bottom: 8px">
-            Всего: {{ agentScopeItems.length }} · Найдено:
-            {{ filteredItems.length }}
-          </div>
-
-          <div ref="resultsTop" />
-          <div style="margin-bottom: var(--gap-md)" v-loading="loading">
-            <CardsList>
-              <SearchResultsCard
-                v-for="p in pagedItems"
-                :key="p.id"
-                :property="p"
-              >
-                <template #actions>
-                  <el-button type="warning" plain @click="goDetails(p.id)"
-                    >Детали</el-button
-                  >
-
-                  <el-select
-                    v-model="p.saleStatus"
-                    placeholder="Статус"
-                    style="width: 160px"
-                    @change="(val) => updatePropertyStatus(p, val)"
-                  >
-                    <el-option
-                      v-for="opt in statusOptions"
-                      :key="opt.value"
-                      :label="opt.label"
-                      :value="opt.value"
-                    />
-                  </el-select>
-                </template>
-              </SearchResultsCard>
-            </CardsList>
-          </div>
-
-          <div
-            v-if="filteredItems.length > pageSize"
-            style="
-              display: flex;
-              justify-content: center;
-              margin-top: var(--gap-md);
-            "
+            :loading="loading"
+            :totalAll="agentScopeItems.length"
+            :totalFound="filteredItems.length"
+            :pagedItems="pagedItems"
+            @filters-apply="onFiltersApply"
+            @filters-reset="onFiltersReset"
           >
-            <el-pagination
-              v-model:current-page="page"
-              v-model:page-size="pageSize"
-              :total="filteredItems.length"
-              :page-sizes="[5, 12, 24, 48]"
-              layout="total, sizes, prev, pager, next"
-            />
-          </div>
-        </el-tab-pane>
-
-        <el-tab-pane v-if="isDeveloper" label="Мои объекты" name="my">
-          <el-card shadow="never" style="margin-bottom: var(--gap-md)">
-            <template #header>
-              <div class="section-head" style="margin: 0">
-                <div>
-                  <div class="pill">Застройщик</div>
-                  <div style="font-weight: 700">Создать объект</div>
-                </div>
-                <el-button
-                  type="primary"
-                  @click="createProperty"
-                  :loading="creatingProperty"
-                  >Сохранить</el-button
-                >
-              </div>
+            <template #resultsTop>
+              <div ref="resultsTop" />
             </template>
+            <template #actions="{ property: p }">
+              <el-button type="warning" plain @click="goDetails(p.id)"
+                >Детали</el-button
+              >
 
-            <el-form :model="form" label-position="top">
-              <el-row :gutter="12">
-                <el-col :span="12" :xs="24" :sm="12" :md="8">
-                  <el-form-item label="Название">
-                    <el-input
-                      v-model="form.title"
-                      placeholder="Название объекта"
-                    />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12" :xs="24" :sm="12" :md="8">
-                  <el-form-item label="Регион">
-                    <el-input
-                      v-model="form.region"
-                      placeholder="Московская обл."
-                    />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12" :xs="24" :sm="12" :md="8">
-                  <el-form-item label="Город">
-                    <el-input v-model="form.city" placeholder="Москва" />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12" :xs="24" :sm="12" :md="8">
-                  <el-form-item label="Улица">
-                    <el-input v-model="form.street" placeholder="Ленина" />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12" :xs="24" :sm="12" :md="8">
-                  <el-form-item label="№ участка">
-                    <el-input v-model="form.plotNumber" placeholder="1" />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12" :xs="24" :sm="12" :md="8">
-                  <el-form-item label="Площадь участка (соток)">
-                    <el-input v-model.number="form.landArea" type="number" />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12" :xs="24" :sm="12" :md="8">
-                  <el-form-item label="Площадь дома (м²)">
-                    <el-input v-model.number="form.houseArea" type="number" />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12" :xs="24" :sm="12" :md="8">
-                  <el-form-item label="Цена (₽)">
-                    <el-input v-model.number="form.price" type="number" />
-                  </el-form-item>
-                </el-col>
-
-                <el-col :span="12" :xs="24" :sm="12" :md="8">
-                  <el-form-item label="Этажность">
-                    <el-input v-model.number="form.floors" type="number" />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12" :xs="24" :sm="12" :md="8">
-                  <el-form-item label="Комнат">
-                    <el-input v-model.number="form.rooms" type="number" />
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12" :xs="24" :sm="12" :md="8">
-                  <el-form-item label="Стадия строительства">
-                    <el-select
-                      v-model="form.buildStage"
-                      clearable
-                      filterable
-                      placeholder="Выберите"
-                      style="width: 100%"
-                    >
-                      <el-option
-                        v-for="opt in buildStageOptions"
-                        :key="opt"
-                        :label="opt"
-                        :value="opt"
-                      />
-                    </el-select>
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12" :xs="24" :sm="12" :md="8">
-                  <el-form-item label="Конструкция">
-                    <el-select
-                      v-model="form.constructionType"
-                      clearable
-                      filterable
-                      placeholder="Выберите"
-                      style="width: 100%"
-                    >
-                      <el-option
-                        v-for="opt in constructionTypeOptions"
-                        :key="opt"
-                        :label="opt"
-                        :value="opt"
-                      />
-                    </el-select>
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12" :xs="24" :sm="12" :md="8">
-                  <el-form-item label="Отделка">
-                    <el-select
-                      v-model="form.finishingType"
-                      clearable
-                      filterable
-                      placeholder="Выберите"
-                      style="width: 100%"
-                    >
-                      <el-option
-                        v-for="opt in finishingTypeOptions"
-                        :key="opt"
-                        :label="opt"
-                        :value="opt"
-                      />
-                    </el-select>
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12" :xs="24" :sm="12" :md="8">
-                  <el-form-item label="Тип договора">
-                    <el-select
-                      v-model="form.contractType"
-                      clearable
-                      filterable
-                      placeholder="Выберите"
-                      style="width: 100%"
-                    >
-                      <el-option
-                        v-for="opt in contractTypeOptions"
-                        :key="opt"
-                        :label="opt"
-                        :value="opt"
-                      />
-                    </el-select>
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12" :xs="24" :sm="12" :md="8">
-                  <el-form-item label="Готовность">
-                    <el-select
-                      v-model="form.readinessType"
-                      clearable
-                      filterable
-                      placeholder="Выберите"
-                      style="width: 100%"
-                    >
-                      <el-option
-                        v-for="opt in readinessTypeOptions"
-                        :key="opt"
-                        :label="opt"
-                        :value="opt"
-                      />
-                    </el-select>
-                  </el-form-item>
-                </el-col>
-                <el-col :span="12" :xs="24" :sm="12" :md="8">
-                  <el-form-item label="Регистрация">
-                    <el-select
-                      v-model="form.registration"
-                      clearable
-                      filterable
-                      placeholder="Выберите"
-                      style="width: 100%"
-                    >
-                      <el-option
-                        v-for="opt in registrationOptions"
-                        :key="opt"
-                        :label="opt"
-                        :value="opt"
-                      />
-                    </el-select>
-                  </el-form-item>
-                </el-col>
-                <el-col :span="24">
-                  <el-form-item label="Описание">
-                    <el-input
-                      v-model="form.description"
-                      type="textarea"
-                      :rows="3"
-                      placeholder="Описание объекта"
-                    />
-                  </el-form-item>
-                </el-col>
-
-                <el-col :span="24">
-                  <el-form-item label="Фотографии (до 10 шт.)">
-                    <el-upload
-                      v-model:file-list="createImages"
-                      drag
-                      multiple
-                      :auto-upload="false"
-                      :limit="10"
-                      :disabled="creatingProperty"
-                      accept="image/jpeg,image/png,image/webp"
-                      :on-exceed="onCreateImagesExceed"
-                      :on-change="onCreateImagesChange"
-                    >
-                      <div class="muted">
-                        Перетащите файлы сюда или нажмите для выбора
-                      </div>
-                      <div class="muted" style="margin-top: 4px">
-                        JPG/PNG/WEBP, до 6 МБ
-                      </div>
-                    </el-upload>
-                  </el-form-item>
-                </el-col>
-              </el-row>
-            </el-form>
-          </el-card>
-
-          <el-card shadow="never" style="margin-bottom: var(--gap-md)">
-            <div class="muted" style="margin-bottom: 8px">Фильтры</div>
-            <div
-              style="
-                display: flex;
-                gap: var(--gap-sm);
-                flex-wrap: wrap;
-                align-items: center;
-              "
-            >
-              <el-input
-                v-model="myQ"
-                clearable
-                placeholder="Поиск по названию/адресу/ID"
-                style="min-width: 320px"
-              />
               <el-select
-                v-model="myStatus"
-                clearable
-                placeholder="Все статусы"
-                style="min-width: 220px"
+                v-model="p.saleStatus"
+                placeholder="Статус"
+                style="width: 160px"
+                @change="(val) => updatePropertyStatus(p, val)"
               >
                 <el-option
                   v-for="opt in statusOptions"
@@ -1221,11 +849,33 @@ function goDetails(propertyId) {
                   :value="opt.value"
                 />
               </el-select>
-              <div class="muted">
-                Найдено: {{ filteredMyProperties.length }}
-              </div>
-            </div>
-          </el-card>
+            </template>
+          </PropertiesSearchSection>
+        </el-tab-pane>
+
+        <el-tab-pane v-if="isDeveloper" label="Мои объекты" name="my">
+          <PropertyCreateFormCard
+            v-model:form="form"
+            v-model:images="createImages"
+            pill="Застройщик"
+            title="Создать объект"
+            :saving="creatingProperty"
+            :buildStageOptions="buildStageOptions"
+            :constructionTypeOptions="constructionTypeOptions"
+            :finishingTypeOptions="finishingTypeOptions"
+            :contractTypeOptions="contractTypeOptions"
+            :readinessTypeOptions="readinessTypeOptions"
+            :registrationOptions="registrationOptions"
+            @save="createProperty"
+          />
+
+          <SearchStatusFiltersCard
+            v-model:q="myQ"
+            v-model:status="myStatus"
+            :options="statusOptions"
+            :count="filteredMyProperties.length"
+            placeholder="Поиск по названию/адресу/ID"
+          />
 
           <el-card shadow="never">
             <template #header>
@@ -1469,260 +1119,28 @@ function goDetails(propertyId) {
               </div>
             </el-card>
 
-            <el-card shadow="never" style="margin-bottom: var(--gap-md)">
-              <template #header>
-                <div class="section-head" style="margin: 0">
-                  <div>
-                    <div class="pill">Админ</div>
-                    <div style="font-weight: 700">Добавить объект</div>
-                  </div>
-                  <el-button
-                    type="primary"
-                    @click="createProperty"
-                    :loading="creatingProperty"
-                    >Сохранить</el-button
-                  >
-                </div>
-              </template>
+            <PropertyCreateFormCard
+              v-model:form="form"
+              v-model:images="createImages"
+              pill="Админ"
+              title="Добавить объект"
+              :saving="creatingProperty"
+              :buildStageOptions="buildStageOptions"
+              :constructionTypeOptions="constructionTypeOptions"
+              :finishingTypeOptions="finishingTypeOptions"
+              :contractTypeOptions="contractTypeOptions"
+              :readinessTypeOptions="readinessTypeOptions"
+              :registrationOptions="registrationOptions"
+              @save="createProperty"
+            />
 
-              <el-form :model="form" label-position="top">
-                <el-row :gutter="12">
-                  <el-col :span="12" :xs="24" :sm="12" :md="8">
-                    <el-form-item label="Название">
-                      <el-input
-                        v-model="form.title"
-                        placeholder="Название объекта"
-                      />
-                    </el-form-item>
-                  </el-col>
-                  <el-col :span="12" :xs="24" :sm="12" :md="8">
-                    <el-form-item label="Регион">
-                      <el-input
-                        v-model="form.region"
-                        placeholder="Московская обл."
-                      />
-                    </el-form-item>
-                  </el-col>
-                  <el-col :span="12" :xs="24" :sm="12" :md="8">
-                    <el-form-item label="Город">
-                      <el-input v-model="form.city" placeholder="Москва" />
-                    </el-form-item>
-                  </el-col>
-                  <el-col :span="12" :xs="24" :sm="12" :md="8">
-                    <el-form-item label="Улица">
-                      <el-input v-model="form.street" placeholder="Ленина" />
-                    </el-form-item>
-                  </el-col>
-                  <el-col :span="12" :xs="24" :sm="12" :md="8">
-                    <el-form-item label="№ участка">
-                      <el-input v-model="form.plotNumber" placeholder="1" />
-                    </el-form-item>
-                  </el-col>
-                  <el-col :span="12" :xs="24" :sm="12" :md="8">
-                    <el-form-item label="Площадь участка (соток)">
-                      <el-input v-model.number="form.landArea" type="number" />
-                    </el-form-item>
-                  </el-col>
-                  <el-col :span="12" :xs="24" :sm="12" :md="8">
-                    <el-form-item label="Площадь дома (м²)">
-                      <el-input v-model.number="form.houseArea" type="number" />
-                    </el-form-item>
-                  </el-col>
-                  <el-col :span="12" :xs="24" :sm="12" :md="8">
-                    <el-form-item label="Цена (₽)">
-                      <el-input v-model.number="form.price" type="number" />
-                    </el-form-item>
-                  </el-col>
-
-                  <el-col :span="12" :xs="24" :sm="12" :md="8">
-                    <el-form-item label="Этажность">
-                      <el-input v-model.number="form.floors" type="number" />
-                    </el-form-item>
-                  </el-col>
-                  <el-col :span="12" :xs="24" :sm="12" :md="8">
-                    <el-form-item label="Комнат">
-                      <el-input v-model.number="form.rooms" type="number" />
-                    </el-form-item>
-                  </el-col>
-                  <el-col :span="12" :xs="24" :sm="12" :md="8">
-                    <el-form-item label="Стадия строительства">
-                      <el-select
-                        v-model="form.buildStage"
-                        clearable
-                        filterable
-                        placeholder="Выберите"
-                        style="width: 100%"
-                      >
-                        <el-option
-                          v-for="opt in buildStageOptions"
-                          :key="opt"
-                          :label="opt"
-                          :value="opt"
-                        />
-                      </el-select>
-                    </el-form-item>
-                  </el-col>
-                  <el-col :span="12" :xs="24" :sm="12" :md="8">
-                    <el-form-item label="Конструкция">
-                      <el-select
-                        v-model="form.constructionType"
-                        clearable
-                        filterable
-                        placeholder="Выберите"
-                        style="width: 100%"
-                      >
-                        <el-option
-                          v-for="opt in constructionTypeOptions"
-                          :key="opt"
-                          :label="opt"
-                          :value="opt"
-                        />
-                      </el-select>
-                    </el-form-item>
-                  </el-col>
-                  <el-col :span="12" :xs="24" :sm="12" :md="8">
-                    <el-form-item label="Отделка">
-                      <el-select
-                        v-model="form.finishingType"
-                        clearable
-                        filterable
-                        placeholder="Выберите"
-                        style="width: 100%"
-                      >
-                        <el-option
-                          v-for="opt in finishingTypeOptions"
-                          :key="opt"
-                          :label="opt"
-                          :value="opt"
-                        />
-                      </el-select>
-                    </el-form-item>
-                  </el-col>
-                  <el-col :span="12" :xs="24" :sm="12" :md="8">
-                    <el-form-item label="Тип договора">
-                      <el-select
-                        v-model="form.contractType"
-                        clearable
-                        filterable
-                        placeholder="Выберите"
-                        style="width: 100%"
-                      >
-                        <el-option
-                          v-for="opt in contractTypeOptions"
-                          :key="opt"
-                          :label="opt"
-                          :value="opt"
-                        />
-                      </el-select>
-                    </el-form-item>
-                  </el-col>
-                  <el-col :span="12" :xs="24" :sm="12" :md="8">
-                    <el-form-item label="Готовность">
-                      <el-select
-                        v-model="form.readinessType"
-                        clearable
-                        filterable
-                        placeholder="Выберите"
-                        style="width: 100%"
-                      >
-                        <el-option
-                          v-for="opt in readinessTypeOptions"
-                          :key="opt"
-                          :label="opt"
-                          :value="opt"
-                        />
-                      </el-select>
-                    </el-form-item>
-                  </el-col>
-                  <el-col :span="12" :xs="24" :sm="12" :md="8">
-                    <el-form-item label="Регистрация">
-                      <el-select
-                        v-model="form.registration"
-                        clearable
-                        filterable
-                        placeholder="Выберите"
-                        style="width: 100%"
-                      >
-                        <el-option
-                          v-for="opt in registrationOptions"
-                          :key="opt"
-                          :label="opt"
-                          :value="opt"
-                        />
-                      </el-select>
-                    </el-form-item>
-                  </el-col>
-                  <el-col :span="24">
-                    <el-form-item label="Описание">
-                      <el-input
-                        v-model="form.description"
-                        type="textarea"
-                        :rows="3"
-                        placeholder="Описание объекта"
-                      />
-                    </el-form-item>
-                  </el-col>
-
-                  <el-col :span="24">
-                    <el-form-item label="Фотографии (до 10 шт.)">
-                      <el-upload
-                        v-model:file-list="createImages"
-                        drag
-                        multiple
-                        :auto-upload="false"
-                        :limit="10"
-                        :disabled="creatingProperty"
-                        accept="image/jpeg,image/png,image/webp"
-                        :on-exceed="onCreateImagesExceed"
-                        :on-change="onCreateImagesChange"
-                      >
-                        <div class="muted">
-                          Перетащите файлы сюда или нажмите для выбора
-                        </div>
-                        <div class="muted" style="margin-top: 4px">
-                          JPG/PNG/WEBP, до 6 МБ
-                        </div>
-                      </el-upload>
-                    </el-form-item>
-                  </el-col>
-                </el-row>
-              </el-form>
-            </el-card>
-
-            <el-card shadow="never" style="margin-bottom: var(--gap-md)">
-              <div class="muted" style="margin-bottom: 8px">Фильтры</div>
-              <div
-                style="
-                  display: flex;
-                  gap: var(--gap-sm);
-                  flex-wrap: wrap;
-                  align-items: center;
-                "
-              >
-                <el-input
-                  v-model="devQ"
-                  clearable
-                  placeholder="Поиск по названию/адресу/ID"
-                  style="min-width: 320px"
-                />
-                <el-select
-                  v-model="devStatus"
-                  clearable
-                  placeholder="Все статусы"
-                  style="min-width: 220px"
-                >
-                  <el-option
-                    v-for="opt in statusOptions"
-                    :key="opt.value"
-                    :label="opt.label"
-                    :value="opt.value"
-                  />
-                </el-select>
-                <div class="muted">
-                  Найдено: {{ filteredSelectedDeveloperProperties.length }}
-                </div>
-              </div>
-            </el-card>
+            <SearchStatusFiltersCard
+              v-model:q="devQ"
+              v-model:status="devStatus"
+              :options="statusOptions"
+              :count="filteredSelectedDeveloperProperties.length"
+              placeholder="Поиск по названию/адресу/ID"
+            />
 
             <el-card shadow="never">
               <template #header>

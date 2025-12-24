@@ -3,6 +3,9 @@ import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore, apiClient } from "../stores/auth";
 import { ElMessage } from "element-plus";
+import SearchCard from "@/components/ui/SearchCard.vue";
+import { normalizeText } from "@/utils/text";
+import { formatDate } from "@/utils/datetime";
 
 const auth = useAuthStore();
 const router = useRouter();
@@ -23,19 +26,6 @@ const form = ref({
 });
 
 const creating = ref(false);
-
-function formatDate(v) {
-  if (!v) return "—";
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("ru-RU");
-}
-
-function normalizeText(v) {
-  return String(v || "")
-    .toLowerCase()
-    .trim();
-}
 
 const filtered = computed(() => {
   const qq = normalizeText(q.value);
@@ -174,18 +164,12 @@ onMounted(load);
       </el-form>
     </el-card>
 
-    <el-card shadow="never" style="margin-bottom: var(--gap-md)">
-      <div class="muted" style="margin-bottom: 8px">Поиск</div>
-      <el-input
-        v-model="q"
-        clearable
-        placeholder="Поиск по заголовку/тексту"
-        style="min-width: 320px"
-      />
-      <div class="muted" style="margin-top: 8px">
-        Найдено: {{ filtered.length }}
-      </div>
-    </el-card>
+    <SearchCard
+      v-model:q="q"
+      label="Поиск"
+      placeholder="Поиск по заголовку/тексту"
+      :count="filtered.length"
+    />
 
     <div v-loading="loading" style="display: grid; gap: var(--gap-md)">
       <el-empty v-if="!filtered.length" description="Новостей пока нет" />

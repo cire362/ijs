@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import { useAuthStore, apiClient } from "../stores/auth";
 import { ElMessage } from "element-plus";
+import { formatDateTime } from "@/utils/datetime";
 
 const route = useRoute();
 const auth = useAuthStore();
@@ -35,12 +36,7 @@ const sliderImages = computed(() => {
   return Array.isArray(imgs) && imgs.length > 1 ? imgs.slice(1) : [];
 });
 
-function formatDateTime(v) {
-  if (!v) return "—";
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleString("ru-RU");
-}
+// formatDateTime вынесен в utils
 
 async function load() {
   loading.value = true;
