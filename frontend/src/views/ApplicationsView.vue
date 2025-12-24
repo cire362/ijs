@@ -253,7 +253,11 @@ const pagedRows = computed(() => {
 
       <div
         v-if="tableRows.length > pageSize"
-        style="display: flex; justify-content: flex-end; margin-top: var(--gap-md)"
+        style="
+          display: flex;
+          justify-content: flex-end;
+          margin-top: var(--gap-md);
+        "
       >
         <el-pagination
           v-model:current-page="page"

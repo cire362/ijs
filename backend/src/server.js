@@ -33,6 +33,17 @@ Notification.addHook("afterCreate", (notification) => {
   io.to(room).emit("notification", notification.toJSON());
 });
 
+// bulkCreate does NOT trigger afterCreate per-row by default, so admins (often
+// notified via bulkCreate) won't receive real-time socket events without this.
+Notification.addHook("afterBulkCreate", (notifications) => {
+  if (!Array.isArray(notifications)) return;
+  for (const notification of notifications) {
+    if (!notification) continue;
+    const room = `user:${notification.userId}`;
+    io.to(room).emit("notification", notification.toJSON());
+  }
+});
+
 async function bootstrap() {
   try {
     await sequelize.authenticate();
