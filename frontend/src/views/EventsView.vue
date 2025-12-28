@@ -821,7 +821,7 @@ onMounted(async () => {
       </el-tab-pane>
     </el-tabs>
 
-    <template v-else>
+    <template v-if="!isAdmin && !isAgent">
       <SearchCard
         v-model:q="q"
         :count="total"
