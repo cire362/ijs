@@ -12,7 +12,13 @@ function resolveSocketUrl() {
   // Если API задан абсолютным URL (https://api.example.com) — используем его.
   if (raw) return raw;
 
-  // Dev fallback
+  // По умолчанию:
+  // - в production подключаемся к текущему домену (Nginx проксирует /socket.io)
+  // - в dev оставляем localhost:4000
+  if (import.meta.env.PROD) {
+    return window.location.origin;
+  }
+
   return "http://localhost:4000";
 }
 
