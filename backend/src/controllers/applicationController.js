@@ -54,7 +54,14 @@ async function listMine(req, res) {
       {
         model: User,
         as: "agent",
-        attributes: ["id", "firstName", "lastName", "middleName", "email"],
+        attributes: [
+          "id",
+          "firstName",
+          "lastName",
+          "middleName",
+          "email",
+          "phone",
+        ],
       },
       {
         model: StatusHistory,
@@ -81,7 +88,7 @@ async function listIncoming(req, res) {
   } else if (req.user.role === "admin" && req.query.developerId) {
     const developerId = Number(req.query.developerId);
     if (!Number.isFinite(developerId)) {
-      return res.status(400).json({ error: "Invalid developerId" });
+      return res.status(400).json({ error: "Некорректный developerId" });
     }
     where = { "$property.developer_id$": developerId };
   }
@@ -121,7 +128,14 @@ async function listIncoming(req, res) {
       {
         model: User,
         as: "agent",
-        attributes: ["id", "firstName", "lastName", "middleName", "email"],
+        attributes: [
+          "id",
+          "firstName",
+          "lastName",
+          "middleName",
+          "email",
+          "phone",
+        ],
       },
     ],
     order: [["createdAt", "DESC"]],
@@ -132,7 +146,22 @@ async function listIncoming(req, res) {
 
 async function createApplication(req, res) {
   try {
-    const { propertyId, comment, commissionAmount } = req.body;
+    const {
+      propertyId,
+      comment,
+      commissionAmount,
+      clientFullName,
+      clientPhone,
+    } = req.body;
+
+    const clientFullNameNorm = String(clientFullName || "").trim();
+    const clientPhoneNorm = String(clientPhone || "").trim();
+    if (!clientFullNameNorm) {
+      return res.status(400).json({ error: "Укажите ФИО клиента" });
+    }
+    if (!clientPhoneNorm) {
+      return res.status(400).json({ error: "Укажите телефон клиента" });
+    }
 
     const property = await Property.findByPk(propertyId);
     if (!property) return res.status(404).json({ error: "Объект не найден" });
@@ -159,6 +188,8 @@ async function createApplication(req, res) {
       expiresAt,
       commissionAmount: computedCommission,
       comment,
+      clientFullName: clientFullNameNorm,
+      clientPhone: clientPhoneNorm,
     });
     await StatusHistory.create({
       applicationId: app.id,
@@ -315,6 +346,36 @@ async function updateStatus(req, res) {
   return res.json(app);
 }
 
+async function updateClientInfo(req, res) {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) {
+    return res.status(400).json({ error: "Некорректный id" });
+  }
+
+  const app = await Application.findByPk(id);
+  if (!app) return res.status(404).json({ error: "Не найдено" });
+  if (app.agentId !== req.user.id) {
+    return res.status(403).json({ error: "Доступ запрещён" });
+  }
+
+  const clientFullNameNorm = String(req.body?.clientFullName || "").trim();
+  const clientPhoneNorm = String(req.body?.clientPhone || "").trim();
+
+  if (!clientFullNameNorm) {
+    return res.status(400).json({ error: "Укажите ФИО клиента" });
+  }
+  if (!clientPhoneNorm) {
+    return res.status(400).json({ error: "Укажите телефон клиента" });
+  }
+
+  await app.update({
+    clientFullName: clientFullNameNorm,
+    clientPhone: clientPhoneNorm,
+  });
+
+  return res.json(app);
+}
+
 async function extendInitialDeadline(req, res) {
   const days =
     req.body?.days == null || req.body?.days === ""
@@ -371,6 +432,7 @@ module.exports = {
   listMine,
   listIncoming,
   createApplication,
+  updateClientInfo,
   updateStatus,
   extendInitialDeadline,
 };

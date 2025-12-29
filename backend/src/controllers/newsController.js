@@ -85,9 +85,9 @@ async function getNewsById(req, res) {
     ],
   });
 
-  if (!item) return res.status(404).json({ error: "Not found" });
+  if (!item) return res.status(404).json({ error: "Не найдено" });
   if (!isAdmin && !item.isPublished) {
-    return res.status(404).json({ error: "Not found" });
+    return res.status(404).json({ error: "Не найдено" });
   }
 
   return res.json(item);
@@ -99,9 +99,9 @@ async function createNews(req, res) {
   const excerpt = req.body?.excerpt == null ? "" : String(req.body.excerpt);
   const content = req.body?.content == null ? "" : String(req.body.content);
 
-  if (!title) return res.status(400).json({ error: "title is required" });
+  if (!title) return res.status(400).json({ error: "Заголовок обязателен" });
   if (!String(content).trim())
-    return res.status(400).json({ error: "content is required" });
+    return res.status(400).json({ error: "Текст обязателен" });
 
   const isPublished = toBool(req.body?.isPublished);
   const publish = isPublished == null ? true : isPublished;
@@ -139,13 +139,14 @@ async function createNews(req, res) {
 
 async function updateNews(req, res) {
   const item = await News.findByPk(req.params.id);
-  if (!item) return res.status(404).json({ error: "Not found" });
+  if (!item) return res.status(404).json({ error: "Не найдено" });
 
   const payload = {};
 
   if (req.body?.title != null) {
     const t = normalizeText(req.body.title);
-    if (!t) return res.status(400).json({ error: "title cannot be empty" });
+    if (!t)
+      return res.status(400).json({ error: "Заголовок не может быть пустым" });
     payload.title = t;
   }
 
@@ -162,14 +163,16 @@ async function updateNews(req, res) {
   if (req.body?.content != null) {
     const c = String(req.body.content);
     if (!c.trim())
-      return res.status(400).json({ error: "content cannot be empty" });
+      return res.status(400).json({ error: "Текст не может быть пустым" });
     payload.content = c;
   }
 
   if (req.body?.isPublished != null) {
     const b = toBool(req.body.isPublished);
     if (b == null)
-      return res.status(400).json({ error: "Invalid isPublished" });
+      return res
+        .status(400)
+        .json({ error: "Некорректное значение isPublished" });
 
     payload.isPublished = b;
     if (b && !item.publishedAt) payload.publishedAt = new Date();
@@ -200,11 +203,11 @@ async function updateNews(req, res) {
 
 async function addNewsImages(req, res) {
   const item = await News.findByPk(req.params.id);
-  if (!item) return res.status(404).json({ error: "Not found" });
+  if (!item) return res.status(404).json({ error: "Не найдено" });
 
   const files = Array.isArray(req.files) ? req.files : [];
   if (!files.length) {
-    return res.status(400).json({ error: "No images uploaded" });
+    return res.status(400).json({ error: "Изображения не загружены" });
   }
 
   await NewsImage.bulkCreate(

@@ -34,6 +34,8 @@ const columns = [
   { prop: "commission", label: "Комиссия", minWidth: 130 },
   { prop: "deadline", label: "Срок до", minWidth: 130 },
   { prop: "fio", label: "ФИО", minWidth: 180 },
+  { prop: "clientFullName", label: "ФИО клиента", minWidth: 180 },
+  { prop: "clientPhone", label: "Телефон клиента", minWidth: 160 },
   { prop: "status", label: "Статус", minWidth: 160 },
 ];
 
@@ -72,6 +74,51 @@ const selectedId = ref(null);
 const selected = computed(() =>
   selectedId.value ? items.value.find((a) => a.id === selectedId.value) : null
 );
+
+const clientFullNameEdit = ref("");
+const clientPhoneEdit = ref("");
+const savingClientInfo = ref(false);
+
+watch(
+  () => selected.value?.id,
+  () => {
+    clientFullNameEdit.value = String(selected.value?.clientFullName || "");
+    clientPhoneEdit.value = String(selected.value?.clientPhone || "");
+  },
+  { immediate: true }
+);
+
+async function saveClientInfo() {
+  if (!selected.value?.id) return;
+  const fio = String(clientFullNameEdit.value || "").trim();
+  const phone = String(clientPhoneEdit.value || "").trim();
+  if (!fio) {
+    ElMessage.error("Укажите ФИО клиента");
+    return;
+  }
+  if (!phone) {
+    ElMessage.error("Укажите телефон клиента");
+    return;
+  }
+
+  savingClientInfo.value = true;
+  try {
+    const { data } = await apiClient.patch(
+      `/applications/${selected.value.id}/client`,
+      { clientFullName: fio, clientPhone: phone }
+    );
+
+    const idx = items.value.findIndex((a) => a.id === selected.value.id);
+    if (idx >= 0) {
+      items.value[idx] = { ...items.value[idx], ...data };
+    }
+    ElMessage.success("Данные клиента сохранены");
+  } catch (err) {
+    ElMessage.error(err.response?.data?.error || "Не удалось сохранить");
+  } finally {
+    savingClientInfo.value = false;
+  }
+}
 
 const selectedHistory = computed(() => {
   const h = selected.value?.history;
@@ -135,7 +182,16 @@ const filteredItems = computed(() => {
     if (!qq) return true;
 
     const p = a.property;
-    const hay = [a.id, p?.title, p?.region, p?.city, p?.street, p?.plotNumber]
+    const hay = [
+      a.id,
+      p?.title,
+      p?.region,
+      p?.city,
+      p?.street,
+      p?.plotNumber,
+      a.clientFullName,
+      a.clientPhone,
+    ]
       .filter(Boolean)
       .map((x) => normalizeText(x))
       .join(" ");
@@ -162,6 +218,14 @@ const tableRows = computed(() =>
     commission: formatMoney(a.commissionAmount),
     deadline: a.expiresAt ? formatDate(a.expiresAt) : "—",
     fio: personName(a.agent) || personName(auth.user),
+    clientFullName:
+      a.clientFullName != null && String(a.clientFullName).trim()
+        ? String(a.clientFullName)
+        : "—",
+    clientPhone:
+      a.clientPhone != null && String(a.clientPhone).trim()
+        ? String(a.clientPhone)
+        : "—",
   }))
 );
 
@@ -278,6 +342,33 @@ const pagedRows = computed(() => {
             Заявка №{{ selected.id }} ·
             {{ selected.property?.title || "Объект" }}
           </div>
+
+          <el-divider style="margin: 16px 0" />
+
+          <div class="muted">Клиент</div>
+          <el-form label-position="top" style="margin-top: 8px">
+            <el-row :gutter="12">
+              <el-col :span="12" :xs="24" :sm="12" :md="12">
+                <el-form-item label="ФИО клиента">
+                  <el-input v-model="clientFullNameEdit" />
+                </el-form-item>
+              </el-col>
+              <el-col :span="12" :xs="24" :sm="12" :md="12">
+                <el-form-item label="Телефон клиента">
+                  <el-input v-model="clientPhoneEdit" />
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <div style="display: flex; justify-content: flex-end">
+              <el-button
+                type="primary"
+                :loading="savingClientInfo"
+                @click="saveClientInfo"
+              >
+                Сохранить
+              </el-button>
+            </div>
+          </el-form>
 
           <div class="muted" style="margin-top: 6px">
             Срок до:

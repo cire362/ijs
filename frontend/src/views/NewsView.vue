@@ -25,6 +25,33 @@ const form = ref({
   isPublished: true,
 });
 
+const createImages = ref([]);
+
+function onImagesExceed() {
+  ElMessage.warning("Можно загрузить до 10 изображений");
+}
+
+function onImagesChange(file, fileList) {
+  const raw = file?.raw;
+  if (!raw) return;
+
+  const okType = ["image/jpeg", "image/png", "image/webp"].includes(raw.type);
+  if (!okType) {
+    ElMessage.error("Допустимы только JPG/PNG/WEBP");
+    createImages.value = (fileList || []).filter((f) => f.uid !== file.uid);
+    return;
+  }
+
+  const maxSize = 6 * 1024 * 1024;
+  if (raw.size > maxSize) {
+    ElMessage.error("Файл слишком большой (макс 6 МБ)");
+    createImages.value = (fileList || []).filter((f) => f.uid !== file.uid);
+    return;
+  }
+
+  createImages.value = fileList || [];
+}
+
 const creating = ref(false);
 
 const filtered = computed(() => {
@@ -72,7 +99,29 @@ async function createNews() {
       content: form.value.content,
       isPublished: form.value.isPublished,
     };
-    await apiClient.post("/news", payload);
+    const { data: created } = await apiClient.post("/news", payload);
+
+    if (Array.isArray(createImages.value) && createImages.value.length) {
+      const fd = new FormData();
+      for (const f of createImages.value) {
+        if (f?.raw) fd.append("images", f.raw);
+      }
+      if ([...fd.keys()].length) {
+        try {
+          await apiClient.post(`/news/${created.id}/images`, fd, {
+            headers: { "Content-Type": "multipart/form-data" },
+          });
+          ElMessage.success("Новость создана и изображения загружены");
+        } catch (err) {
+          ElMessage.error(
+            err.response?.data?.error ||
+              "Новость создана, но не удалось загрузить изображения"
+          );
+        }
+      }
+    } else {
+      ElMessage.success("Новость создана");
+    }
 
     form.value = {
       title: "",
@@ -82,7 +131,7 @@ async function createNews() {
       isPublished: true,
     };
 
-    ElMessage.success("Новость создана");
+    createImages.value = [];
     await load();
   } catch (err) {
     ElMessage.error(err.response?.data?.error || "Не удалось создать новость");
@@ -140,6 +189,27 @@ onMounted(load);
           />
         </el-form-item>
 
+        <el-form-item label="Картинки (до 10 шт.)">
+          <el-upload
+            v-model:file-list="createImages"
+            drag
+            multiple
+            :auto-upload="false"
+            :limit="10"
+            :disabled="creating"
+            accept="image/jpeg,image/png,image/webp"
+            :on-exceed="onImagesExceed"
+            :on-change="onImagesChange"
+          >
+            <div class="muted">
+              Перетащите файлы сюда или нажмите для выбора
+            </div>
+            <div class="muted" style="margin-top: 4px">
+              JPG/PNG/WEBP, до 6 МБ
+            </div>
+          </el-upload>
+        </el-form-item>
+
         <div
           style="
             display: flex;
@@ -159,7 +229,8 @@ onMounted(load);
         </div>
 
         <div class="muted" style="margin-top: 8px">
-          Картинки загружаются на странице новости после создания.
+          Вы можете сразу прикрепить картинки при создании или добавить их на
+          странице новости.
         </div>
       </el-form>
     </el-card>

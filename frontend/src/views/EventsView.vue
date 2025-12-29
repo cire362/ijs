@@ -855,7 +855,7 @@ onMounted(async () => {
           :current-page="page"
           @current-change="
             (p) => {
-              page.value = p;
+              page = p;
               load();
             }
           "

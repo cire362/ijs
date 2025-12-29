@@ -17,15 +17,35 @@ async function register(req, res) {
       password,
       role,
       companyName,
-    } = req.body;
-    if (!allowedRoles.includes(role)) {
-      return res.status(400).json({ error: "Invalid role" });
-    }
-    const exists = await User.findOne({ where: { email } });
-    if (exists)
-      return res.status(409).json({ error: "Email already registered" });
+    } = req.body || {};
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    if (!allowedRoles.includes(role)) {
+      return res.status(400).json({ error: "Недопустимая роль" });
+    }
+
+    const emailNorm = String(email || "").trim();
+    const phoneNorm = String(phone || "").trim();
+    const passwordNorm = String(password || "");
+
+    if (!emailNorm) {
+      return res.status(400).json({ error: "Укажите email" });
+    }
+    if (!phoneNorm) {
+      return res.status(400).json({ error: "Телефон обязателен" });
+    }
+    if (!passwordNorm) {
+      return res.status(400).json({ error: "Укажите пароль" });
+    }
+    if (passwordNorm.length < 6) {
+      return res.status(400).json({ error: "Пароль слишком короткий" });
+    }
+
+    const exists = await User.findOne({ where: { email: emailNorm } });
+    if (exists) {
+      return res.status(409).json({ error: "Email уже зарегистрирован" });
+    }
+
+    const passwordHash = await bcrypt.hash(passwordNorm, 10);
 
     // Back-compat: if only legacy name provided, try to split "Фамилия Имя Отчество"
     let derivedLastName = lastName;
@@ -43,8 +63,8 @@ async function register(req, res) {
       firstName: derivedFirstName,
       lastName: derivedLastName,
       middleName: derivedMiddleName,
-      email,
-      phone,
+      email: emailNorm,
+      phone: phoneNorm,
       passwordHash,
       role,
       companyName,
@@ -80,16 +100,20 @@ async function register(req, res) {
       .json({ id: user.id, email: user.email, role: user.role });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ error: "Registration failed" });
+    return res.status(500).json({ error: "Не удалось зарегистрироваться" });
   }
 }
 
 async function login(req, res) {
   const { email, password } = req.body;
-  const user = await User.findOne({ where: { email } });
-  if (!user) return res.status(401).json({ error: "Invalid credentials" });
-  const valid = await bcrypt.compare(password, user.passwordHash);
-  if (!valid) return res.status(401).json({ error: "Invalid credentials" });
+  const emailNorm = String(email || "").trim();
+  const passwordNorm = String(password || "");
+  const user = await User.findOne({ where: { email: emailNorm } });
+  if (!user)
+    return res.status(401).json({ error: "Неверный email или пароль" });
+  const valid = await bcrypt.compare(passwordNorm, user.passwordHash);
+  if (!valid)
+    return res.status(401).json({ error: "Неверный email или пароль" });
 
   const token = jwt.sign({ sub: user.id, role: user.role }, jwtSecret, {
     expiresIn: "1d",

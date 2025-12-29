@@ -30,7 +30,7 @@ app.use("/events", eventsRoutes);
 app.use((err, req, res, next) => {
   // Fallback error handler with minimal noise
   console.error(err);
-  res.status(500).json({ error: "Internal error" });
+  res.status(500).json({ error: "Внутренняя ошибка" });
 });
 
 module.exports = app;

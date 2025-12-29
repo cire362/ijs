@@ -17,7 +17,7 @@ const {
 const { uploadPropertyImages } = require("../utils/upload");
 
 router.get("/", optionalAuthenticate, asyncHandler(listProperties));
-router.get("/:id", asyncHandler(getPropertyById));
+router.get("/:id", optionalAuthenticate, asyncHandler(getPropertyById));
 router.post(
   "/",
   authenticate,

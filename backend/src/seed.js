@@ -484,6 +484,20 @@ async function seed() {
     const agent = randomChoice(rng, createdAgents);
     let status = weightedStatus();
 
+    const clientFullName = `${randomChoice(rng, lastNames)} ${randomChoice(
+      rng,
+      firstNames
+    )} ${randomChoice(rng, middleNames)}`
+      .replace(/\s+/g, " ")
+      .trim();
+    const clientPhone = `+7 9${randomInt(rng, 10, 99)} ${randomInt(
+      rng,
+      100,
+      999
+    )}-${String(randomInt(rng, 0, 99)).padStart(2, "0")}-${String(
+      randomInt(rng, 0, 99)
+    ).padStart(2, "0")}`;
+
     // Ensure expired only happens from 'sent' stage
     if (status === "expired") {
       // ok
@@ -504,6 +518,8 @@ async function seed() {
       expiresAt,
       commissionAmount: calcCommission(property.price),
       comment: rng() < 0.35 ? "Хочу забронировать объект" : "",
+      clientFullName,
+      clientPhone,
       createdAt,
       updatedAt: createdAt,
     });
