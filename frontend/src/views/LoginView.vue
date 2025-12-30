@@ -13,6 +13,7 @@ const registerForm = ref({
   lastName: "",
   firstName: "",
   middleName: "",
+  phone: "",
   email: "",
   password: "",
   role: "agent",
@@ -24,10 +25,15 @@ const submit = async () => {
     if (activeTab.value === "login") {
       await auth.login(loginForm.value.email, loginForm.value.password);
     } else {
+      if (!String(registerForm.value.phone || "").trim()) {
+        ElMessage.error("Укажите телефон");
+        return;
+      }
       await auth.register({
         lastName: registerForm.value.lastName || "Иванов",
         firstName: registerForm.value.firstName || "Иван",
         middleName: registerForm.value.middleName || "Иванович",
+        phone: String(registerForm.value.phone || "").trim(),
         email: registerForm.value.email,
         password: registerForm.value.password,
         role: registerForm.value.role,
@@ -138,6 +144,9 @@ const submit = async () => {
                 type="email"
                 placeholder="Введите email"
               />
+            </el-form-item>
+            <el-form-item label="Телефон">
+              <el-input v-model="registerForm.phone" placeholder="+7..." />
             </el-form-item>
             <el-form-item label="Пароль">
               <el-input

@@ -72,7 +72,7 @@ async function unreadCount(req, res) {
 async function markRead(req, res) {
   const note = await Notification.findByPk(req.params.id);
   if (!note || note.userId !== req.user.id)
-    return res.status(404).json({ error: "Not found" });
+    return res.status(404).json({ error: "Не найдено" });
   await note.update({ isRead: true });
   return res.json(note);
 }

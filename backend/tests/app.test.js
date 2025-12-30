@@ -33,6 +33,15 @@ describe("API routes", () => {
       passwordHash: pass,
       role: "developer",
     });
+    const otherDeveloperUser = await User.create({
+      lastName: "Кузнецов",
+      firstName: "Застройщик2",
+      middleName: "Петрович",
+      email: "dev2@test.com",
+      passwordHash: pass,
+      role: "developer",
+      developerApproved: true,
+    });
     adminUser = await User.create({
       lastName: "Сидоров",
       firstName: "Админ",
@@ -53,6 +62,21 @@ describe("API routes", () => {
       houseArea: 120,
       price: 10000000,
     });
+
+    const otherProperty = await Property.create({
+      title: "Other Dev House",
+      developerId: otherDeveloperUser.id,
+      region: "MO",
+      city: "Moscow",
+      street: "Other",
+      plotNumber: "2",
+      landArea: 8,
+      houseArea: 140,
+      price: 12000000,
+    });
+
+    // stash for tests
+    global.__otherPropertyId = otherProperty.id;
 
     agentToken = await login(agentUser.email, "password");
     developerToken = await login(developerUser.email, "password");
@@ -83,10 +107,28 @@ describe("API routes", () => {
     expect(res.body.length).toBeGreaterThanOrEqual(1);
   });
 
+  test("developer sees only own properties in list", async () => {
+    const res = await request(app)
+      .get("/properties")
+      .set("Authorization", `Bearer ${developerToken}`);
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+    expect(res.body.every((p) => p.developerId === developerUser.id)).toBe(
+      true
+    );
+  });
+
   test("get property by id", async () => {
     const res = await request(app).get(`/properties/${property.id}`);
     expect(res.status).toBe(200);
     expect(res.body.id).toBe(property.id);
+  });
+
+  test("developer cannot get other developer property by id", async () => {
+    const res = await request(app)
+      .get(`/properties/${global.__otherPropertyId}`)
+      .set("Authorization", `Bearer ${developerToken}`);
+    expect(res.status).toBe(404);
   });
 
   test("developer can create property", async () => {
@@ -107,11 +149,36 @@ describe("API routes", () => {
     const res = await request(app)
       .post("/applications")
       .set("Authorization", `Bearer ${agentToken}`)
-      .send({ propertyId: property.id, comment: "I want this house" });
+      .send({
+        propertyId: property.id,
+        comment: "I want this house",
+        clientFullName: "Иванов Иван Иванович",
+        clientPhone: "+79990000000",
+      });
     expect(res.status).toBe(201);
     expect(res.body.propertyId).toBe(property.id);
     expect(res.body.status).toBe("sent");
     expect(res.body.expiresAt).toBeDefined();
+  });
+
+  test("agent can update client info for own application", async () => {
+    const appRes = await Application.findOne({
+      where: { propertyId: property.id },
+      order: [["createdAt", "DESC"]],
+    });
+    expect(appRes).toBeTruthy();
+
+    const res = await request(app)
+      .patch(`/applications/${appRes.id}/client`)
+      .set("Authorization", `Bearer ${agentToken}`)
+      .send({
+        clientFullName: "Петров Пётр Петрович",
+        clientPhone: "+79991112233",
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.clientFullName).toBe("Петров Пётр Петрович");
+    expect(res.body.clientPhone).toBe("+79991112233");
   });
 
   test("agent can see own applications", async () => {

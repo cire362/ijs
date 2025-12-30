@@ -45,7 +45,7 @@ async function updateMe(req, res) {
   if (updates.email) {
     const exists = await User.findOne({ where: { email: updates.email } });
     if (exists && exists.id !== req.user.id) {
-      return res.status(409).json({ error: "Email already registered" });
+      return res.status(409).json({ error: "Email уже зарегистрирован" });
     }
   }
 
@@ -53,12 +53,12 @@ async function updateMe(req, res) {
     await req.user.update(updates);
     return res.json(toPublicUser(req.user));
   } catch (err) {
-    return res.status(400).json({ error: "Cannot update profile" });
+    return res.status(400).json({ error: "Не удалось обновить профиль" });
   }
 }
 
 async function uploadMyAvatar(req, res) {
-  if (!req.file) return res.status(400).json({ error: "No file" });
+  if (!req.file) return res.status(400).json({ error: "Файл не загружен" });
 
   // Store as relative URL that can be proxied via frontend (/api/uploads/...)
   const avatarUrl = `/uploads/avatars/${req.file.filename}`;
@@ -73,15 +73,15 @@ async function changeMyPassword(req, res) {
   if (!currentPassword || !newPassword) {
     return res
       .status(400)
-      .json({ error: "currentPassword and newPassword are required" });
+      .json({ error: "Текущий и новый пароль обязательны" });
   }
   if (newPassword.length < 6) {
-    return res.status(400).json({ error: "Password too short" });
+    return res.status(400).json({ error: "Пароль слишком короткий" });
   }
 
   const valid = await bcrypt.compare(currentPassword, req.user.passwordHash);
   if (!valid) {
-    return res.status(400).json({ error: "Current password is incorrect" });
+    return res.status(400).json({ error: "Текущий пароль неверный" });
   }
 
   const passwordHash = await bcrypt.hash(newPassword, 10);
@@ -150,13 +150,15 @@ async function listDevelopers(req, res) {
 async function approveDeveloper(req, res) {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) {
-    return res.status(400).json({ error: "Invalid id" });
+    return res.status(400).json({ error: "Некорректный id" });
   }
 
   const user = await User.findByPk(id);
-  if (!user) return res.status(404).json({ error: "Not found" });
+  if (!user) return res.status(404).json({ error: "Не найдено" });
   if (user.role !== "developer") {
-    return res.status(400).json({ error: "User is not a developer" });
+    return res
+      .status(400)
+      .json({ error: "Пользователь не является застройщиком" });
   }
 
   await user.update({ developerApproved: true, developerRejected: false });
@@ -174,16 +176,18 @@ async function approveDeveloper(req, res) {
 async function rejectDeveloper(req, res) {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) {
-    return res.status(400).json({ error: "Invalid id" });
+    return res.status(400).json({ error: "Некорректный id" });
   }
 
   const user = await User.findByPk(id);
-  if (!user) return res.status(404).json({ error: "Not found" });
+  if (!user) return res.status(404).json({ error: "Не найдено" });
   if (user.role !== "developer") {
-    return res.status(400).json({ error: "User is not a developer" });
+    return res
+      .status(400)
+      .json({ error: "Пользователь не является застройщиком" });
   }
   if (user.developerApproved) {
-    return res.status(400).json({ error: "Developer already approved" });
+    return res.status(400).json({ error: "Застройщик уже подтверждён" });
   }
 
   await user.update({ developerApproved: false, developerRejected: true });
@@ -201,23 +205,27 @@ async function rejectDeveloper(req, res) {
 async function deleteDeveloperRequest(req, res) {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) {
-    return res.status(400).json({ error: "Invalid id" });
+    return res.status(400).json({ error: "Некорректный id" });
   }
 
   const user = await User.findByPk(id);
-  if (!user) return res.status(404).json({ error: "Not found" });
+  if (!user) return res.status(404).json({ error: "Не найдено" });
   if (user.role !== "developer") {
-    return res.status(400).json({ error: "User is not a developer" });
+    return res
+      .status(400)
+      .json({ error: "Пользователь не является застройщиком" });
   }
   if (user.developerApproved) {
-    return res.status(400).json({ error: "Cannot delete approved developer" });
+    return res
+      .status(400)
+      .json({ error: "Нельзя удалить подтверждённого застройщика" });
   }
 
   const propsCount = await Property.count({ where: { developerId: user.id } });
   if (propsCount > 0) {
     return res
       .status(400)
-      .json({ error: "Cannot delete developer with properties" });
+      .json({ error: "Нельзя удалить застройщика с объектами" });
   }
 
   await user.destroy();
@@ -236,13 +244,19 @@ async function createDeveloperByAdmin(req, res) {
     companyName,
   } = req.body || {};
 
+  const phoneNorm = String(phone || "").trim();
+
   if (!email || !password) {
-    return res.status(400).json({ error: "email and password are required" });
+    return res.status(400).json({ error: "Email и пароль обязательны" });
+  }
+
+  if (!phoneNorm) {
+    return res.status(400).json({ error: "Телефон обязателен" });
   }
 
   const exists = await User.findOne({ where: { email } });
   if (exists) {
-    return res.status(409).json({ error: "Email already registered" });
+    return res.status(409).json({ error: "Email уже зарегистрирован" });
   }
 
   const passwordHash = await bcrypt.hash(String(password), 10);
@@ -264,7 +278,7 @@ async function createDeveloperByAdmin(req, res) {
     lastName: derivedLastName,
     middleName: derivedMiddleName,
     email,
-    phone,
+    phone: phoneNorm,
     passwordHash,
     role: "developer",
     companyName,

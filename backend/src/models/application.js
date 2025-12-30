@@ -33,6 +33,9 @@ Application.init(
     expiresAt: { type: DataTypes.DATE },
     commissionAmount: { type: DataTypes.DECIMAL(14, 2) },
     comment: { type: DataTypes.TEXT },
+
+    clientFullName: { type: DataTypes.STRING },
+    clientPhone: { type: DataTypes.STRING },
   },
   { sequelize, modelName: "application" }
 );

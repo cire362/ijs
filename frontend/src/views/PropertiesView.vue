@@ -26,6 +26,10 @@ const isAdmin = computed(() => auth.user?.role === "admin");
 const isDeveloper = computed(
   () => auth.user?.role === "developer" && auth.user?.developerApproved
 );
+const isDeveloperRole = computed(() => auth.user?.role === "developer");
+const isDeveloperPending = computed(
+  () => isDeveloperRole.value && auth.user?.developerApproved === false
+);
 
 const activeTab = ref("catalog");
 
@@ -154,6 +158,8 @@ async function searchDevelopers(query) {
 }
 
 const applicationComments = ref({});
+const applicationClientFullNames = ref({});
+const applicationClientPhones = ref({});
 
 const developerFilterOptions = computed(() => {
   const byId = new Map();
@@ -394,11 +400,13 @@ const analytics = computed(() => {
   };
 });
 
-const analyticsScopeHint = computed(() =>
-  auth.user
-    ? "Все объекты (включая бронь и проданные)"
-    : "Только доступные (и дома в брони)"
-);
+const analyticsScopeHint = computed(() => {
+  if (!auth.user) return "Только доступные (и дома в брони)";
+  if (isDeveloper.value) {
+    return "Только ваши объекты (включая бронь и проданные)";
+  }
+  return "Все объекты (включая бронь и проданные)";
+});
 
 onMounted(load);
 
@@ -514,6 +522,11 @@ function resetAdminCreateDevForm() {
 async function adminCreateDeveloper() {
   if (!adminCreateDevForm.value.email || !adminCreateDevForm.value.password) {
     ElMessage.error("Укажите email и пароль");
+    return;
+  }
+
+  if (!String(adminCreateDevForm.value.phone || "").trim()) {
+    ElMessage.error("Укажите телефон");
     return;
   }
 
@@ -687,13 +700,27 @@ async function createProperty() {
 }
 
 async function applyToProperty(propertyId) {
+  const fio = String(applicationClientFullNames.value[propertyId] || "").trim();
+  const phone = String(applicationClientPhones.value[propertyId] || "").trim();
+  if (!fio) {
+    ElMessage.error("Укажите ФИО клиента");
+    return;
+  }
+  if (!phone) {
+    ElMessage.error("Укажите телефон клиента");
+    return;
+  }
   try {
     await apiClient.post("/applications", {
       propertyId,
+      clientFullName: fio,
+      clientPhone: phone,
       comment: applicationComments.value[propertyId] || "",
     });
     ElMessage.success("Заявка отправлена");
     applicationComments.value[propertyId] = "";
+    applicationClientFullNames.value[propertyId] = "";
+    applicationClientPhones.value[propertyId] = "";
   } catch (err) {
     ElMessage.error(err.response?.data?.error || "Не удалось отправить заявку");
   }
@@ -746,16 +773,44 @@ function goDetails(propertyId) {
   <div class="page">
     <div class="section-head">
       <div>
-        <div class="pill">Каталог</div>
-        <h1 style="margin: 4px 0">Объекты ИЖС</h1>
-        <div class="muted">Подберите готовые дома и участки</div>
+        <div class="pill">{{ isDeveloperRole ? "Застройщик" : "Каталог" }}</div>
+        <h1 style="margin: 4px 0">
+          {{ isDeveloperRole ? "Мои объекты" : "Объекты ИЖС" }}
+        </h1>
+        <div class="muted">
+          {{
+            isDeveloperRole
+              ? "Управляйте своими объектами"
+              : "Подберите готовые дома и участки"
+          }}
+        </div>
       </div>
       <el-button @click="load" :loading="loading" type="default"
         >Обновить</el-button
       >
     </div>
 
-    <template v-if="!isManager">
+    <el-card
+      v-if="isDeveloperPending"
+      shadow="never"
+      style="margin-top: var(--gap-md)"
+    >
+      <template #header>
+        <div class="section-head" style="margin: 0">
+          <div>
+            <div class="pill">Застройщик</div>
+            <div style="font-weight: 700">Доступ ограничен</div>
+          </div>
+        </div>
+      </template>
+
+      <div class="muted">
+        Дождитесь подтверждения администратора. После подтверждения появится
+        доступ к созданию и управлению объектами.
+      </div>
+    </el-card>
+
+    <template v-else-if="!isManager">
       <PropertiesAnalyticsRow
         :analytics="agentAnalytics"
         :scopeHint="analyticsScopeHint"
@@ -788,6 +843,16 @@ function goDetails(propertyId) {
           >
           <template v-if="isAgent && p.saleStatus === 'available'">
             <el-input
+              v-model="applicationClientFullNames[p.id]"
+              placeholder="ФИО клиента"
+              style="flex: 1; min-width: 200px"
+            />
+            <el-input
+              v-model="applicationClientPhones[p.id]"
+              placeholder="Телефон клиента"
+              style="flex: 1; min-width: 180px"
+            />
+            <el-input
               v-model="applicationComments[p.id]"
               :rows="2"
               type="textarea"
@@ -804,7 +869,10 @@ function goDetails(propertyId) {
 
     <template v-else>
       <el-tabs v-model="activeTab" style="margin-top: var(--gap-md)">
-        <el-tab-pane label="Поиск" name="catalog">
+        <el-tab-pane
+          :label="isDeveloper ? 'Мои объекты' : 'Поиск'"
+          name="catalog"
+        >
           <PropertiesAnalyticsRow
             :analytics="agentAnalytics"
             :scopeHint="analyticsScopeHint"
@@ -853,12 +921,12 @@ function goDetails(propertyId) {
           </PropertiesSearchSection>
         </el-tab-pane>
 
-        <el-tab-pane v-if="isDeveloper" label="Мои объекты" name="my">
+        <el-tab-pane v-if="isDeveloper" label="Добавить объект" name="my">
           <PropertyCreateFormCard
             v-model:form="form"
             v-model:images="createImages"
             pill="Застройщик"
-            title="Создать объект"
+            title="Добавить объект"
             :saving="creatingProperty"
             :buildStageOptions="buildStageOptions"
             :constructionTypeOptions="constructionTypeOptions"
@@ -868,58 +936,6 @@ function goDetails(propertyId) {
             :registrationOptions="registrationOptions"
             @save="createProperty"
           />
-
-          <SearchStatusFiltersCard
-            v-model:q="myQ"
-            v-model:status="myStatus"
-            :options="statusOptions"
-            :count="filteredMyProperties.length"
-            placeholder="Поиск по названию/адресу/ID"
-          />
-
-          <el-card shadow="never">
-            <template #header>
-              <div class="section-head" style="margin: 0">
-                <div>
-                  <div class="pill">Застройщик</div>
-                  <div style="font-weight: 700">Мои объекты</div>
-                </div>
-                <div class="muted">
-                  Всего: {{ myProperties.length }} · Найдено:
-                  {{ filteredMyProperties.length }}
-                </div>
-              </div>
-            </template>
-
-            <div v-loading="loading">
-              <CardsList>
-                <SearchResultsCard
-                  v-for="p in filteredMyProperties"
-                  :key="p.id"
-                  :property="p"
-                >
-                  <template #actions>
-                    <el-button type="primary" plain @click="goDetails(p.id)"
-                      >Редактировать</el-button
-                    >
-                    <el-select
-                      v-model="p.saleStatus"
-                      placeholder="Статус"
-                      style="width: 160px"
-                      @change="(val) => updatePropertyStatus(p, val)"
-                    >
-                      <el-option
-                        v-for="opt in statusOptions"
-                        :key="opt.value"
-                        :label="opt.label"
-                        :value="opt.value"
-                      />
-                    </el-select>
-                  </template>
-                </SearchResultsCard>
-              </CardsList>
-            </div>
-          </el-card>
         </el-tab-pane>
 
         <el-tab-pane

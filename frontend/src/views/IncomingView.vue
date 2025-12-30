@@ -63,13 +63,16 @@ const columns = computed(() => {
     { prop: "address", label: "Адрес", minWidth: 220 },
     { prop: "price", label: "Стоимость", minWidth: 130 },
     { prop: "commission", label: "Комиссия", minWidth: 130 },
-    { prop: "agentFio", label: "ФИО", minWidth: 180 },
+    { prop: "agentFio", label: "ФИО агента", minWidth: 180 },
+    { prop: "agentPhone", label: "Телефон агента", minWidth: 160 },
+    { prop: "clientFullName", label: "ФИО клиента", minWidth: 180 },
+    { prop: "clientPhone", label: "Телефон клиента", minWidth: 160 },
     { prop: "comment", label: "Комментарий", minWidth: 220 },
     { prop: "deadline", label: "Срок до", minWidth: 130 },
     { prop: "status", label: "Статус", minWidth: 140 },
   ];
   if (isAdmin.value) {
-    base.splice(7, 0, {
+    base.splice(10, 0, {
       prop: "developer",
       label: "Застройщик",
       minWidth: 200,
@@ -215,6 +218,9 @@ const filteredItems = computed(() => {
       p?.street,
       p?.plotNumber,
       personName(a.agent),
+      a.agent?.phone,
+      a.clientFullName,
+      a.clientPhone,
       developerLabel(p?.developer),
     ]
       .filter(Boolean)
@@ -253,6 +259,18 @@ const tableRows = computed(() =>
     commission: formatMoney(a.commissionAmount),
     developer: developerLabel(a.property?.developer),
     agentFio: personName(a.agent),
+    agentPhone:
+      a.agent?.phone != null && String(a.agent.phone).trim()
+        ? String(a.agent.phone)
+        : "—",
+    clientFullName:
+      a.clientFullName != null && String(a.clientFullName).trim()
+        ? String(a.clientFullName)
+        : "—",
+    clientPhone:
+      a.clientPhone != null && String(a.clientPhone).trim()
+        ? String(a.clientPhone)
+        : "—",
     comment:
       a.comment != null && String(a.comment).trim() ? String(a.comment) : "—",
     deadline: a.expiresAt,

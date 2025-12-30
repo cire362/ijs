@@ -80,6 +80,8 @@ const readinessTypeOptions = ["Строится", "Готовый дом", "Сд
 const registrationOptions = ["ИЖС", "СНТ", "ЛПХ", "ДНП", "Другое"];
 
 const applicationComment = ref("");
+const clientFullName = ref("");
+const clientPhone = ref("");
 
 const id = computed(() => route.params.id);
 
@@ -190,12 +192,26 @@ function goBack() {
 
 async function applyToProperty() {
   if (!property.value?.id) return;
+  const fio = String(clientFullName.value || "").trim();
+  const phone = String(clientPhone.value || "").trim();
+  if (!fio) {
+    ElMessage.error("Укажите ФИО клиента");
+    return;
+  }
+  if (!phone) {
+    ElMessage.error("Укажите телефон клиента");
+    return;
+  }
   try {
     await apiClient.post("/applications", {
       propertyId: property.value.id,
+      clientFullName: fio,
+      clientPhone: phone,
       comment: applicationComment.value || "",
     });
     ElMessage.success("Заявка отправлена");
+    clientFullName.value = "";
+    clientPhone.value = "";
     applicationComment.value = "";
   } catch (err) {
     ElMessage.error(err.response?.data?.error || "Не удалось отправить заявку");
@@ -567,6 +583,16 @@ async function saveEdits() {
           v-loading="loading"
         >
           <div class="muted" style="margin-bottom: 8px">Заявка</div>
+          <el-input
+            v-model="clientFullName"
+            placeholder="ФИО клиента"
+            style="margin-bottom: 8px"
+          />
+          <el-input
+            v-model="clientPhone"
+            placeholder="Телефон клиента"
+            style="margin-bottom: 8px"
+          />
           <el-input
             v-model="applicationComment"
             :rows="3"

@@ -1,5 +1,6 @@
 import { defineStore } from "pinia";
 import axios from "axios";
+import { humanizeApiError } from "@/utils/errors";
 
 const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || "/api" });
 
@@ -39,7 +40,7 @@ export const useAuthStore = defineStore("auth", {
         applyAuthHeader(data.token);
         this.persist();
       } catch (err) {
-        this.error = err.response?.data?.error || "Login failed";
+        this.error = humanizeApiError(err, "Не удалось войти");
       } finally {
         this.loading = false;
       }
@@ -51,7 +52,7 @@ export const useAuthStore = defineStore("auth", {
         await api.post("/auth/register", payload);
         await this.login(payload.email, payload.password);
       } catch (err) {
-        this.error = err.response?.data?.error || "Registration failed";
+        this.error = humanizeApiError(err, "Не удалось зарегистрироваться");
       } finally {
         this.loading = false;
       }

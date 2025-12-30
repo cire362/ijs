@@ -15,7 +15,9 @@
         class="menu"
         :ellipsis="false"
       >
-        <el-menu-item index="/properties">Поиск</el-menu-item>
+        <el-menu-item index="/properties">
+          {{ isDeveloper ? "Мои объекты" : "Поиск" }}
+        </el-menu-item>
         <el-menu-item index="/news">Новости</el-menu-item>
         <el-menu-item index="/events">Мероприятия</el-menu-item>
         <el-menu-item v-if="isAgent" index="/applications"
@@ -45,14 +47,14 @@
             </el-avatar>
             <div class="profile-info">
               <span class="name">{{ displayName }}</span>
-              <span class="role">{{ auth.user.role }}</span>
+              <span class="role">{{ roleLabel }}</span>
             </div>
             <el-icon><ArrowDown /></el-icon>
           </span>
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item disabled>
-                <el-tag size="small" type="info">{{ auth.user.role }}</el-tag>
+                <el-tag size="small" type="info">{{ roleLabel }}</el-tag>
               </el-dropdown-item>
               <el-dropdown-item @click="goProfile"
                 >Личный кабинет</el-dropdown-item
@@ -81,6 +83,7 @@ const route = useRoute();
 const active = computed(() => route.path);
 const isAuthed = computed(() => !!auth.user);
 const isAgent = computed(() => auth.user?.role === "agent");
+const isDeveloper = computed(() => auth.user?.role === "developer");
 const isManager = computed(
   () =>
     (auth.user?.role === "developer" && auth.user?.developerApproved) ||
@@ -88,6 +91,13 @@ const isManager = computed(
 );
 
 const avatarSrc = computed(() => auth.user?.avatarUrl || "");
+const roleLabel = computed(() => {
+  const role = auth.user?.role;
+  if (role === "agent") return "Агент";
+  if (role === "developer") return "Застройщик";
+  if (role === "admin") return "Администратор";
+  return "Пользователь";
+});
 const displayName = computed(() => {
   const u = auth.user;
   if (!u) return "";

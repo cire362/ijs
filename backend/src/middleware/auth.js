@@ -22,17 +22,17 @@ const optionalAuthenticate = async (req, res, next) => {
 
 const authenticate = async (req, res, next) => {
   const header = req.headers.authorization;
-  if (!header) return res.status(401).json({ error: "Missing token" });
+  if (!header) return res.status(401).json({ error: "Токен отсутствует" });
 
   const [, token] = header.split(" ");
   try {
     const payload = jwt.verify(token, jwtSecret);
     const user = await User.findByPk(payload.sub);
-    if (!user) return res.status(401).json({ error: "User not found" });
+    if (!user) return res.status(401).json({ error: "Пользователь не найден" });
     req.user = user;
     next();
   } catch (err) {
-    return res.status(401).json({ error: "Invalid token" });
+    return res.status(401).json({ error: "Недействительный токен" });
   }
 };
 
@@ -40,7 +40,7 @@ const allowRoles =
   (...roles) =>
   (req, res, next) => {
     if (!req.user || !roles.includes(req.user.role)) {
-      return res.status(403).json({ error: "Forbidden" });
+      return res.status(403).json({ error: "Доступ запрещён" });
     }
 
     if (
@@ -50,7 +50,9 @@ const allowRoles =
     ) {
       return res
         .status(403)
-        .json({ error: "Developer account requires admin approval" });
+        .json({
+          error: "Аккаунт застройщика требует подтверждения администратора",
+        });
     }
     next();
   };

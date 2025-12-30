@@ -97,16 +97,19 @@ async function createEvent(req, res) {
       : String(req.body.format).trim().toLowerCase();
   const format = formatRaw ? formatRaw : null;
   if (format && !allowedFormats.includes(format)) {
-    return res.status(400).json({ error: "Invalid format" });
+    return res.status(400).json({ error: "Некорректный формат" });
   }
 
   const startAt = parseDate(req.body?.startAt);
   const endAt = parseDate(req.body?.endAt);
 
-  if (!title) return res.status(400).json({ error: "title is required" });
-  if (!startAt) return res.status(400).json({ error: "startAt is required" });
+  if (!title) return res.status(400).json({ error: "Заголовок обязателен" });
+  if (!startAt)
+    return res.status(400).json({ error: "Дата начала обязательна" });
   if (endAt && endAt.getTime() < startAt.getTime()) {
-    return res.status(400).json({ error: "endAt must be after startAt" });
+    return res
+      .status(400)
+      .json({ error: "Дата окончания должна быть позже даты начала" });
   }
 
   const isTraining = !!req.body?.isTraining;
@@ -115,7 +118,7 @@ async function createEvent(req, res) {
       ? null
       : Number(req.body.capacity);
   if (capacity != null && (!Number.isFinite(capacity) || capacity <= 0)) {
-    return res.status(400).json({ error: "Invalid capacity" });
+    return res.status(400).json({ error: "Некорректная вместимость" });
   }
 
   const created = await Event.create({
@@ -141,10 +144,10 @@ async function createEvent(req, res) {
 
 async function uploadEventCover(req, res) {
   const event = await Event.findByPk(req.params.id);
-  if (!event) return res.status(404).json({ error: "Not found" });
+  if (!event) return res.status(404).json({ error: "Не найдено" });
 
   if (!req.file) {
-    return res.status(400).json({ error: "No image uploaded" });
+    return res.status(400).json({ error: "Изображение не загружено" });
   }
 
   await event.update({ coverImageUrl: `/uploads/events/${req.file.filename}` });
@@ -160,10 +163,10 @@ async function uploadEventCover(req, res) {
 
 async function registerForEvent(req, res) {
   const event = await Event.findByPk(req.params.id);
-  if (!event) return res.status(404).json({ error: "Not found" });
+  if (!event) return res.status(404).json({ error: "Не найдено" });
 
   if (req.user.role !== "agent") {
-    return res.status(403).json({ error: "Forbidden" });
+    return res.status(403).json({ error: "Доступ запрещён" });
   }
 
   const [reg, created] = await EventRegistration.findOrCreate({
@@ -205,7 +208,7 @@ async function registerForEvent(req, res) {
 async function listRegistrations(req, res) {
   const eventId = req.query?.eventId ? Number(req.query.eventId) : null;
   if (req.query?.eventId && !Number.isFinite(eventId)) {
-    return res.status(400).json({ error: "Invalid eventId" });
+    return res.status(400).json({ error: "Некорректный eventId" });
   }
 
   const where = eventId ? { eventId } : undefined;
@@ -228,7 +231,7 @@ async function listRegistrations(req, res) {
 
 async function listMyRegistrations(req, res) {
   if (req.user.role !== "agent") {
-    return res.status(403).json({ error: "Forbidden" });
+    return res.status(403).json({ error: "Доступ запрещён" });
   }
 
   const page = parsePositiveInt(req.query?.page, 1);
@@ -263,7 +266,7 @@ async function updateRegistrationStatus(req, res) {
     .trim()
     .toLowerCase();
   if (!["approved", "rejected"].includes(status)) {
-    return res.status(400).json({ error: "Invalid status" });
+    return res.status(400).json({ error: "Некорректный статус" });
   }
 
   const reg = await EventRegistration.findByPk(req.params.id, {
@@ -276,7 +279,7 @@ async function updateRegistrationStatus(req, res) {
       },
     ],
   });
-  if (!reg) return res.status(404).json({ error: "Not found" });
+  if (!reg) return res.status(404).json({ error: "Не найдено" });
 
   await reg.update({ status });
 

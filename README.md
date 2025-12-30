@@ -4,9 +4,59 @@
 
 ## Запуск (Docker)
 
-1. Скопируйте окружение: `cp backend/.env.example backend/.env` и при необходимости поправьте секреты.
+1. Скопируйте окружение для compose: `cp .env.example .env` и при необходимости поправьте секреты.
 2. `docker-compose up --build` — поднимет `db` (Postgres) и `api` на 4000.
 3. API хелсчек: `GET http://localhost:4000/health`.
+
+## Деплой на VPS (Docker, prod)
+
+Ниже схема: один домен, Nginx раздаёт фронт и проксирует API/Socket.IO в контейнер `api`.
+
+### 1) Подготовка сервера
+
+1. Создайте VPS (Ubuntu/Debian), привяжите домен (A-запись на IP сервера).
+2. Откройте порты: `22`, `80` (и `443`, если будете включать HTTPS).
+3. Установите Docker:
+
+```bash
+curl -fsSL https://get.docker.com | sudo sh
+sudo usermod -aG docker $USER
+exit
+```
+
+Зайдите по SSH снова.
+
+### 2) Заливка проекта
+
+Скопируйте проект на сервер (git clone или scp/zip) и перейдите в корень, где лежит `docker-compose.prod.yml`.
+
+### 3) Настройка переменных окружения
+
+```bash
+cp .env.example .env
+```
+
+Обязательно замените как минимум:
+
+- `POSTGRES_PASSWORD`
+- `JWT_SECRET`
+
+### 4) Запуск
+
+```bash
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+Проверка:
+
+- сайт: `http://<ваш-домен>/`
+- API health: `http://<ваш-домен>/api/health`
+
+### 5) (Опционально) сиды
+
+```bash
+docker compose -f docker-compose.prod.yml exec api npm run seed
+```
 
 Тесты (бек):
 

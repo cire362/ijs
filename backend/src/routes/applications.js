@@ -6,6 +6,7 @@ const {
   listMine,
   listIncoming,
   createApplication,
+  updateClientInfo,
   updateStatus,
   extendInitialDeadline,
 } = require("../controllers/applicationController");
@@ -22,6 +23,13 @@ router.post(
   authenticate,
   allowRoles("agent"),
   asyncHandler(createApplication)
+);
+
+router.patch(
+  "/:id/client",
+  authenticate,
+  allowRoles("agent"),
+  asyncHandler(updateClientInfo)
 );
 router.patch(
   "/:id/status",
