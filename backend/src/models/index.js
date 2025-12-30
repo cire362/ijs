@@ -8,6 +8,8 @@ const News = require("./news");
 const NewsImage = require("./newsImage");
 const Event = require("./event");
 const EventRegistration = require("./eventRegistration");
+const AddressSuggestion = require("./addressSuggestion");
+const AuthSession = require("./authSession");
 
 User.hasMany(Property, { foreignKey: "developerId", as: "properties" });
 Property.belongsTo(User, { foreignKey: "developerId", as: "developer" });
@@ -63,4 +65,6 @@ module.exports = {
   NewsImage,
   Event,
   EventRegistration,
+  AddressSuggestion,
+  AuthSession,
 };

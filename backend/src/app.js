@@ -1,6 +1,9 @@
 const express = require("express");
 const morgan = require("morgan");
 const cors = require("cors");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
+const cookieParser = require("cookie-parser");
 const path = require("path");
 const authRoutes = require("./routes/auth");
 const propertyRoutes = require("./routes/properties");
@@ -9,17 +12,51 @@ const notificationRoutes = require("./routes/notifications");
 const userRoutes = require("./routes/users");
 const newsRoutes = require("./routes/news");
 const eventsRoutes = require("./routes/events");
+const addressRoutes = require("./routes/address");
 
 const app = express();
 
+// Behind nginx/reverse proxy in production we want correct client IP for rate limiting.
+if (process.env.NODE_ENV === "production") {
+  app.set("trust proxy", 1);
+}
+
 app.use(cors({ origin: true, credentials: false }));
-app.use(express.json());
+app.use(
+  helmet({
+    // API also serves images from /uploads that are consumed by the frontend.
+    // Avoid blocking cross-origin image loads.
+    crossOriginResourcePolicy: false,
+  })
+);
+
+const apiLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Слишком много запросов, попробуйте позже" },
+  skip: (req) => req.path === "/health" || req.path.startsWith("/uploads"),
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Слишком много попыток, попробуйте позже" },
+});
+
+app.use(apiLimiter);
+app.use(cookieParser());
+app.use(express.json({ limit: "1mb" }));
 app.use(morgan("dev"));
 
 app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
 
 app.get("/health", (req, res) => res.json({ ok: true }));
-app.use("/auth", authRoutes);
+app.use("/address", addressRoutes);
+app.use("/auth", authLimiter, authRoutes);
 app.use("/properties", propertyRoutes);
 app.use("/applications", applicationRoutes);
 app.use("/notifications", notificationRoutes);

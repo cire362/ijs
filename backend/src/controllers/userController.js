@@ -1,6 +1,7 @@
 const { Op } = require("sequelize");
 const bcrypt = require("bcryptjs");
 const { Property, User, Notification } = require("../models");
+const { toSafeText, normalizeSpace } = require("../utils/validation");
 
 function toPublicUser(user) {
   return {
@@ -40,6 +41,36 @@ async function updateMe(req, res) {
     if (Object.prototype.hasOwnProperty.call(req.body, key)) {
       updates[key] = req.body[key];
     }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(updates, "firstName")) {
+    updates.firstName =
+      normalizeSpace(toSafeText(updates.firstName, { maxLen: 80 })) || null;
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, "lastName")) {
+    updates.lastName =
+      normalizeSpace(toSafeText(updates.lastName, { maxLen: 80 })) || null;
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, "middleName")) {
+    updates.middleName =
+      normalizeSpace(toSafeText(updates.middleName, { maxLen: 120 })) || null;
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, "phone")) {
+    updates.phone =
+      normalizeSpace(toSafeText(updates.phone, { maxLen: 50 })) || null;
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, "companyName")) {
+    updates.companyName =
+      normalizeSpace(toSafeText(updates.companyName, { maxLen: 200 })) || null;
+  }
+  if (Object.prototype.hasOwnProperty.call(updates, "email")) {
+    const emailNorm = normalizeSpace(
+      toSafeText(updates.email, { maxLen: 254 })
+    ).toLowerCase();
+    if (!emailNorm) {
+      return res.status(400).json({ error: "Email не может быть пустым" });
+    }
+    updates.email = emailNorm;
   }
 
   if (updates.email) {
@@ -90,7 +121,9 @@ async function changeMyPassword(req, res) {
 }
 
 async function listDevelopers(req, res) {
-  const q = String(req.query.q || req.query.search || "").trim();
+  const q = normalizeSpace(
+    toSafeText(req.query.q || req.query.search || "", { maxLen: 200 })
+  );
   const status = String(req.query.status || "").trim();
   const approvedRaw = req.query.approved;
 
@@ -244,9 +277,14 @@ async function createDeveloperByAdmin(req, res) {
     companyName,
   } = req.body || {};
 
-  const phoneNorm = String(phone || "").trim();
+  const phoneNorm = normalizeSpace(toSafeText(phone, { maxLen: 50 }));
 
-  if (!email || !password) {
+  const emailNorm = normalizeSpace(
+    toSafeText(email, { maxLen: 254 })
+  ).toLowerCase();
+  const passwordNorm = toSafeText(password, { maxLen: 200 });
+
+  if (!emailNorm || !passwordNorm) {
     return res.status(400).json({ error: "Email и пароль обязательны" });
   }
 
@@ -254,12 +292,12 @@ async function createDeveloperByAdmin(req, res) {
     return res.status(400).json({ error: "Телефон обязателен" });
   }
 
-  const exists = await User.findOne({ where: { email } });
+  const exists = await User.findOne({ where: { email: emailNorm } });
   if (exists) {
     return res.status(409).json({ error: "Email уже зарегистрирован" });
   }
 
-  const passwordHash = await bcrypt.hash(String(password), 10);
+  const passwordHash = await bcrypt.hash(String(passwordNorm), 10);
 
   // Back-compat: if only legacy name provided, try to split "Фамилия Имя Отчество"
   let derivedLastName = lastName;
@@ -273,15 +311,19 @@ async function createDeveloperByAdmin(req, res) {
   }
 
   const user = await User.create({
-    name,
-    firstName: derivedFirstName,
-    lastName: derivedLastName,
-    middleName: derivedMiddleName,
-    email,
+    name: normalizeSpace(toSafeText(name, { maxLen: 200 })) || null,
+    firstName:
+      normalizeSpace(toSafeText(derivedFirstName, { maxLen: 80 })) || null,
+    lastName:
+      normalizeSpace(toSafeText(derivedLastName, { maxLen: 80 })) || null,
+    middleName:
+      normalizeSpace(toSafeText(derivedMiddleName, { maxLen: 120 })) || null,
+    email: emailNorm,
     phone: phoneNorm,
     passwordHash,
     role: "developer",
-    companyName,
+    companyName:
+      normalizeSpace(toSafeText(companyName, { maxLen: 200 })) || null,
     developerApproved: true,
     developerRejected: false,
   });

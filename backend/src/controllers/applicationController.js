@@ -6,6 +6,12 @@ const {
   Notification,
   User,
 } = require("../models");
+const {
+  requireIdParam,
+  parseIntStrict,
+  toSafeText,
+  normalizeSpace,
+} = require("../utils/validation");
 
 const RESERVING_STATUSES = new Set([
   "confirmed",
@@ -86,8 +92,8 @@ async function listIncoming(req, res) {
   if (req.user.role === "developer") {
     where = { "$property.developer_id$": req.user.id };
   } else if (req.user.role === "admin" && req.query.developerId) {
-    const developerId = Number(req.query.developerId);
-    if (!Number.isFinite(developerId)) {
+    const developerId = parseIntStrict(req.query.developerId);
+    if (!developerId) {
       return res.status(400).json({ error: "Некорректный developerId" });
     }
     where = { "$property.developer_id$": developerId };
@@ -154,8 +160,29 @@ async function createApplication(req, res) {
       clientPhone,
     } = req.body;
 
-    const clientFullNameNorm = String(clientFullName || "").trim();
-    const clientPhoneNorm = String(clientPhone || "").trim();
+    const propertyIdNorm = parseIntStrict(propertyId);
+    if (!propertyIdNorm) {
+      return res.status(400).json({ error: "Некорректный propertyId" });
+    }
+
+    const commentNorm = toSafeText(comment, { maxLen: 2000 });
+    const commissionNorm =
+      commissionAmount == null || commissionAmount === ""
+        ? null
+        : Number(commissionAmount);
+    if (
+      commissionNorm != null &&
+      (!Number.isFinite(commissionNorm) || commissionNorm < 0)
+    ) {
+      return res.status(400).json({ error: "Некорректная комиссия" });
+    }
+
+    const clientFullNameNorm = normalizeSpace(
+      toSafeText(clientFullName, { maxLen: 200 })
+    );
+    const clientPhoneNorm = normalizeSpace(
+      toSafeText(clientPhone, { maxLen: 50 })
+    );
     if (!clientFullNameNorm) {
       return res.status(400).json({ error: "Укажите ФИО клиента" });
     }
@@ -163,13 +190,13 @@ async function createApplication(req, res) {
       return res.status(400).json({ error: "Укажите телефон клиента" });
     }
 
-    const property = await Property.findByPk(propertyId);
+    const property = await Property.findByPk(propertyIdNorm);
     if (!property) return res.status(404).json({ error: "Объект не найден" });
     if (property.saleStatus && property.saleStatus !== "available") {
       return res.status(400).json({ error: "Объект недоступен" });
     }
 
-    let computedCommission = commissionAmount;
+    let computedCommission = commissionNorm;
     if (computedCommission == null && property.price != null) {
       const price = Number(property.price);
       if (!Number.isNaN(price)) {
@@ -182,12 +209,12 @@ async function createApplication(req, res) {
     );
 
     const app = await Application.create({
-      propertyId,
+      propertyId: propertyIdNorm,
       agentId: req.user.id,
       status: "sent",
       expiresAt,
       commissionAmount: computedCommission,
-      comment,
+      comment: commentNorm || null,
       clientFullName: clientFullNameNorm,
       clientPhone: clientPhoneNorm,
     });
@@ -250,7 +277,10 @@ async function updateStatus(req, res) {
   if (!allowed.includes(status))
     return res.status(400).json({ error: "Недопустимый статус" });
 
-  const app = await Application.findByPk(req.params.id, {
+  const id = requireIdParam(req, res);
+  if (id == null) return;
+
+  const app = await Application.findByPk(id, {
     include: [{ model: Property }],
   });
   if (!app) return res.status(404).json({ error: "Не найдено" });
@@ -270,7 +300,9 @@ async function updateStatus(req, res) {
   }
 
   const effectiveComment =
-    comment != null && String(comment).trim() ? comment : statusLabelRu(status);
+    comment != null && String(comment).trim()
+      ? toSafeText(comment, { maxLen: 500 })
+      : statusLabelRu(status);
 
   if (status === "done") {
     if (app.property?.saleStatus === "sold" && app.status !== "done") {
@@ -347,10 +379,8 @@ async function updateStatus(req, res) {
 }
 
 async function updateClientInfo(req, res) {
-  const id = Number(req.params.id);
-  if (!Number.isFinite(id)) {
-    return res.status(400).json({ error: "Некорректный id" });
-  }
+  const id = requireIdParam(req, res);
+  if (id == null) return;
 
   const app = await Application.findByPk(id);
   if (!app) return res.status(404).json({ error: "Не найдено" });
@@ -358,8 +388,12 @@ async function updateClientInfo(req, res) {
     return res.status(403).json({ error: "Доступ запрещён" });
   }
 
-  const clientFullNameNorm = String(req.body?.clientFullName || "").trim();
-  const clientPhoneNorm = String(req.body?.clientPhone || "").trim();
+  const clientFullNameNorm = normalizeSpace(
+    toSafeText(req.body?.clientFullName, { maxLen: 200 })
+  );
+  const clientPhoneNorm = normalizeSpace(
+    toSafeText(req.body?.clientPhone, { maxLen: 50 })
+  );
 
   if (!clientFullNameNorm) {
     return res.status(400).json({ error: "Укажите ФИО клиента" });
@@ -386,7 +420,10 @@ async function extendInitialDeadline(req, res) {
     return res.status(400).json({ error: "Некорректное количество дней" });
   }
 
-  const app = await Application.findByPk(req.params.id, {
+  const id = requireIdParam(req, res);
+  if (id == null) return;
+
+  const app = await Application.findByPk(id, {
     include: [{ model: Property }],
   });
   if (!app) return res.status(404).json({ error: "Не найдено" });

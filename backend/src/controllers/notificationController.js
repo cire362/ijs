@@ -1,10 +1,13 @@
 const { Op } = require("sequelize");
 const { Notification } = require("../models");
+const {
+  requireIdParam,
+  toSafeText,
+  normalizeSpace,
+} = require("../utils/validation");
 
 function normalizeText(v) {
-  return String(v || "")
-    .trim()
-    .replace(/\s+/g, " ");
+  return normalizeSpace(v || "");
 }
 
 function toBool(v) {
@@ -25,8 +28,8 @@ function parsePositiveInt(v, fallback) {
 }
 
 async function listNotifications(req, res) {
-  const q = normalizeText(req.query?.q);
-  const type = normalizeText(req.query?.type);
+  const q = normalizeText(toSafeText(req.query?.q, { maxLen: 200 }));
+  const type = normalizeText(toSafeText(req.query?.type, { maxLen: 80 }));
   const isRead = toBool(req.query?.isRead);
 
   const where = { userId: req.user.id };
@@ -70,7 +73,10 @@ async function unreadCount(req, res) {
 }
 
 async function markRead(req, res) {
-  const note = await Notification.findByPk(req.params.id);
+  const id = requireIdParam(req, res);
+  if (id == null) return;
+
+  const note = await Notification.findByPk(id);
   if (!note || note.userId !== req.user.id)
     return res.status(404).json({ error: "Не найдено" });
   await note.update({ isRead: true });

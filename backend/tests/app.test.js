@@ -3,9 +3,11 @@ const bcrypt = require("bcryptjs");
 const app = require("../src/app");
 const { sequelize } = require("../src/db");
 const { User, Property, Application, Notification } = require("../src/models");
+const { syncAndTruncateExcept } = require("./testDb");
 
 let agentUser, developerUser, adminUser, property;
 let agentToken, developerToken;
+let adminToken;
 
 async function login(email, password) {
   const res = await request(app).post("/auth/login").send({ email, password });
@@ -14,7 +16,9 @@ async function login(email, password) {
 
 describe("API routes", () => {
   beforeAll(async () => {
-    await sequelize.sync({ force: true });
+    await syncAndTruncateExcept(sequelize, {
+      keepTables: ["address_suggestions"],
+    });
 
     const pass = await bcrypt.hash("password", 10);
     agentUser = await User.create({
@@ -32,6 +36,7 @@ describe("API routes", () => {
       email: "dev@test.com",
       passwordHash: pass,
       role: "developer",
+      developerApproved: true,
     });
     const otherDeveloperUser = await User.create({
       lastName: "Кузнецов",
@@ -77,9 +82,11 @@ describe("API routes", () => {
 
     // stash for tests
     global.__otherPropertyId = otherProperty.id;
+    global.__otherDeveloperId = otherDeveloperUser.id;
 
     agentToken = await login(agentUser.email, "password");
     developerToken = await login(developerUser.email, "password");
+    adminToken = await login(adminUser.email, "password");
   });
 
   afterAll(async () => {
@@ -96,6 +103,14 @@ describe("API routes", () => {
     const res = await request(app)
       .post("/auth/login")
       .send({ email: agentUser.email, password: "password" });
+    expect(res.status).toBe(200);
+    expect(res.body.token).toBeDefined();
+  });
+
+  test("login normalizes email (spaces + case)", async () => {
+    const res = await request(app)
+      .post("/auth/login")
+      .send({ email: "  AGENT@TEST.COM ", password: "password" });
     expect(res.status).toBe(200);
     expect(res.body.token).toBeDefined();
   });
@@ -124,6 +139,11 @@ describe("API routes", () => {
     expect(res.body.id).toBe(property.id);
   });
 
+  test("get property by id rejects non-numeric id", async () => {
+    const res = await request(app).get(`/properties/not-a-number`);
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBeDefined();
+  });
   test("developer cannot get other developer property by id", async () => {
     const res = await request(app)
       .get(`/properties/${global.__otherPropertyId}`)
@@ -143,6 +163,39 @@ describe("API routes", () => {
       });
     expect(res.status).toBe(201);
     expect(res.body.title).toBe("New House");
+  });
+
+  test("developer cannot change property developerId", async () => {
+    const created = await request(app)
+      .post("/properties")
+      .set("Authorization", `Bearer ${developerToken}`)
+      .send({
+        title: "House For Update",
+        region: "MO",
+        city: "Town",
+      });
+    expect(created.status).toBe(201);
+
+    const res = await request(app)
+      .patch(`/properties/${created.body.id}`)
+      .set("Authorization", `Bearer ${developerToken}`)
+      .send({ developerId: global.__otherDeveloperId });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBeDefined();
+  });
+
+  test("agent cannot create application with invalid propertyId", async () => {
+    const res = await request(app)
+      .post("/applications")
+      .set("Authorization", `Bearer ${agentToken}`)
+      .send({
+        propertyId: "1 OR 1=1",
+        comment: "test",
+        clientFullName: "Иванов Иван",
+        clientPhone: "+79990000000",
+      });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBeDefined();
   });
 
   test("agent can create application", async () => {
@@ -238,6 +291,22 @@ describe("API routes", () => {
     expect(patchRes.body.role).toBe("agent");
   });
 
+  test("updateMe normalizes email and rejects blank", async () => {
+    const ok = await request(app)
+      .patch("/users/me")
+      .set("Authorization", `Bearer ${agentToken}`)
+      .send({ email: "  NEW@TEST.COM  " });
+    expect(ok.status).toBe(200);
+    expect(ok.body.email).toBe("new@test.com");
+
+    const bad = await request(app)
+      .patch("/users/me")
+      .set("Authorization", `Bearer ${agentToken}`)
+      .send({ email: "   " });
+    expect(bad.status).toBe(400);
+    expect(bad.body.error).toBeDefined();
+  });
+
   test("agent can upload avatar", async () => {
     const png1x1 = Buffer.from(
       "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/6X8k2sAAAAASUVORK5CYII=",
@@ -255,5 +324,110 @@ describe("API routes", () => {
     expect(res.status).toBe(200);
     expect(res.body.avatarUrl).toBeDefined();
     expect(res.body.avatarUrl).toMatch(/^\/uploads\/avatars\//);
+  });
+
+  test("news: get by id rejects non-numeric id", async () => {
+    const res = await request(app).get("/news/not-a-number");
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBeDefined();
+  });
+
+  test("news: admin create truncates long title and requires content", async () => {
+    const longTitle = "T".repeat(260);
+
+    const missingContent = await request(app)
+      .post("/news")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ title: "Title", content: "   " });
+    expect(missingContent.status).toBe(400);
+
+    const created = await request(app)
+      .post("/news")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ title: longTitle, content: "Hello" });
+    expect(created.status).toBe(201);
+    expect(typeof created.body.title).toBe("string");
+    expect(created.body.title.length).toBe(200);
+  });
+
+  test("news: update rejects blank content", async () => {
+    const created = await request(app)
+      .post("/news")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ title: "N1", content: "Text" });
+    expect(created.status).toBe(201);
+
+    const res = await request(app)
+      .patch(`/news/${created.body.id}`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ content: "   " });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBeDefined();
+  });
+
+  test("news: guest list hides unpublished", async () => {
+    const created = await request(app)
+      .post("/news")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ title: "Hidden", content: "Text", isPublished: false });
+    expect(created.status).toBe(201);
+
+    const list = await request(app).get("/news");
+    expect(list.status).toBe(200);
+    expect(Array.isArray(list.body)).toBe(true);
+    expect(list.body.some((n) => n.id === created.body.id)).toBe(false);
+  });
+
+  test("events: create validates format/startAt and list caps limit", async () => {
+    const badFormat = await request(app)
+      .post("/events")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        title: "E1",
+        startAt: new Date().toISOString(),
+        format: "bad",
+      });
+    expect(badFormat.status).toBe(400);
+
+    const missingStartAt = await request(app)
+      .post("/events")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ title: "E2" });
+    expect(missingStartAt.status).toBe(400);
+
+    const created = await request(app)
+      .post("/events")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        title: "E3",
+        startAt: new Date().toISOString(),
+        description: "Desc",
+        location: "Loc",
+      });
+    expect(created.status).toBe(201);
+    expect(created.body.id).toBeDefined();
+
+    const list = await request(app).get("/events?page=1&limit=1000");
+    expect(list.status).toBe(200);
+    expect(list.body.limit).toBe(50);
+    expect(Array.isArray(list.body.items)).toBe(true);
+  });
+
+  test("events: invalid ids and query params return 400", async () => {
+    const reg = await request(app)
+      .post("/events/not-a-number/register")
+      .set("Authorization", `Bearer ${agentToken}`);
+    expect(reg.status).toBe(400);
+
+    const regs = await request(app)
+      .get("/events/registrations?eventId=abc")
+      .set("Authorization", `Bearer ${adminToken}`);
+    expect(regs.status).toBe(400);
+
+    const patch = await request(app)
+      .patch("/events/registrations/not-a-number")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ status: "approved" });
+    expect(patch.status).toBe(400);
   });
 });

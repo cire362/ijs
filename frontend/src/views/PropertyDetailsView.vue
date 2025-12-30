@@ -2,6 +2,7 @@
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
+import { limits } from "@/utils/constraints";
 import { apiClient, useAuthStore } from "@/stores/auth";
 
 const auth = useAuthStore();
@@ -11,6 +12,100 @@ const router = useRouter();
 const loading = ref(false);
 const property = ref(null);
 const uploading = ref(false);
+
+const regionLoading = ref(false);
+const cityLoading = ref(false);
+const streetLoading = ref(false);
+
+let regionTimer;
+let cityTimer;
+let streetTimer;
+
+async function fetchSuggestions(kind, q, extra = {}) {
+  const qq = String(q || "").trim();
+  if (qq.length < 2) return [];
+  const params = { kind, q: qq, ...extra };
+  const { data } = await apiClient.get("/address/suggest", { params });
+  return Array.isArray(data) ? data : [];
+}
+
+function onSelectRegion(item) {
+  editForm.value.region = item?.label || editForm.value.region;
+}
+
+function onSelectCity(item) {
+  editForm.value.city = item?.label || editForm.value.city;
+}
+
+function onSelectStreet(item) {
+  editForm.value.street = item?.label || editForm.value.street;
+}
+
+async function suggestRegions(queryString, cb) {
+  regionLoading.value = true;
+  try {
+    const items = await new Promise((resolve) => {
+      clearTimeout(regionTimer);
+      regionTimer = setTimeout(async () => {
+        try {
+          resolve(await fetchSuggestions("region", queryString));
+        } catch {
+          resolve([]);
+        }
+      }, 250);
+    });
+    cb(items);
+  } finally {
+    regionLoading.value = false;
+  }
+}
+
+async function suggestCities(queryString, cb) {
+  cityLoading.value = true;
+  try {
+    const items = await new Promise((resolve) => {
+      clearTimeout(cityTimer);
+      cityTimer = setTimeout(async () => {
+        try {
+          resolve(
+            await fetchSuggestions("city", queryString, {
+              region: editForm.value.region || undefined,
+            })
+          );
+        } catch {
+          resolve([]);
+        }
+      }, 250);
+    });
+    cb(items);
+  } finally {
+    cityLoading.value = false;
+  }
+}
+
+async function suggestStreets(queryString, cb) {
+  streetLoading.value = true;
+  try {
+    const items = await new Promise((resolve) => {
+      clearTimeout(streetTimer);
+      streetTimer = setTimeout(async () => {
+        try {
+          resolve(
+            await fetchSuggestions("street", queryString, {
+              region: editForm.value.region || undefined,
+              city: editForm.value.city || undefined,
+            })
+          );
+        } catch {
+          resolve([]);
+        }
+      }, 250);
+    });
+    cb(items);
+  } finally {
+    streetLoading.value = false;
+  }
+}
 
 const editForm = ref({
   title: "",
@@ -350,27 +445,63 @@ async function saveEdits() {
             <el-row :gutter="12">
               <el-col :span="12" :xs="24" :sm="12" :md="12">
                 <el-form-item label="Название">
-                  <el-input v-model="editForm.title" />
+                  <el-input
+                    v-model="editForm.title"
+                    :maxlength="limits.property.title"
+                  />
                 </el-form-item>
               </el-col>
               <el-col :span="12" :xs="24" :sm="12" :md="12">
                 <el-form-item label="Регион">
-                  <el-input v-model="editForm.region" />
+                  <el-autocomplete
+                    v-model="editForm.region"
+                    placeholder="Московская обл."
+                    :maxlength="limits.property.region"
+                    :fetch-suggestions="suggestRegions"
+                    value-key="label"
+                    :trigger-on-focus="false"
+                    :debounce="0"
+                    :loading="regionLoading"
+                    @select="onSelectRegion"
+                  />
                 </el-form-item>
               </el-col>
               <el-col :span="12" :xs="24" :sm="12" :md="12">
                 <el-form-item label="Город">
-                  <el-input v-model="editForm.city" />
+                  <el-autocomplete
+                    v-model="editForm.city"
+                    placeholder="Москва"
+                    :maxlength="limits.property.city"
+                    :fetch-suggestions="suggestCities"
+                    value-key="label"
+                    :trigger-on-focus="false"
+                    :debounce="0"
+                    :loading="cityLoading"
+                    @select="onSelectCity"
+                  />
                 </el-form-item>
               </el-col>
               <el-col :span="12" :xs="24" :sm="12" :md="12">
                 <el-form-item label="Улица">
-                  <el-input v-model="editForm.street" />
+                  <el-autocomplete
+                    v-model="editForm.street"
+                    placeholder="Ленина"
+                    :maxlength="limits.property.street"
+                    :fetch-suggestions="suggestStreets"
+                    value-key="label"
+                    :trigger-on-focus="false"
+                    :debounce="0"
+                    :loading="streetLoading"
+                    @select="onSelectStreet"
+                  />
                 </el-form-item>
               </el-col>
               <el-col :span="12" :xs="24" :sm="12" :md="12">
                 <el-form-item label="№ участка">
-                  <el-input v-model="editForm.plotNumber" />
+                  <el-input
+                    v-model="editForm.plotNumber"
+                    :maxlength="limits.property.plotNumber"
+                  />
                 </el-form-item>
               </el-col>
               <el-col :span="12" :xs="24" :sm="12" :md="12">
@@ -586,11 +717,13 @@ async function saveEdits() {
           <el-input
             v-model="clientFullName"
             placeholder="ФИО клиента"
+            :maxlength="limits.application.clientFullName"
             style="margin-bottom: 8px"
           />
           <el-input
             v-model="clientPhone"
             placeholder="Телефон клиента"
+            :maxlength="limits.application.clientPhone"
             style="margin-bottom: 8px"
           />
           <el-input
@@ -598,6 +731,7 @@ async function saveEdits() {
             :rows="3"
             type="textarea"
             placeholder="Комментарий к заявке"
+            :maxlength="limits.application.comment"
           />
           <div
             style="display: flex; justify-content: flex-end; margin-top: 12px"

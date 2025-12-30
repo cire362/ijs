@@ -6,6 +6,7 @@ import { ElMessage } from "element-plus";
 import SearchCard from "@/components/ui/SearchCard.vue";
 import { normalizeText } from "@/utils/text";
 import { formatDate } from "@/utils/datetime";
+import { limits } from "@/utils/constraints";
 
 const auth = useAuthStore();
 const router = useRouter();
@@ -161,13 +162,18 @@ onMounted(load);
 
       <el-form label-position="top">
         <el-form-item label="Заголовок">
-          <el-input v-model="form.title" placeholder="Введите заголовок" />
+          <el-input
+            v-model="form.title"
+            placeholder="Введите заголовок"
+            :maxlength="limits.news.title"
+          />
         </el-form-item>
 
         <el-form-item label="Подзаголовок (опционально)">
           <el-input
             v-model="form.subtitle"
             placeholder="Короткий подзаголовок"
+            :maxlength="limits.news.subtitle"
           />
         </el-form-item>
 
@@ -177,6 +183,7 @@ onMounted(load);
             type="textarea"
             :rows="2"
             placeholder="Краткий текст для карточки"
+            :maxlength="limits.news.excerpt"
           />
         </el-form-item>
 
@@ -186,6 +193,7 @@ onMounted(load);
             type="textarea"
             :rows="6"
             placeholder="Подробный текст новости"
+            :maxlength="limits.news.content"
           />
         </el-form-item>
 

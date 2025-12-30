@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from "vue";
 import { ElMessage } from "element-plus";
 import { apiClient, useAuthStore } from "../stores/auth";
+import { limits } from "@/utils/constraints";
 
 const auth = useAuthStore();
 
@@ -103,13 +104,19 @@ async function uploadAvatar(options) {
 async function save() {
   saving.value = true;
   try {
+    const payload = {
+      firstName: String(form.value.firstName || "").trim(),
+      lastName: String(form.value.lastName || "").trim(),
+      middleName: String(form.value.middleName || "").trim(),
+      email: String(form.value.email || "")
+        .trim()
+        .toLowerCase(),
+      phone: String(form.value.phone || "").trim(),
+      companyName: String(form.value.companyName || "").trim(),
+    };
+
     const { data } = await apiClient.patch("/users/me", {
-      firstName: form.value.firstName,
-      lastName: form.value.lastName,
-      middleName: form.value.middleName,
-      email: form.value.email,
-      phone: form.value.phone,
-      companyName: form.value.companyName,
+      ...payload,
     });
 
     // Update header name immediately
@@ -221,17 +228,29 @@ async function changePassword() {
         <el-row :gutter="12">
           <el-col :span="12" :xs="24">
             <el-form-item label="Фамилия">
-              <el-input v-model="form.lastName" placeholder="Иванов" />
+              <el-input
+                v-model="form.lastName"
+                placeholder="Иванов"
+                :maxlength="limits.user.lastName"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12" :xs="24">
             <el-form-item label="Имя">
-              <el-input v-model="form.firstName" placeholder="Иван" />
+              <el-input
+                v-model="form.firstName"
+                placeholder="Иван"
+                :maxlength="limits.user.firstName"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12" :xs="24">
             <el-form-item label="Отчество">
-              <el-input v-model="form.middleName" placeholder="Иванович" />
+              <el-input
+                v-model="form.middleName"
+                placeholder="Иванович"
+                :maxlength="limits.user.middleName"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12" :xs="24">
@@ -240,12 +259,17 @@ async function changePassword() {
                 v-model="form.email"
                 type="email"
                 placeholder="you@company.ru"
+                :maxlength="limits.user.email"
               />
             </el-form-item>
           </el-col>
           <el-col :span="12" :xs="24">
             <el-form-item label="Телефон">
-              <el-input v-model="form.phone" placeholder="+7..." />
+              <el-input
+                v-model="form.phone"
+                placeholder="+7..."
+                :maxlength="limits.user.phone"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12" :xs="24">
@@ -253,6 +277,7 @@ async function changePassword() {
               <el-input
                 v-model="form.companyName"
                 placeholder="Название компании"
+                :maxlength="limits.user.companyName"
               />
             </el-form-item>
           </el-col>

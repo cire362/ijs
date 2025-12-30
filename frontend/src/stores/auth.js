@@ -4,6 +4,26 @@ import { humanizeApiError } from "@/utils/errors";
 
 const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || "/api" });
 
+function getCookie(name) {
+  const parts = String(document.cookie || "")
+    .split(";")
+    .map((p) => p.trim());
+  for (const part of parts) {
+    if (!part) continue;
+    const eq = part.indexOf("=");
+    if (eq === -1) continue;
+    const k = decodeURIComponent(part.slice(0, eq));
+    if (k !== name) continue;
+    return decodeURIComponent(part.slice(eq + 1));
+  }
+  return null;
+}
+
+function csrfHeaders() {
+  const csrf = getCookie("csrf_token");
+  return csrf ? { "x-csrf-token": csrf } : {};
+}
+
 function applyAuthHeader(token) {
   if (token) {
     api.defaults.headers.common.Authorization = `Bearer ${token}`;
@@ -15,20 +35,21 @@ function applyAuthHeader(token) {
 export const useAuthStore = defineStore("auth", {
   state: () => ({ user: null, token: null, loading: false, error: null }),
   actions: {
-    hydrate() {
-      const saved = localStorage.getItem("auth");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        this.user = parsed.user;
-        this.token = parsed.token;
-        applyAuthHeader(parsed.token);
+    async bootstrap() {
+      // Try to restore session via refresh-cookie (no localStorage).
+      try {
+        const { data } = await api.post("/auth/refresh", null, {
+          headers: csrfHeaders(),
+        });
+        this.user = data.user;
+        this.token = data.token;
+        applyAuthHeader(data.token);
+      } catch {
+        // Not logged in / no cookie / csrf missing — that's fine.
+        this.user = null;
+        this.token = null;
+        applyAuthHeader(null);
       }
-    },
-    persist() {
-      localStorage.setItem(
-        "auth",
-        JSON.stringify({ user: this.user, token: this.token })
-      );
     },
     async login(email, password) {
       this.loading = true;
@@ -38,7 +59,6 @@ export const useAuthStore = defineStore("auth", {
         this.user = data.user;
         this.token = data.token;
         applyAuthHeader(data.token);
-        this.persist();
       } catch (err) {
         this.error = humanizeApiError(err, "Не удалось войти");
       } finally {
@@ -57,13 +77,57 @@ export const useAuthStore = defineStore("auth", {
         this.loading = false;
       }
     },
+    async refresh() {
+      const { data } = await api.post("/auth/refresh", null, {
+        headers: csrfHeaders(),
+      });
+      this.user = data.user;
+      this.token = data.token;
+      applyAuthHeader(data.token);
+      return data.token;
+    },
     logout() {
       this.user = null;
       this.token = null;
-      localStorage.removeItem("auth");
       applyAuthHeader(null);
+    },
+    async logoutServer() {
+      try {
+        await api.post("/auth/logout", null, { headers: csrfHeaders() });
+      } finally {
+        this.logout();
+      }
     },
   },
 });
 
 export const apiClient = api;
+
+// 401 auto-refresh retry (single flight)
+let refreshPromise = null;
+
+api.interceptors.response.use(
+  (resp) => resp,
+  async (error) => {
+    const original = error?.config;
+    const status = error?.response?.status;
+
+    if (!original || status !== 401 || original.__retry) {
+      return Promise.reject(error);
+    }
+
+    original.__retry = true;
+    const auth = useAuthStore();
+
+    try {
+      refreshPromise = refreshPromise || auth.refresh();
+      await refreshPromise;
+      refreshPromise = null;
+      return api.request(original);
+    } catch (e) {
+      refreshPromise = null;
+      auth.logout();
+      return Promise.reject(error);
+    }
+  }
+);

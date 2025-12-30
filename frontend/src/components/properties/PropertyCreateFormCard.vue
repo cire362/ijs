@@ -1,5 +1,8 @@
 <script setup>
+import { ref } from "vue";
 import { ElMessage } from "element-plus";
+import { limits } from "@/utils/constraints";
+import { apiClient } from "@/stores/auth";
 
 defineProps({
   pill: { type: String, default: "" },
@@ -19,6 +22,100 @@ const emit = defineEmits(["save"]);
 
 const form = defineModel("form", { type: Object, required: true });
 const images = defineModel("images", { type: Array, default: () => [] });
+
+const regionLoading = ref(false);
+const cityLoading = ref(false);
+const streetLoading = ref(false);
+
+let regionTimer;
+let cityTimer;
+let streetTimer;
+
+async function fetchSuggestions(kind, q, extra = {}) {
+  const qq = String(q || "").trim();
+  if (qq.length < 2) return [];
+  const params = { kind, q: qq, ...extra };
+  const { data } = await apiClient.get("/address/suggest", { params });
+  return Array.isArray(data) ? data : [];
+}
+
+function onSelectRegion(item) {
+  form.value.region = item?.label || form.value.region;
+}
+
+function onSelectCity(item) {
+  form.value.city = item?.label || form.value.city;
+}
+
+function onSelectStreet(item) {
+  form.value.street = item?.label || form.value.street;
+}
+
+async function suggestRegions(queryString, cb) {
+  regionLoading.value = true;
+  try {
+    const items = await new Promise((resolve) => {
+      clearTimeout(regionTimer);
+      regionTimer = setTimeout(async () => {
+        try {
+          resolve(await fetchSuggestions("region", queryString));
+        } catch {
+          resolve([]);
+        }
+      }, 250);
+    });
+    cb(items);
+  } finally {
+    regionLoading.value = false;
+  }
+}
+
+async function suggestCities(queryString, cb) {
+  cityLoading.value = true;
+  try {
+    const items = await new Promise((resolve) => {
+      clearTimeout(cityTimer);
+      cityTimer = setTimeout(async () => {
+        try {
+          resolve(
+            await fetchSuggestions("city", queryString, {
+              region: form.value.region || undefined,
+            })
+          );
+        } catch {
+          resolve([]);
+        }
+      }, 250);
+    });
+    cb(items);
+  } finally {
+    cityLoading.value = false;
+  }
+}
+
+async function suggestStreets(queryString, cb) {
+  streetLoading.value = true;
+  try {
+    const items = await new Promise((resolve) => {
+      clearTimeout(streetTimer);
+      streetTimer = setTimeout(async () => {
+        try {
+          resolve(
+            await fetchSuggestions("street", queryString, {
+              region: form.value.region || undefined,
+              city: form.value.city || undefined,
+            })
+          );
+        } catch {
+          resolve([]);
+        }
+      }, 250);
+    });
+    cb(items);
+  } finally {
+    streetLoading.value = false;
+  }
+}
 
 function onImagesExceed() {
   ElMessage.warning("Можно загрузить до 10 изображений");
@@ -64,27 +161,65 @@ function onImagesChange(file, fileList) {
       <el-row :gutter="12">
         <el-col :span="12" :xs="24" :sm="12" :md="8">
           <el-form-item label="Название">
-            <el-input v-model="form.title" placeholder="Название объекта" />
+            <el-input
+              v-model="form.title"
+              placeholder="Название объекта"
+              :maxlength="limits.property.title"
+            />
           </el-form-item>
         </el-col>
         <el-col :span="12" :xs="24" :sm="12" :md="8">
           <el-form-item label="Регион">
-            <el-input v-model="form.region" placeholder="Московская обл." />
+            <el-autocomplete
+              v-model="form.region"
+              placeholder="Московская обл."
+              :maxlength="limits.property.region"
+              :fetch-suggestions="suggestRegions"
+              value-key="label"
+              :trigger-on-focus="false"
+              :debounce="0"
+              :loading="regionLoading"
+              @select="onSelectRegion"
+            />
           </el-form-item>
         </el-col>
         <el-col :span="12" :xs="24" :sm="12" :md="8">
           <el-form-item label="Город">
-            <el-input v-model="form.city" placeholder="Москва" />
+            <el-autocomplete
+              v-model="form.city"
+              placeholder="Москва"
+              :maxlength="limits.property.city"
+              :fetch-suggestions="suggestCities"
+              value-key="label"
+              :trigger-on-focus="false"
+              :debounce="0"
+              :loading="cityLoading"
+              @select="onSelectCity"
+            />
           </el-form-item>
         </el-col>
         <el-col :span="12" :xs="24" :sm="12" :md="8">
           <el-form-item label="Улица">
-            <el-input v-model="form.street" placeholder="Ленина" />
+            <el-autocomplete
+              v-model="form.street"
+              placeholder="Ленина"
+              :maxlength="limits.property.street"
+              :fetch-suggestions="suggestStreets"
+              value-key="label"
+              :trigger-on-focus="false"
+              :debounce="0"
+              :loading="streetLoading"
+              @select="onSelectStreet"
+            />
           </el-form-item>
         </el-col>
         <el-col :span="12" :xs="24" :sm="12" :md="8">
           <el-form-item label="№ участка">
-            <el-input v-model="form.plotNumber" placeholder="1" />
+            <el-input
+              v-model="form.plotNumber"
+              placeholder="1"
+              :maxlength="limits.property.plotNumber"
+            />
           </el-form-item>
         </el-col>
         <el-col :span="12" :xs="24" :sm="12" :md="8">
@@ -228,6 +363,7 @@ function onImagesChange(file, fileList) {
               type="textarea"
               :rows="3"
               placeholder="Описание объекта"
+              :maxlength="limits.property.description"
             />
           </el-form-item>
         </el-col>

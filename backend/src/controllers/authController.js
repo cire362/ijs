@@ -1,9 +1,54 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const { User, Notification } = require("../models");
+const { User, Notification, AuthSession } = require("../models");
+const { toSafeText, normalizeSpace } = require("../utils/validation");
+const {
+  hashToken,
+  randomToken,
+  accessTtl,
+  refreshTtlMs,
+  setAuthCookies,
+  clearAuthCookies,
+} = require("../utils/authTokens");
 
 const allowedRoles = ["agent", "developer"];
 const jwtSecret = process.env.JWT_SECRET || "dev_jwt_secret";
+
+function toUserPayload(user) {
+  return {
+    id: user.id,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    middleName: user.middleName,
+    fullName: user.fullName,
+    role: user.role,
+    developerApproved: user.developerApproved,
+    avatarUrl: user.avatarUrl,
+  };
+}
+
+function issueAccessToken(user) {
+  return jwt.sign({ sub: user.id, role: user.role }, jwtSecret, {
+    expiresIn: accessTtl(),
+  });
+}
+
+async function createSessionAndSetCookies({ req, res, user }) {
+  const refreshToken = randomToken(48);
+  const csrfToken = randomToken(24);
+  const now = Date.now();
+  const expiresAt = new Date(now + refreshTtlMs());
+
+  await AuthSession.create({
+    userId: user.id,
+    refreshTokenHash: hashToken(refreshToken),
+    expiresAt,
+    ip: req.ip || null,
+    userAgent: req.get("user-agent") || null,
+  });
+
+  setAuthCookies(res, { refreshToken, csrfToken });
+}
 
 async function register(req, res) {
   try {
@@ -23,9 +68,11 @@ async function register(req, res) {
       return res.status(400).json({ error: "Недопустимая роль" });
     }
 
-    const emailNorm = String(email || "").trim();
-    const phoneNorm = String(phone || "").trim();
-    const passwordNorm = String(password || "");
+    const emailNorm = normalizeSpace(
+      toSafeText(email, { maxLen: 254 })
+    ).toLowerCase();
+    const phoneNorm = normalizeSpace(toSafeText(phone, { maxLen: 50 }));
+    const passwordNorm = toSafeText(password, { maxLen: 200 });
 
     if (!emailNorm) {
       return res.status(400).json({ error: "Укажите email" });
@@ -59,15 +106,19 @@ async function register(req, res) {
     }
 
     const user = await User.create({
-      name,
-      firstName: derivedFirstName,
-      lastName: derivedLastName,
-      middleName: derivedMiddleName,
+      name: normalizeSpace(toSafeText(name, { maxLen: 200 })) || null,
+      firstName:
+        normalizeSpace(toSafeText(derivedFirstName, { maxLen: 80 })) || null,
+      lastName:
+        normalizeSpace(toSafeText(derivedLastName, { maxLen: 80 })) || null,
+      middleName:
+        normalizeSpace(toSafeText(derivedMiddleName, { maxLen: 120 })) || null,
       email: emailNorm,
       phone: phoneNorm,
       passwordHash,
       role,
-      companyName,
+      companyName:
+        normalizeSpace(toSafeText(companyName, { maxLen: 200 })) || null,
       developerApproved: role === "developer" ? false : true,
     });
 
@@ -106,8 +157,10 @@ async function register(req, res) {
 
 async function login(req, res) {
   const { email, password } = req.body;
-  const emailNorm = String(email || "").trim();
-  const passwordNorm = String(password || "");
+  const emailNorm = normalizeSpace(
+    toSafeText(email, { maxLen: 254 })
+  ).toLowerCase();
+  const passwordNorm = toSafeText(password, { maxLen: 200 });
   const user = await User.findOne({ where: { email: emailNorm } });
   if (!user)
     return res.status(401).json({ error: "Неверный email или пароль" });
@@ -115,22 +168,97 @@ async function login(req, res) {
   if (!valid)
     return res.status(401).json({ error: "Неверный email или пароль" });
 
-  const token = jwt.sign({ sub: user.id, role: user.role }, jwtSecret, {
-    expiresIn: "1d",
-  });
-  return res.json({
-    token,
-    user: {
-      id: user.id,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      middleName: user.middleName,
-      fullName: user.fullName,
-      role: user.role,
-      developerApproved: user.developerApproved,
-      avatarUrl: user.avatarUrl,
-    },
-  });
+  await createSessionAndSetCookies({ req, res, user });
+
+  const token = issueAccessToken(user);
+  return res.json({ token, user: toUserPayload(user) });
 }
 
-module.exports = { register, login };
+async function refresh(req, res) {
+  const refreshToken = req.cookies?.refresh_token;
+  if (!refreshToken) {
+    clearAuthCookies(res);
+    return res.status(401).json({ error: "Сессия не найдена" });
+  }
+
+  const tokenHash = hashToken(refreshToken);
+  const session = await AuthSession.findOne({
+    where: { refreshTokenHash: tokenHash, revokedAt: null },
+  });
+
+  if (!session) {
+    clearAuthCookies(res);
+    return res.status(401).json({ error: "Сессия не найдена" });
+  }
+
+  if (session.expiresAt && session.expiresAt.getTime() < Date.now()) {
+    await session.update({ revokedAt: new Date() });
+    clearAuthCookies(res);
+    return res.status(401).json({ error: "Сессия истекла" });
+  }
+
+  const user = await User.findByPk(session.userId);
+  if (!user) {
+    await session.update({ revokedAt: new Date() });
+    clearAuthCookies(res);
+    return res.status(401).json({ error: "Пользователь не найден" });
+  }
+
+  // Rotate refresh token
+  const newRefresh = randomToken(48);
+  const newCsrf = randomToken(24);
+  const newSession = await AuthSession.create({
+    userId: user.id,
+    refreshTokenHash: hashToken(newRefresh),
+    expiresAt: new Date(Date.now() + refreshTtlMs()),
+    ip: req.ip || null,
+    userAgent: req.get("user-agent") || null,
+  });
+
+  await session.update({ revokedAt: new Date(), replacedById: newSession.id });
+  setAuthCookies(res, { refreshToken: newRefresh, csrfToken: newCsrf });
+
+  const token = issueAccessToken(user);
+  return res.json({ token, user: toUserPayload(user) });
+}
+
+async function logout(req, res) {
+  const refreshToken = req.cookies?.refresh_token;
+  if (refreshToken) {
+    const tokenHash = hashToken(refreshToken);
+    const session = await AuthSession.findOne({
+      where: { refreshTokenHash: tokenHash, revokedAt: null },
+    });
+    if (session) {
+      await session.update({ revokedAt: new Date() });
+    }
+  }
+
+  clearAuthCookies(res);
+  return res.json({ ok: true });
+}
+
+async function logoutAll(req, res) {
+  const refreshToken = req.cookies?.refresh_token;
+  if (!refreshToken) {
+    clearAuthCookies(res);
+    return res.json({ ok: true });
+  }
+
+  const tokenHash = hashToken(refreshToken);
+  const session = await AuthSession.findOne({
+    where: { refreshTokenHash: tokenHash, revokedAt: null },
+  });
+
+  if (session) {
+    await AuthSession.update(
+      { revokedAt: new Date() },
+      { where: { userId: session.userId, revokedAt: null } }
+    );
+  }
+
+  clearAuthCookies(res);
+  return res.json({ ok: true });
+}
+
+module.exports = { register, login, refresh, logout, logoutAll };

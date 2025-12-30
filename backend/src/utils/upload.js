@@ -1,6 +1,7 @@
 const path = require("path");
 const multer = require("multer");
 const fs = require("fs");
+const { parseIntStrict } = require("./validation");
 
 const avatarsDir = path.join(__dirname, "..", "..", "uploads", "avatars");
 const propertiesDir = path.join(__dirname, "..", "..", "uploads", "properties");
@@ -17,6 +18,11 @@ function safeFileBaseName(originalname) {
   return base.replace(/[^a-zA-Z0-9._-]/g, "_");
 }
 
+function safeRouteId(v) {
+  const id = parseIntStrict(v);
+  return id == null ? "0" : String(id);
+}
+
 const avatarStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, avatarsDir),
   filename: (req, file, cb) => {
@@ -29,36 +35,30 @@ const avatarStorage = multer.diskStorage({
 const propertyImagesStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, propertiesDir),
   filename: (req, file, cb) => {
+    const id = safeRouteId(req.params.id);
     const safe = safeFileBaseName(file.originalname);
     const ext = path.extname(safe).toLowerCase();
-    cb(
-      null,
-      `p${req.params.id}-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`
-    );
+    cb(null, `p${id}-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
   },
 });
 
 const newsImagesStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, newsDir),
   filename: (req, file, cb) => {
+    const id = safeRouteId(req.params.id);
     const safe = safeFileBaseName(file.originalname);
     const ext = path.extname(safe).toLowerCase();
-    cb(
-      null,
-      `n${req.params.id}-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`
-    );
+    cb(null, `n${id}-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
   },
 });
 
 const eventCoverStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, eventsDir),
   filename: (req, file, cb) => {
+    const id = safeRouteId(req.params.id);
     const safe = safeFileBaseName(file.originalname);
     const ext = path.extname(safe).toLowerCase();
-    cb(
-      null,
-      `e${req.params.id}-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`
-    );
+    cb(null, `e${id}-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
   },
 });
 

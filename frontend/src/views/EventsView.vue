@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { useAuthStore, apiClient } from "../stores/auth";
 import { ElMessage } from "element-plus";
 import SearchCard from "@/components/ui/SearchCard.vue";
+import { limits } from "@/utils/constraints";
 import EventsCardsList from "@/components/events/EventsCardsList.vue";
 import { normalizeText } from "@/utils/text";
 import { formatDateTime } from "@/utils/datetime";
@@ -331,17 +332,24 @@ onMounted(async () => {
           </div>
           <el-form label-position="top">
             <el-form-item label="Название">
-              <el-input v-model="createForm.title" />
+              <el-input
+                v-model="createForm.title"
+                :maxlength="limits.events.title"
+              />
             </el-form-item>
             <el-form-item label="Описание (опционально)">
               <el-input
                 v-model="createForm.description"
                 type="textarea"
                 :rows="3"
+                :maxlength="limits.events.description"
               />
             </el-form-item>
             <el-form-item label="Место (опционально)">
-              <el-input v-model="createForm.location" />
+              <el-input
+                v-model="createForm.location"
+                :maxlength="limits.events.location"
+              />
             </el-form-item>
 
             <div style="display: flex; gap: var(--gap-md); flex-wrap: wrap">

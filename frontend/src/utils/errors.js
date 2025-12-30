@@ -11,6 +11,7 @@ export function humanizeApiError(err, fallback = "Ошибка") {
   if (status === 401) return "Требуется авторизация.";
   if (status === 403) return "Доступ запрещён.";
   if (status === 404) return "Не найдено.";
+  if (status === 429) return "Слишком много запросов, попробуйте позже.";
 
   return fallback;
 }

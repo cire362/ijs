@@ -3,6 +3,7 @@ import { onMounted, ref, computed, watch, nextTick } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore, apiClient } from "../stores/auth";
 import { ElMessage } from "element-plus";
+import { limits } from "@/utils/constraints";
 import CardsList from "@/components/ui/CardsList.vue";
 import SearchResultsCard from "@/components/ui/SearchResultsCard.vue";
 import PropertiesAnalyticsRow from "@/components/properties/PropertiesAnalyticsRow.vue";
@@ -845,11 +846,13 @@ function goDetails(propertyId) {
             <el-input
               v-model="applicationClientFullNames[p.id]"
               placeholder="ФИО клиента"
+              :maxlength="limits.application.clientFullName"
               style="flex: 1; min-width: 200px"
             />
             <el-input
               v-model="applicationClientPhones[p.id]"
               placeholder="Телефон клиента"
+              :maxlength="limits.application.clientPhone"
               style="flex: 1; min-width: 180px"
             />
             <el-input
@@ -857,6 +860,7 @@ function goDetails(propertyId) {
               :rows="2"
               type="textarea"
               placeholder="Комментарий к заявке"
+              :maxlength="limits.application.comment"
               style="flex: 1; min-width: 220px"
             />
             <el-button type="primary" @click="applyToProperty(p.id)"

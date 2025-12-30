@@ -1,10 +1,14 @@
 const { Op } = require("sequelize");
 const { Event, EventRegistration, User, Notification } = require("../models");
+const {
+  requireIdParam,
+  optionalIdQuery,
+  toSafeText,
+  normalizeSpace,
+} = require("../utils/validation");
 
 function normalizeText(v) {
-  return String(v || "")
-    .trim()
-    .replace(/\s+/g, " ");
+  return normalizeSpace(v || "");
 }
 
 function parseDate(v) {
@@ -25,7 +29,7 @@ function parsePositiveInt(v, fallback) {
 const allowedFormats = ["offline", "online", "hybrid"];
 
 async function listEvents(req, res) {
-  const q = normalizeText(req.query?.q);
+  const q = normalizeText(toSafeText(req.query?.q, { maxLen: 200 }));
   const trainingOnly =
     req.query?.training === "1" ||
     String(req.query?.training).toLowerCase() === "true";
@@ -86,10 +90,14 @@ async function listEvents(req, res) {
 }
 
 async function createEvent(req, res) {
-  const title = normalizeText(req.body?.title);
+  const title = normalizeText(toSafeText(req.body?.title, { maxLen: 200 }));
   const description =
-    req.body?.description == null ? "" : String(req.body.description);
-  const location = normalizeText(req.body?.location);
+    req.body?.description == null
+      ? ""
+      : toSafeText(req.body.description, { maxLen: 10_000 });
+  const location = normalizeText(
+    toSafeText(req.body?.location, { maxLen: 200 })
+  );
 
   const formatRaw =
     req.body?.format == null
@@ -143,7 +151,10 @@ async function createEvent(req, res) {
 }
 
 async function uploadEventCover(req, res) {
-  const event = await Event.findByPk(req.params.id);
+  const id = requireIdParam(req, res);
+  if (id == null) return;
+
+  const event = await Event.findByPk(id);
   if (!event) return res.status(404).json({ error: "Не найдено" });
 
   if (!req.file) {
@@ -162,7 +173,10 @@ async function uploadEventCover(req, res) {
 }
 
 async function registerForEvent(req, res) {
-  const event = await Event.findByPk(req.params.id);
+  const id = requireIdParam(req, res);
+  if (id == null) return;
+
+  const event = await Event.findByPk(id);
   if (!event) return res.status(404).json({ error: "Не найдено" });
 
   if (req.user.role !== "agent") {
@@ -206,10 +220,8 @@ async function registerForEvent(req, res) {
 }
 
 async function listRegistrations(req, res) {
-  const eventId = req.query?.eventId ? Number(req.query.eventId) : null;
-  if (req.query?.eventId && !Number.isFinite(eventId)) {
-    return res.status(400).json({ error: "Некорректный eventId" });
-  }
+  const eventId = optionalIdQuery(req, res, "eventId");
+  if (req.query?.eventId && eventId == null) return;
 
   const where = eventId ? { eventId } : undefined;
 
@@ -269,7 +281,10 @@ async function updateRegistrationStatus(req, res) {
     return res.status(400).json({ error: "Некорректный статус" });
   }
 
-  const reg = await EventRegistration.findByPk(req.params.id, {
+  const id = requireIdParam(req, res);
+  if (id == null) return;
+
+  const reg = await EventRegistration.findByPk(id, {
     include: [
       { model: Event, as: "event" },
       {

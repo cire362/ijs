@@ -12,9 +12,11 @@ const app = createApp(App);
 const pinia = createPinia();
 app.use(pinia);
 
-const auth = useAuthStore(pinia);
-auth.hydrate();
+(async () => {
+  const auth = useAuthStore(pinia);
+  await auth.bootstrap();
 
-app.use(router);
-app.use(ElementPlus, { locale: ru });
-app.mount("#app");
+  app.use(router);
+  app.use(ElementPlus, { locale: ru });
+  app.mount("#app");
+})();

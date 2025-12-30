@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from "vue";
 import { useAuthStore, apiClient } from "../stores/auth";
 import { ElMessage } from "element-plus";
+import { limits } from "@/utils/constraints";
 import CRMTable from "@/components/ui/CRMTable.vue";
 import SearchStatusFiltersCard from "@/components/ui/SearchStatusFiltersCard.vue";
 import { normalizeText } from "@/utils/text";
@@ -350,12 +351,18 @@ const pagedRows = computed(() => {
             <el-row :gutter="12">
               <el-col :span="12" :xs="24" :sm="12" :md="12">
                 <el-form-item label="ФИО клиента">
-                  <el-input v-model="clientFullNameEdit" />
+                  <el-input
+                    v-model="clientFullNameEdit"
+                    :maxlength="limits.application.clientFullName"
+                  />
                 </el-form-item>
               </el-col>
               <el-col :span="12" :xs="24" :sm="12" :md="12">
                 <el-form-item label="Телефон клиента">
-                  <el-input v-model="clientPhoneEdit" />
+                  <el-input
+                    v-model="clientPhoneEdit"
+                    :maxlength="limits.application.clientPhone"
+                  />
                 </el-form-item>
               </el-col>
             </el-row>

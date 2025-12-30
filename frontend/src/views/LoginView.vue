@@ -3,6 +3,7 @@ import { ref } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 import { ElMessage } from "element-plus";
+import { limits } from "@/utils/constraints";
 
 const auth = useAuthStore();
 const router = useRouter();
@@ -23,18 +24,27 @@ const registerForm = ref({
 const submit = async () => {
   try {
     if (activeTab.value === "login") {
-      await auth.login(loginForm.value.email, loginForm.value.password);
+      const email = String(loginForm.value.email || "")
+        .trim()
+        .toLowerCase();
+      const password = String(loginForm.value.password || "");
+      await auth.login(email, password);
     } else {
       if (!String(registerForm.value.phone || "").trim()) {
         ElMessage.error("Укажите телефон");
         return;
       }
+
+      const email = String(registerForm.value.email || "")
+        .trim()
+        .toLowerCase();
+      const phone = String(registerForm.value.phone || "").trim();
       await auth.register({
         lastName: registerForm.value.lastName || "Иванов",
         firstName: registerForm.value.firstName || "Иван",
         middleName: registerForm.value.middleName || "Иванович",
-        phone: String(registerForm.value.phone || "").trim(),
-        email: registerForm.value.email,
+        phone,
+        email,
         password: registerForm.value.password,
         role: registerForm.value.role,
         companyName: registerForm.value.companyName,
@@ -66,6 +76,7 @@ const submit = async () => {
                 v-model="loginForm.email"
                 type="email"
                 placeholder="Введите email"
+                :maxlength="limits.auth.email"
               />
             </el-form-item>
             <el-form-item label="Пароль">
@@ -74,6 +85,7 @@ const submit = async () => {
                 type="password"
                 placeholder="Введите пароль"
                 show-password
+                :maxlength="limits.auth.password"
               />
             </el-form-item>
             <el-form-item>
@@ -95,6 +107,7 @@ const submit = async () => {
                   <el-input
                     v-model="registerForm.lastName"
                     placeholder="Иванов"
+                    :maxlength="limits.auth.lastName"
                   />
                 </el-form-item>
               </el-col>
@@ -103,6 +116,7 @@ const submit = async () => {
                   <el-input
                     v-model="registerForm.firstName"
                     placeholder="Иван"
+                    :maxlength="limits.auth.firstName"
                   />
                 </el-form-item>
               </el-col>
@@ -111,6 +125,7 @@ const submit = async () => {
                   <el-input
                     v-model="registerForm.middleName"
                     placeholder="Иванович"
+                    :maxlength="limits.auth.middleName"
                   />
                 </el-form-item>
               </el-col>
@@ -125,7 +140,6 @@ const submit = async () => {
                   >
                     <el-option label="Агент" value="agent" />
                     <el-option label="Застройщик" value="developer" />
-                    <el-option label="Админ" value="admin" />
                   </el-select>
                 </el-form-item>
               </el-col>
@@ -134,6 +148,7 @@ const submit = async () => {
                   <el-input
                     v-model="registerForm.companyName"
                     placeholder="Для застройщика"
+                    :maxlength="limits.auth.companyName"
                   />
                 </el-form-item>
               </el-col>
@@ -143,6 +158,14 @@ const submit = async () => {
                 v-model="registerForm.email"
                 type="email"
                 placeholder="Введите email"
+                :maxlength="limits.auth.email"
+              />
+            </el-form-item>
+            <el-form-item label="Телефон">
+              <el-input
+                v-model="registerForm.phone"
+                placeholder="+7..."
+                :maxlength="limits.auth.phone"
               />
             </el-form-item>
             <el-form-item label="Телефон">
@@ -154,6 +177,7 @@ const submit = async () => {
                 type="password"
                 placeholder="Введите пароль"
                 show-password
+                :maxlength="limits.auth.password"
               />
             </el-form-item>
             <el-form-item>

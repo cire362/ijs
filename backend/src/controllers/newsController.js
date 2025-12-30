@@ -1,5 +1,6 @@
 const { Op } = require("sequelize");
 const { News, NewsImage, User } = require("../models");
+const { requireIdParam, toSafeText } = require("../utils/validation");
 
 function normalizeText(v) {
   return String(v || "")
@@ -19,7 +20,7 @@ function toBool(v) {
 async function listNews(req, res) {
   const isAdmin = req.user?.role === "admin";
 
-  const q = normalizeText(req.query?.q);
+  const q = normalizeText(toSafeText(req.query?.q, { maxLen: 200 }));
   const where = {};
 
   if (!isAdmin) {
@@ -67,7 +68,10 @@ async function listNews(req, res) {
 async function getNewsById(req, res) {
   const isAdmin = req.user?.role === "admin";
 
-  const item = await News.findByPk(req.params.id, {
+  const id = requireIdParam(req, res);
+  if (id == null) return;
+
+  const item = await News.findByPk(id, {
     include: [
       {
         model: User,
@@ -94,10 +98,12 @@ async function getNewsById(req, res) {
 }
 
 async function createNews(req, res) {
-  const title = normalizeText(req.body?.title);
-  const subtitle = normalizeText(req.body?.subtitle);
-  const excerpt = req.body?.excerpt == null ? "" : String(req.body.excerpt);
-  const content = req.body?.content == null ? "" : String(req.body.content);
+  const title = normalizeText(toSafeText(req.body?.title, { maxLen: 200 }));
+  const subtitle = normalizeText(
+    toSafeText(req.body?.subtitle, { maxLen: 200 })
+  );
+  const excerpt = toSafeText(req.body?.excerpt, { maxLen: 2000 });
+  const content = toSafeText(req.body?.content, { maxLen: 50_000 });
 
   if (!title) return res.status(400).json({ error: "Заголовок обязателен" });
   if (!String(content).trim())
@@ -138,30 +144,33 @@ async function createNews(req, res) {
 }
 
 async function updateNews(req, res) {
-  const item = await News.findByPk(req.params.id);
+  const id = requireIdParam(req, res);
+  if (id == null) return;
+
+  const item = await News.findByPk(id);
   if (!item) return res.status(404).json({ error: "Не найдено" });
 
   const payload = {};
 
   if (req.body?.title != null) {
-    const t = normalizeText(req.body.title);
+    const t = normalizeText(toSafeText(req.body.title, { maxLen: 200 }));
     if (!t)
       return res.status(400).json({ error: "Заголовок не может быть пустым" });
     payload.title = t;
   }
 
   if (req.body?.subtitle != null) {
-    const s = normalizeText(req.body.subtitle);
+    const s = normalizeText(toSafeText(req.body.subtitle, { maxLen: 200 }));
     payload.subtitle = s ? s : null;
   }
 
   if (req.body?.excerpt != null) {
-    const e = String(req.body.excerpt);
+    const e = toSafeText(req.body.excerpt, { maxLen: 2000 });
     payload.excerpt = e.trim() ? e : null;
   }
 
   if (req.body?.content != null) {
-    const c = String(req.body.content);
+    const c = toSafeText(req.body.content, { maxLen: 50_000 });
     if (!c.trim())
       return res.status(400).json({ error: "Текст не может быть пустым" });
     payload.content = c;
@@ -202,7 +211,10 @@ async function updateNews(req, res) {
 }
 
 async function addNewsImages(req, res) {
-  const item = await News.findByPk(req.params.id);
+  const id = requireIdParam(req, res);
+  if (id == null) return;
+
+  const item = await News.findByPk(id);
   if (!item) return res.status(404).json({ error: "Не найдено" });
 
   const files = Array.isArray(req.files) ? req.files : [];
@@ -214,7 +226,9 @@ async function addNewsImages(req, res) {
     files.map((f) => ({
       newsId: item.id,
       url: `/uploads/news/${f.filename}`,
-      caption: f.originalname || null,
+      caption: f.originalname
+        ? toSafeText(f.originalname, { maxLen: 255 })
+        : null,
     }))
   );
 
