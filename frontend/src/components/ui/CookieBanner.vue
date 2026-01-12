@@ -2,32 +2,35 @@
   <transition name="fade">
     <div v-if="visible" class="banner card-shadow">
       <div>
-        <div class="title">Мы бережно храним данные</div>
+        <div class="title">Мы используем файлы cookie</div>
         <div class="muted">
-          Продолжая, вы принимаете cookies и соглашение о персональных данных.
+          Мы используем файлы cookie для работы сайта. Продолжая использование,
+          вы соглашаетесь с
+          <a href="/privacy" class="text-blue-500 hover:underline"
+            >политикой конфиденциальности</a
+          >.
         </div>
       </div>
       <div class="actions">
-        <el-button size="small" type="info" text @click="dismiss"
-          >Позже</el-button
-        >
-        <el-button size="small" type="warning" @click="accept"
-          >Согласен</el-button
-        >
+        <el-button size="small" type="primary" @click="accept">ОК</el-button>
       </div>
     </div>
   </transition>
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
 
-const visible = ref(true);
+const visible = ref(false);
+
+onMounted(() => {
+  if (!localStorage.getItem("cookie_accepted")) {
+    visible.value = true;
+  }
+});
 
 function accept() {
-  visible.value = false;
-}
-function dismiss() {
+  localStorage.setItem("cookie_accepted", "true");
   visible.value = false;
 }
 </script>

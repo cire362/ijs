@@ -86,16 +86,16 @@ export const useAuthStore = defineStore("auth", {
       applyAuthHeader(data.token);
       return data.token;
     },
-    logout() {
+    clearLocalState() {
       this.user = null;
       this.token = null;
       applyAuthHeader(null);
     },
-    async logoutServer() {
+    async logout() {
       try {
         await api.post("/auth/logout", null, { headers: csrfHeaders() });
       } finally {
-        this.logout();
+        this.clearLocalState();
       }
     },
   },
@@ -126,7 +126,7 @@ api.interceptors.response.use(
       return api.request(original);
     } catch (e) {
       refreshPromise = null;
-      auth.logout();
+      auth.clearLocalState();
       return Promise.reject(error);
     }
   }

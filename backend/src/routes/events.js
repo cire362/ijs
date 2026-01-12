@@ -1,6 +1,11 @@
 const express = require("express");
 const router = express.Router();
 const asyncHandler = require("../utils/asyncHandler");
+const validate = require("../middleware/validate");
+const {
+  createEventSchema,
+  updateRegistrationStatusSchema,
+} = require("../validation/events");
 const {
   authenticate,
   optionalAuthenticate,
@@ -20,7 +25,13 @@ const { uploadEventCoverImage } = require("../utils/upload");
 
 router.get("/", optionalAuthenticate, asyncHandler(listEvents));
 
-router.post("/", authenticate, allowRoles("admin"), asyncHandler(createEvent));
+router.post(
+  "/",
+  authenticate,
+  allowRoles("admin"),
+  validate(createEventSchema),
+  asyncHandler(createEvent)
+);
 
 router.post(
   "/:id/image",
@@ -49,6 +60,7 @@ router.patch(
   "/registrations/:id",
   authenticate,
   allowRoles("admin"),
+  validate(updateRegistrationStatusSchema),
   asyncHandler(updateRegistrationStatus)
 );
 

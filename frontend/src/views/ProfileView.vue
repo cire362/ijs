@@ -46,7 +46,6 @@ async function load() {
 
     if (auth.user) {
       auth.user = { ...auth.user, ...data };
-      auth.persist();
     }
   } catch (err) {
     ElMessage.error(
@@ -90,7 +89,6 @@ async function uploadAvatar(options) {
 
     if (auth.user) {
       auth.user = { ...auth.user, ...data };
-      auth.persist();
     }
 
     ElMessage.success("Аватар обновлён");
@@ -122,7 +120,6 @@ async function save() {
     // Update header name immediately
     if (auth.user) {
       auth.user = { ...auth.user, ...data };
-      auth.persist();
     }
 
     ElMessage.success("Профиль обновлён");

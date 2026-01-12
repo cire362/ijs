@@ -13,6 +13,7 @@ const userRoutes = require("./routes/users");
 const newsRoutes = require("./routes/news");
 const eventsRoutes = require("./routes/events");
 const addressRoutes = require("./routes/address");
+const supportRoutes = require("./routes/support");
 
 const app = express();
 
@@ -63,10 +64,27 @@ app.use("/notifications", notificationRoutes);
 app.use("/users", userRoutes);
 app.use("/news", newsRoutes);
 app.use("/events", eventsRoutes);
+app.use("/support", supportRoutes);
 
 app.use((err, req, res, next) => {
-  // Fallback error handler with minimal noise
   console.error(err);
+
+  if (err.status) {
+    return res.status(err.status).json({ error: err.message });
+  }
+
+  // Sequelize Validation Error
+  if (err.name === "SequelizeValidationError") {
+    return res
+      .status(400)
+      .json({ error: err.errors.map((e) => e.message).join(", ") });
+  }
+
+  // Postgres invalid integer (22P02)
+  if (err.name === "SequelizeDatabaseError" && err.parent?.code === "22P02") {
+    return res.status(400).json({ error: "Некорректный ID" });
+  }
+
   res.status(500).json({ error: "Внутренняя ошибка" });
 });
 

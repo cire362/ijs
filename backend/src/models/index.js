@@ -10,6 +10,8 @@ const Event = require("./event");
 const EventRegistration = require("./eventRegistration");
 const AddressSuggestion = require("./addressSuggestion");
 const AuthSession = require("./authSession");
+const SupportRequest = require("./supportRequest");
+const ChatMessage = require("./chatMessage");
 
 User.hasMany(Property, { foreignKey: "developerId", as: "properties" });
 Property.belongsTo(User, { foreignKey: "developerId", as: "developer" });
@@ -54,6 +56,9 @@ User.hasMany(EventRegistration, {
 });
 EventRegistration.belongsTo(User, { foreignKey: "agentId", as: "agent" });
 
+User.hasMany(AuthSession, { foreignKey: "userId" });
+AuthSession.belongsTo(User, { foreignKey: "userId" });
+
 module.exports = {
   User,
   Property,
@@ -67,4 +72,6 @@ module.exports = {
   EventRegistration,
   AddressSuggestion,
   AuthSession,
+  SupportRequest,
+  ChatMessage,
 };

@@ -1,7 +1,7 @@
 <template>
   <el-header class="app-header">
     <div class="header-inner">
-      <div class="brand">
+      <div class="brand" @click="router.push('/')" style="cursor: pointer">
         <div class="brand-mark">ИЖС</div>
         <div>
           <div class="brand-title">ИЖС</div>
@@ -15,7 +15,8 @@
         class="menu"
         :ellipsis="false"
       >
-        <el-menu-item index="/properties">
+        <el-menu-item v-if="!isAuthed" index="/">Главная</el-menu-item>
+        <el-menu-item v-if="isAuthed" index="/properties">
           {{ isDeveloper ? "Мои объекты" : "Поиск" }}
         </el-menu-item>
         <el-menu-item index="/news">Новости</el-menu-item>
@@ -24,6 +25,17 @@
           >Мои заявки</el-menu-item
         >
         <el-menu-item v-if="isManager" index="/incoming">Входящие</el-menu-item>
+        <el-menu-item v-if="isAdmin" index="/admin/chat">
+          <el-badge
+            v-if="supportStore.adminUnreadCount > 0"
+            :value="supportStore.adminUnreadCount"
+            type="danger"
+            :offset="[0, 10]"
+          >
+            Чат поддержки
+          </el-badge>
+          <span v-else>Чат поддержки</span>
+        </el-menu-item>
         <el-menu-item v-if="isAuthed" index="/notifications">
           <el-badge
             v-if="notifications.unreadBadge"
@@ -69,21 +81,26 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, watch } from "vue";
+import { computed, onBeforeUnmount, watch, onMounted } from "vue";
 import { useRouter, useRoute } from "vue-router";
-import { useAuthStore } from "@/stores/auth";
+import { useAuthStore, apiClient } from "@/stores/auth";
 import { useNotificationsStore } from "@/stores/notifications";
+import { useSupportStore } from "@/stores/support";
 import { ArrowDown } from "@element-plus/icons-vue";
+import { getSocket } from "@/utils/socket";
 
 const auth = useAuthStore();
 const notifications = useNotificationsStore();
+const supportStore = useSupportStore();
 const router = useRouter();
 const route = useRoute();
+const socket = getSocket();
 
 const active = computed(() => route.path);
 const isAuthed = computed(() => !!auth.user);
 const isAgent = computed(() => auth.user?.role === "agent");
 const isDeveloper = computed(() => auth.user?.role === "developer");
+const isAdmin = computed(() => auth.user?.role === "admin");
 const isManager = computed(
   () =>
     (auth.user?.role === "developer" && auth.user?.developerApproved) ||
@@ -114,6 +131,32 @@ const initials = computed(() => {
   if (!u) return "U";
   const s = (u.firstName || displayName.value || "U").trim();
   return s ? s[0].toUpperCase() : "U";
+});
+
+// Admin Support Chat Logic
+onMounted(async () => {
+  if (isAdmin.value) {
+    // 1. Fetch initial unread count
+    try {
+      const { data } = await apiClient.get("/support/chats");
+      // Sum unread counts
+      const total = data.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+      supportStore.setAdminUnreadCount(total);
+    } catch (e) {
+      console.warn("Failed to fetch admin chats count", e);
+    }
+
+    // 2. Listen for new messages
+    if (socket) {
+      // Ensure admin room
+      socket.emit("admin_subscribe");
+
+      socket.on("new_support_message", (msg) => {
+        // Increment global count
+        supportStore.incrementAdminUnreadCount();
+      });
+    }
+  }
 });
 
 watch(

@@ -9,12 +9,26 @@ import ProfileView from "../views/ProfileView.vue";
 import NewsView from "../views/NewsView.vue";
 import NewsDetailsView from "../views/NewsDetailsView.vue";
 import EventsView from "../views/EventsView.vue";
+import ShowcaseView from "../views/ShowcaseView.vue";
+import PrivacyView from "../views/PrivacyView.vue";
+import TermsView from "../views/TermsView.vue";
+import AdminChatView from "../views/AdminChatView.vue";
 import { useAuthStore } from "../stores/auth";
 
 const routes = [
-  { path: "/", redirect: "/properties" },
-  { path: "/properties", component: PropertiesView },
-  { path: "/properties/:id", component: PropertyDetailsView },
+  { path: "/", component: ShowcaseView },
+  { path: "/privacy", component: PrivacyView },
+  { path: "/terms", component: TermsView },
+  {
+    path: "/properties",
+    component: PropertiesView,
+    meta: { requiresAuth: true },
+  },
+  {
+    path: "/properties/:id",
+    component: PropertyDetailsView,
+    meta: { requiresAuth: true },
+  },
   { path: "/news", component: NewsView },
   { path: "/news/:id", component: NewsDetailsView },
   { path: "/events", component: EventsView },
@@ -29,6 +43,11 @@ const routes = [
     meta: { requiresAuth: true, roles: ["developer", "admin"] },
   },
   {
+    path: "/admin/chat",
+    component: AdminChatView,
+    meta: { requiresAuth: true, roles: ["admin"] },
+  },
+  {
     path: "/notifications",
     component: NotificationsView,
     meta: { requiresAuth: true },
@@ -40,6 +59,15 @@ const routes = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
+  scrollBehavior(to, from, savedPosition) {
+    if (to.hash) {
+      return {
+        el: to.hash,
+        behavior: "smooth",
+      };
+    }
+    return savedPosition || { top: 0 };
+  },
 });
 
 router.beforeEach((to) => {

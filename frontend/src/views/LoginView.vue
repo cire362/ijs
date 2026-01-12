@@ -1,12 +1,13 @@
 <script setup>
-import { ref } from "vue";
-import { useRouter } from "vue-router";
+import { ref, onMounted } from "vue";
+import { useRouter, useRoute } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 import { ElMessage } from "element-plus";
 import { limits } from "@/utils/constraints";
 
 const auth = useAuthStore();
 const router = useRouter();
+const route = useRoute();
 
 const activeTab = ref("login");
 const loginForm = ref({ email: "agent@test.com", password: "password" });
@@ -17,8 +18,66 @@ const registerForm = ref({
   phone: "",
   email: "",
   password: "",
+  confirmPassword: "",
   role: "agent",
   companyName: "",
+  agreeLegal: false,
+  agreeMarketing: false,
+});
+
+const registerFormRef = ref(null);
+
+const registerRules = {
+  lastName: [{ required: true, message: "Введите фамилию", trigger: "blur" }],
+  firstName: [{ required: true, message: "Введите имя", trigger: "blur" }],
+  middleName: [
+    { required: true, message: "Введите отчество", trigger: "blur" },
+  ],
+  email: [
+    { required: true, message: "Введите email", trigger: "blur" },
+    { type: "email", message: "Некорректный email", trigger: "blur" },
+  ],
+  phone: [{ required: true, message: "Введите телефон", trigger: "blur" }],
+  password: [
+    { required: true, message: "Введите пароль", trigger: "blur" },
+    { min: 8, message: "Минимум 8 символов", trigger: "blur" },
+    {
+      pattern: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
+      message: "Пароль должен содержать заглавные, строчные буквы и цифры",
+      trigger: "blur",
+    },
+  ],
+  confirmPassword: [
+    { required: true, message: "Подтвердите пароль", trigger: "blur" },
+    {
+      validator: (rule, value, callback) => {
+        if (value !== registerForm.value.password) {
+          callback(new Error("Пароли не совпадают"));
+        } else {
+          callback();
+        }
+      },
+      trigger: "blur",
+    },
+  ],
+  agreeLegal: [
+    {
+      validator: (rule, value, callback) => {
+        if (!value) {
+          callback(new Error("Необходимо согласие"));
+        } else {
+          callback();
+        }
+      },
+      trigger: "change",
+    },
+  ],
+};
+
+onMounted(() => {
+  if (route.query.tab === "register") {
+    activeTab.value = "register";
+  }
 });
 
 const submit = async () => {
@@ -30,168 +89,226 @@ const submit = async () => {
       const password = String(loginForm.value.password || "");
       await auth.login(email, password);
     } else {
-      if (!String(registerForm.value.phone || "").trim()) {
-        ElMessage.error("Укажите телефон");
-        return;
-      }
+      if (!registerFormRef.value) return;
 
-      const email = String(registerForm.value.email || "")
-        .trim()
-        .toLowerCase();
-      const phone = String(registerForm.value.phone || "").trim();
-      await auth.register({
-        lastName: registerForm.value.lastName || "Иванов",
-        firstName: registerForm.value.firstName || "Иван",
-        middleName: registerForm.value.middleName || "Иванович",
-        phone,
-        email,
-        password: registerForm.value.password,
-        role: registerForm.value.role,
-        companyName: registerForm.value.companyName,
+      await registerFormRef.value.validate(async (valid) => {
+        if (valid) {
+          const email = String(registerForm.value.email || "")
+            .trim()
+            .toLowerCase();
+          const phone = String(registerForm.value.phone || "").trim();
+
+          await auth.register({
+            lastName: registerForm.value.lastName,
+            firstName: registerForm.value.firstName,
+            middleName: registerForm.value.middleName,
+            phone,
+            email,
+            password: registerForm.value.password,
+            role: registerForm.value.role,
+            companyName: registerForm.value.companyName,
+          });
+        }
       });
     }
-    if (!auth.error) {
+    if (!auth.error && activeTab.value === "login") {
       ElMessage.success("Успешный вход");
       router.push("/properties");
+    } else if (!auth.error && activeTab.value === "register") {
+      // Register calls login internally usually, so check store
+      if (auth.user) {
+        ElMessage.success("Регистрация успешна");
+        router.push("/properties");
+      }
     } else {
-      ElMessage.error(auth.error);
+      if (auth.error) ElMessage.error(auth.error);
     }
   } catch (err) {
-    ElMessage.error(err.message || "Ошибка");
+    // console.error(err);
+    // ElMessage handled in store usually, but safeguard here
   }
 };
 </script>
 
 <template>
-  <div style="max-width: 600px; margin: 40px auto">
-    <el-card shadow="hover">
-      <template #header>
-        <h2 style="margin: 0; text-align: center">Добро пожаловать</h2>
-      </template>
-      <el-tabs v-model="activeTab" stretch>
-        <el-tab-pane label="Вход" name="login">
-          <el-form :model="loginForm" label-position="top">
-            <el-form-item label="Email">
-              <el-input
-                v-model="loginForm.email"
-                type="email"
-                placeholder="Введите email"
-                :maxlength="limits.auth.email"
-              />
-            </el-form-item>
-            <el-form-item label="Пароль">
-              <el-input
-                v-model="loginForm.password"
-                type="password"
-                placeholder="Введите пароль"
-                show-password
-                :maxlength="limits.auth.password"
-              />
-            </el-form-item>
-            <el-form-item>
-              <el-button
-                type="primary"
-                @click="submit"
-                :loading="auth.loading"
-                style="width: 100%"
-                >Войти</el-button
-              >
-            </el-form-item>
-          </el-form>
-        </el-tab-pane>
-        <el-tab-pane label="Регистрация" name="register">
-          <el-form :model="registerForm" label-position="top">
-            <el-row :gutter="20">
-              <el-col :span="8">
-                <el-form-item label="Фамилия">
-                  <el-input
-                    v-model="registerForm.lastName"
-                    placeholder="Иванов"
-                    :maxlength="limits.auth.lastName"
-                  />
+  <div
+    class="flex items-center justify-center min-h-full py-12 px-4 sm:px-6 lg:px-8"
+  >
+    <div class="w-full max-w-md space-y-8" style="max-width: 600px">
+      <el-card shadow="hover">
+        <template #header>
+          <h2 style="margin: 0; text-align: center">Добро пожаловать</h2>
+        </template>
+        <el-tabs v-model="activeTab" stretch>
+          <el-tab-pane label="Вход" name="login">
+            <el-form :model="loginForm" label-position="top">
+              <el-form-item label="Email">
+                <el-input
+                  v-model="loginForm.email"
+                  type="email"
+                  placeholder="Введите email"
+                  :maxlength="limits.auth.email"
+                />
+              </el-form-item>
+              <el-form-item label="Пароль">
+                <el-input
+                  v-model="loginForm.password"
+                  type="password"
+                  placeholder="Введите пароль"
+                  show-password
+                  :maxlength="limits.auth.password"
+                />
+              </el-form-item>
+              <el-form-item>
+                <el-button
+                  type="primary"
+                  @click="submit"
+                  :loading="auth.loading"
+                  style="width: 100%"
+                  >Войти</el-button
+                >
+              </el-form-item>
+            </el-form>
+          </el-tab-pane>
+          <el-tab-pane label="Регистрация" name="register">
+            <el-form
+              ref="registerFormRef"
+              :model="registerForm"
+              :rules="registerRules"
+              label-position="top"
+            >
+              <el-row :gutter="20">
+                <el-col :span="8">
+                  <el-form-item label="Фамилия" prop="lastName">
+                    <el-input
+                      v-model="registerForm.lastName"
+                      placeholder="Иванов"
+                      :maxlength="limits.auth.lastName"
+                    />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="8">
+                  <el-form-item label="Имя" prop="firstName">
+                    <el-input
+                      v-model="registerForm.firstName"
+                      placeholder="Иван"
+                      :maxlength="limits.auth.firstName"
+                    />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="8">
+                  <el-form-item label="Отчество" prop="middleName">
+                    <el-input
+                      v-model="registerForm.middleName"
+                      placeholder="Иванович"
+                      :maxlength="limits.auth.middleName"
+                    />
+                  </el-form-item>
+                </el-col>
+              </el-row>
+              <el-row :gutter="20">
+                <el-col :span="12">
+                  <el-form-item label="Роль" prop="role">
+                    <el-select
+                      v-model="registerForm.role"
+                      placeholder="Выберите роль"
+                      style="width: 100%"
+                    >
+                      <el-option label="Агент" value="agent" />
+                      <el-option label="Застройщик" value="developer" />
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                  <el-form-item label="Компания" prop="companyName">
+                    <el-input
+                      v-model="registerForm.companyName"
+                      placeholder="Для застройщика"
+                      :maxlength="limits.auth.companyName"
+                    />
+                  </el-form-item>
+                </el-col>
+              </el-row>
+              <el-form-item label="Email" prop="email">
+                <el-input
+                  v-model="registerForm.email"
+                  type="email"
+                  placeholder="Введите email"
+                  :maxlength="limits.auth.email"
+                />
+              </el-form-item>
+              <el-form-item label="Телефон" prop="phone">
+                <el-input
+                  v-model="registerForm.phone"
+                  placeholder="+7..."
+                  :maxlength="limits.auth.phone"
+                />
+              </el-form-item>
+              <el-form-item label="Пароль" prop="password">
+                <el-input
+                  v-model="registerForm.password"
+                  type="password"
+                  placeholder="Введите пароль"
+                  show-password
+                  :maxlength="limits.auth.password"
+                />
+              </el-form-item>
+              <el-form-item label="Подтвердите пароль" prop="confirmPassword">
+                <el-input
+                  v-model="registerForm.confirmPassword"
+                  type="password"
+                  placeholder="Повторите пароль"
+                  show-password
+                  :maxlength="limits.auth.password"
+                />
+              </el-form-item>
+
+              <div style="margin-bottom: 20px">
+                <el-form-item prop="agreeLegal">
+                  <el-checkbox v-model="registerForm.agreeLegal">
+                    <div style="white-space: normal; line-height: 1.4">
+                      Я принимаю условия
+                      <a
+                        href="/terms"
+                        target="_blank"
+                        class="text-blue-600 hover:underline"
+                        >Пользовательского соглашения</a
+                      >
+                      и даю согласие на обработку моих персональных данных в
+                      соответствии с
+                      <a
+                        href="/privacy"
+                        target="_blank"
+                        class="text-blue-600 hover:underline"
+                        >Политикой конфиденциальности</a
+                      >
+                    </div>
+                  </el-checkbox>
                 </el-form-item>
-              </el-col>
-              <el-col :span="8">
-                <el-form-item label="Имя">
-                  <el-input
-                    v-model="registerForm.firstName"
-                    placeholder="Иван"
-                    :maxlength="limits.auth.firstName"
-                  />
-                </el-form-item>
-              </el-col>
-              <el-col :span="8">
-                <el-form-item label="Отчество">
-                  <el-input
-                    v-model="registerForm.middleName"
-                    placeholder="Иванович"
-                    :maxlength="limits.auth.middleName"
-                  />
-                </el-form-item>
-              </el-col>
-            </el-row>
-            <el-row :gutter="20">
-              <el-col :span="12">
-                <el-form-item label="Роль">
-                  <el-select
-                    v-model="registerForm.role"
-                    placeholder="Выберите роль"
-                    style="width: 100%"
-                  >
-                    <el-option label="Агент" value="agent" />
-                    <el-option label="Застройщик" value="developer" />
-                  </el-select>
-                </el-form-item>
-              </el-col>
-              <el-col :span="12">
-                <el-form-item label="Компания">
-                  <el-input
-                    v-model="registerForm.companyName"
-                    placeholder="Для застройщика"
-                    :maxlength="limits.auth.companyName"
-                  />
-                </el-form-item>
-              </el-col>
-            </el-row>
-            <el-form-item label="Email">
-              <el-input
-                v-model="registerForm.email"
-                type="email"
-                placeholder="Введите email"
-                :maxlength="limits.auth.email"
-              />
-            </el-form-item>
-            <el-form-item label="Телефон">
-              <el-input
-                v-model="registerForm.phone"
-                placeholder="+7..."
-                :maxlength="limits.auth.phone"
-              />
-            </el-form-item>
-            <el-form-item label="Телефон">
-              <el-input v-model="registerForm.phone" placeholder="+7..." />
-            </el-form-item>
-            <el-form-item label="Пароль">
-              <el-input
-                v-model="registerForm.password"
-                type="password"
-                placeholder="Введите пароль"
-                show-password
-                :maxlength="limits.auth.password"
-              />
-            </el-form-item>
-            <el-form-item>
-              <el-button
-                type="primary"
-                @click="submit"
-                :loading="auth.loading"
-                style="width: 100%"
-                >Создать аккаунт</el-button
-              >
-            </el-form-item>
-          </el-form>
-        </el-tab-pane>
-      </el-tabs>
-    </el-card>
+              </div>
+
+              <div style="margin-bottom: 20px">
+                <el-checkbox v-model="registerForm.agreeMarketing">
+                  <div style="white-space: normal; line-height: 1.4">
+                    Я даю согласие на получение информационных и рекламных
+                    рассылок (новости сервиса, анонсы вебинаров).
+                  </div>
+                </el-checkbox>
+              </div>
+
+              <el-form-item>
+                <el-button
+                  type="primary"
+                  @click="submit"
+                  :loading="auth.loading"
+                  style="width: 100%"
+                  >Создать аккаунт</el-button
+                >
+              </el-form-item>
+            </el-form>
+          </el-tab-pane>
+        </el-tabs>
+      </el-card>
+    </div>
   </div>
 </template>

@@ -1,6 +1,11 @@
 const express = require("express");
 const router = express.Router();
 const asyncHandler = require("../utils/asyncHandler");
+const validate = require("../middleware/validate");
+const {
+  createPropertySchema,
+  updatePropertySchema,
+} = require("../validation/properties");
 const {
   authenticate,
   optionalAuthenticate,
@@ -22,12 +27,14 @@ router.post(
   "/",
   authenticate,
   allowRoles("developer", "admin"),
+  validate(createPropertySchema),
   asyncHandler(createProperty)
 );
 router.patch(
   "/:id",
   authenticate,
   allowRoles("developer", "admin"),
+  validate(updatePropertySchema),
   asyncHandler(updateProperty)
 );
 
