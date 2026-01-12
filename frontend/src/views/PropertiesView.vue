@@ -132,6 +132,7 @@ const form = ref({
 
 const creatingProperty = ref(false);
 const createImages = ref([]);
+const createDocuments = ref([]);
 
 const developerOptions = ref([]);
 const developerLoading = ref(false);
@@ -567,6 +568,7 @@ function resetCreateForm(preservedDeveloperId = "") {
   };
 
   createImages.value = [];
+  createDocuments.value = [];
 }
 
 function openDeveloper(dev) {
@@ -685,6 +687,25 @@ async function createProperty() {
           );
         }
       }
+    }
+
+    if (Array.isArray(createDocuments.value) && createDocuments.value.length) {
+      // Logic for documents
+      for (const doc of createDocuments.value) {
+        if (!doc?.raw) continue;
+        const fd = new FormData();
+        fd.append("document", doc.raw);
+        try {
+          await apiClient.post(`/properties/${created.id}/documents`, fd, {
+            headers: { "Content-Type": "multipart/form-data" },
+          });
+        } catch (e) {
+          console.error(e);
+          ElMessage.warning(`Не удалось загрузить документ: ${doc.name}`);
+        }
+      }
+      // Re-fetch property to include docs? Or just proceed.
+      // createProperty doesn't return full object usually if not requested, but let's assume fine.
     }
 
     items.value.unshift(finalProperty);
@@ -929,6 +950,7 @@ function goDetails(propertyId) {
           <PropertyCreateFormCard
             v-model:form="form"
             v-model:images="createImages"
+            v-model:documents="createDocuments"
             pill="Застройщик"
             title="Добавить объект"
             :saving="creatingProperty"
@@ -1142,6 +1164,7 @@ function goDetails(propertyId) {
             <PropertyCreateFormCard
               v-model:form="form"
               v-model:images="createImages"
+              v-model:documents="createDocuments"
               pill="Админ"
               title="Добавить объект"
               :saving="creatingProperty"

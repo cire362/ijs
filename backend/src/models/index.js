@@ -12,12 +12,19 @@ const AddressSuggestion = require("./addressSuggestion");
 const AuthSession = require("./authSession");
 const SupportRequest = require("./supportRequest");
 const ChatMessage = require("./chatMessage");
+const PropertyDocument = require("./propertyDocument");
 
 User.hasMany(Property, { foreignKey: "developerId", as: "properties" });
 Property.belongsTo(User, { foreignKey: "developerId", as: "developer" });
 
 Property.hasMany(PropertyImage, { foreignKey: "propertyId", as: "images" });
 PropertyImage.belongsTo(Property, { foreignKey: "propertyId" });
+
+Property.hasMany(PropertyDocument, {
+  foreignKey: "propertyId",
+  as: "documents",
+});
+PropertyDocument.belongsTo(Property, { foreignKey: "propertyId" });
 
 Property.hasMany(Application, { foreignKey: "propertyId", as: "applications" });
 Application.belongsTo(Property, { foreignKey: "propertyId" });
@@ -74,4 +81,5 @@ module.exports = {
   AuthSession,
   SupportRequest,
   ChatMessage,
+  PropertyDocument,
 };

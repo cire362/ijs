@@ -17,9 +17,13 @@ const {
   createProperty,
   updateProperty,
   addPropertyImages,
+  deleteProperty,
+  deletePropertyImage,
+  addPropertyDocument,
+  deletePropertyDocument,
 } = require("../controllers/propertyController");
 
-const { uploadPropertyImages } = require("../utils/upload");
+const { uploadPropertyImages, uploadPropertyDoc } = require("../utils/upload");
 
 router.get("/", optionalAuthenticate, asyncHandler(listProperties));
 router.get("/:id", optionalAuthenticate, asyncHandler(getPropertyById));
@@ -37,6 +41,12 @@ router.patch(
   validate(updatePropertySchema),
   asyncHandler(updateProperty)
 );
+router.delete(
+  "/:id",
+  authenticate,
+  allowRoles("developer", "admin"),
+  asyncHandler(deleteProperty)
+);
 
 router.post(
   "/:id/images",
@@ -45,6 +55,29 @@ router.post(
   (req, res, next) =>
     uploadPropertyImages(req, res, (err) => (err ? next(err) : next())),
   asyncHandler(addPropertyImages)
+);
+
+router.delete(
+  "/images/:id",
+  authenticate,
+  allowRoles("developer", "admin"),
+  asyncHandler(deletePropertyImage)
+);
+
+router.post(
+  "/:id/documents",
+  authenticate,
+  allowRoles("developer", "admin"),
+  (req, res, next) =>
+    uploadPropertyDoc(req, res, (err) => (err ? next(err) : next())),
+  asyncHandler(addPropertyDocument)
+);
+
+router.delete(
+  "/documents/:id",
+  authenticate,
+  allowRoles("developer", "admin"),
+  asyncHandler(deletePropertyDocument)
 );
 
 module.exports = router;

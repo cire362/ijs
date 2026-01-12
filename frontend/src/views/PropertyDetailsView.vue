@@ -12,6 +12,7 @@ const router = useRouter();
 const loading = ref(false);
 const property = ref(null);
 const uploading = ref(false);
+const uploadingDoc = ref(false);
 
 const regionLoading = ref(false);
 const cityLoading = ref(false);
@@ -241,6 +242,35 @@ async function uploadPropertyImage({ file }) {
     ElMessage.error(err.response?.data?.error || "Не удалось загрузить фото");
   } finally {
     uploading.value = false;
+  }
+}
+
+async function uploadPropertyDoc(options) {
+  if (!property.value?.id) return;
+  uploadingDoc.value = true;
+  try {
+    const fd = new FormData();
+    fd.append("document", options.file);
+    await apiClient.post(`/properties/${property.value.id}/documents`, fd, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    ElMessage.success("Документ загружен");
+    await load();
+  } catch (e) {
+    ElMessage.error(e.response?.data?.error || "Ошибка загрузки документа");
+  } finally {
+    uploadingDoc.value = false;
+  }
+}
+
+async function deleteDoc(docId) {
+  if (!confirm("Вы уверены, что хотите удалить документ?")) return;
+  try {
+    await apiClient.delete(`/properties/documents/${docId}`);
+    ElMessage.success("Документ удален");
+    await load();
+  } catch (e) {
+    ElMessage.error(e.response?.data?.error || "Ошибка удаления");
   }
 }
 
@@ -657,21 +687,23 @@ async function saveEdits() {
           style="margin-top: var(--gap-md)"
           v-loading="loading"
         >
-          <div class="muted" style="margin-bottom: 8px">Статус объекта</div>
-          <el-select
-            v-model="property.saleStatus"
-            placeholder="Статус"
-            style="width: 100%"
-            :disabled="!property"
-            @change="(val) => updatePropertyStatus(val)"
-          >
-            <el-option
-              v-for="opt in statusOptions"
-              :key="opt.value"
-              :label="opt.label"
-              :value="opt.value"
-            />
-          </el-select>
+          <template v-if="property">
+            <div class="muted" style="margin-bottom: 8px">Статус объекта</div>
+            <el-select
+              v-model="property.saleStatus"
+              placeholder="Статус"
+              style="width: 100%"
+              :disabled="!property"
+              @change="(val) => updatePropertyStatus(val)"
+            >
+              <el-option
+                v-for="opt in statusOptions"
+                :key="opt.value"
+                :label="opt.label"
+                :value="opt.value"
+              />
+            </el-select>
+          </template>
         </el-card>
 
         <el-card
@@ -682,6 +714,7 @@ async function saveEdits() {
         >
           <div class="muted" style="margin-bottom: 8px">Фото объекта</div>
           <el-upload
+            v-if="property"
             :http-request="uploadPropertyImage"
             :show-file-list="false"
             accept="image/png,image/jpeg,image/webp"
@@ -694,6 +727,79 @@ async function saveEdits() {
           <div class="muted" style="margin-top: 8px">
             Поддерживаются JPG/PNG/WebP.
           </div>
+        </el-card>
+
+        <el-card
+          v-if="isManager || isAgent"
+          shadow="never"
+          style="margin-top: var(--gap-md)"
+          v-loading="loading"
+        >
+          <div class="muted" style="margin-bottom: 8px">Документы</div>
+          <div
+            v-if="property?.documents?.length"
+            style="
+              display: flex;
+              flex-direction: column;
+              gap: 8px;
+              margin-bottom: 12px;
+            "
+          >
+            <div
+              v-for="doc in property.documents"
+              :key="doc.id"
+              style="
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                border-bottom: 1px solid var(--border-color);
+                padding-bottom: 4px;
+              "
+            >
+              <a
+                :href="doc.url"
+                target="_blank"
+                style="
+                  color: var(--primary);
+                  text-decoration: none;
+                  overflow: hidden;
+                  text-overflow: ellipsis;
+                  white-space: nowrap;
+                  max-width: 200px;
+                "
+                :title="doc.originalName"
+              >
+                {{ doc.originalName }}
+              </a>
+              <el-button
+                v-if="isManager"
+                type="danger"
+                link
+                size="small"
+                @click="deleteDoc(doc.id)"
+                >Удалить</el-button
+              >
+            </div>
+          </div>
+          <div
+            v-else
+            class="muted"
+            style="margin-bottom: 12px; font-size: 13px"
+          >
+            Нет загруженных документов
+          </div>
+
+          <el-upload
+            v-if="property && isManager"
+            :http-request="uploadPropertyDoc"
+            :show-file-list="false"
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.jpg,.jpeg,.png"
+            :disabled="!property || uploadingDoc"
+          >
+            <el-button type="primary" plain :loading="uploadingDoc"
+              >Загрузить документ</el-button
+            >
+          </el-upload>
         </el-card>
       </div>
 

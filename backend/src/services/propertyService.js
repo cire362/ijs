@@ -2,6 +2,7 @@ const { Op } = require("sequelize");
 const {
   Property,
   PropertyImage,
+  PropertyDocument,
   User,
   AddressSuggestion,
 } = require("../models");
@@ -174,6 +175,10 @@ class PropertyService {
           as: "images",
           attributes: ["id", "url", "caption"],
         },
+        {
+          model: PropertyDocument,
+          as: "documents",
+        },
       ],
     });
 
@@ -309,6 +314,41 @@ class PropertyService {
     }
 
     await image.destroy();
+  }
+
+  async addPropertyDocument(id, file, user) {
+    const property = await Property.findByPk(id);
+    if (!property) throw { status: 404, message: "Не найдено" };
+
+    if (user.role === "developer" && property.developerId !== user.id) {
+      throw { status: 403, message: "Доступ запрещён" };
+    }
+
+    if (!file) {
+      throw { status: 400, message: "Документ не загружен" };
+    }
+
+    await PropertyDocument.create({
+      propertyId: property.id,
+      url: `/uploads/property_docs/${file.filename}`,
+      originalName: file.originalname,
+      mimeType: file.mimetype,
+    });
+
+    return this.getPropertyById(id, user);
+  }
+
+  async deletePropertyDocument(docId, user) {
+    const doc = await PropertyDocument.findByPk(docId, {
+      include: ["property"],
+    });
+    if (!doc) throw { status: 404, message: "Документ не найден" };
+
+    if (user.role === "developer" && doc.property.developerId !== user.id) {
+      throw { status: 403, message: "Доступ запрещён" };
+    }
+
+    await doc.destroy();
   }
 }
 

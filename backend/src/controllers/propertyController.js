@@ -47,6 +47,20 @@ const deletePropertyImage = asyncHandler(async (req, res) => {
   res.json({ success: true });
 });
 
+const addPropertyDocument = asyncHandler(async (req, res) => {
+  const property = await propertyService.addPropertyDocument(
+    req.params.id,
+    req.file,
+    req.user
+  );
+  res.status(201).json(property);
+});
+
+const deletePropertyDocument = asyncHandler(async (req, res) => {
+  await propertyService.deletePropertyDocument(req.params.id, req.user);
+  res.json({ success: true });
+});
+
 module.exports = {
   listProperties,
   getPropertyById,
@@ -55,4 +69,6 @@ module.exports = {
   addPropertyImages,
   deleteProperty,
   deletePropertyImage,
+  addPropertyDocument,
+  deletePropertyDocument,
 };

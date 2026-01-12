@@ -22,6 +22,7 @@ const emit = defineEmits(["save"]);
 
 const form = defineModel("form", { type: Object, required: true });
 const images = defineModel("images", { type: Array, default: () => [] });
+const documents = defineModel("documents", { type: Array, default: () => [] });
 
 const regionLoading = ref(false);
 const cityLoading = ref(false);
@@ -387,6 +388,24 @@ function onImagesChange(file, fileList) {
               <div class="muted" style="margin-top: 4px">
                 JPG/PNG/WEBP, до 6 МБ
               </div>
+            </el-upload>
+          </el-form-item>
+        </el-col>
+
+        <el-col :span="24">
+          <el-form-item label="Документы">
+            <el-upload
+              v-model:file-list="documents"
+              drag
+              multiple
+              :auto-upload="false"
+              :disabled="saving"
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.jpg,.jpeg,.png"
+            >
+              <div class="muted">
+                Перетащите файлы сюда или нажмите для выбора
+              </div>
+              <div class="muted" style="margin-top: 4px">PDF, DOCX, XLS</div>
             </el-upload>
           </el-form-item>
         </el-col>
