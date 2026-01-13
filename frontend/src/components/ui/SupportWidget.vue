@@ -252,7 +252,7 @@ const processSubmission = async (text) => {
 <template>
   <div
     v-if="isOpen"
-    class="fixed bottom-6 right-6 z-50 flex flex-col w-full max-w-[380px] h-[500px] bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden font-sans animate-fade-in-up"
+    class="fixed bottom-6 right-6 z-50 flex flex-col w-full max-w-[380px] h-[500px] bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden font-sans animate-fade-in-up chat-widget-window"
   >
     <!-- Header -->
     <div
@@ -375,7 +375,7 @@ const processSubmission = async (text) => {
   <button
     v-else
     @click="supportStore.open()"
-    class="fixed bottom-6 right-6 z-50 w-14 h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg flex items-center justify-center transition hover:scale-110 active:scale-95 group"
+    class="fixed bottom-6 right-6 z-50 w-14 h-14 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow-lg flex items-center justify-center transition hover:scale-110 active:scale-95 group chat-toggle-btn"
   >
     <el-badge
       :value="unreadCount"
@@ -388,6 +388,34 @@ const processSubmission = async (text) => {
 </template>
 
 <style scoped>
+.chat-toggle-btn {
+  /* Ensure it stays within viewport on mobile */
+  right: max(16px, env(safe-area-inset-right));
+  bottom: max(24px, env(safe-area-inset-bottom));
+  transform-origin: bottom right;
+}
+
+@media (min-width: 640px) {
+  .chat-toggle-btn {
+    right: max(24px, env(safe-area-inset-right));
+  }
+}
+
+@media (hover: none) {
+  .chat-toggle-btn:hover {
+    transform: none !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .chat-widget-window {
+    width: calc(100vw - 32px) !important;
+    right: 16px !important;
+    bottom: 80px !important;
+    height: 60vh !important;
+  }
+}
+
 .animate-fade-in-up {
   animation: fadeInUp 0.3s ease-out;
 }

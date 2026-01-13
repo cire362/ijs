@@ -132,6 +132,11 @@ const eventsByDay = computed(() => {
   return map;
 });
 
+const selectedTrainingKey = computed(() => ymd(calendarDate.value));
+const selectedTrainingEvents = computed(
+  () => eventsByDay.value.get(selectedTrainingKey.value) || []
+);
+
 async function load() {
   loading.value = true;
   try {
@@ -294,10 +299,9 @@ function trainingCountForCell(date) {
   return list.length;
 }
 
-function trainingTitlesForCell(date) {
-  const key = ymd(date);
-  const list = eventsByDay.value.get(key) || [];
-  return list.slice(0, 2);
+function selectCalendarDay(date) {
+  if (!date) return;
+  calendarDate.value = date instanceof Date ? date : new Date(date);
 }
 
 onMounted(async () => {
@@ -645,39 +649,69 @@ onMounted(async () => {
       </el-tab-pane>
     </el-tabs>
 
-    <el-card v-if="isAgent" shadow="never" style="margin-bottom: var(--gap-md)">
+    <el-card
+      v-if="isAgent"
+      shadow="never"
+      style="margin-bottom: var(--gap-md)"
+      class="events-calendar"
+    >
       <div class="muted" style="margin-bottom: 8px">
         Календарь обучающих мероприятий
       </div>
       <el-calendar v-model="calendarDate">
         <template #date-cell="{ data }">
-          <div style="display: grid; gap: 4px">
-            <div
-              style="display: flex; justify-content: space-between; gap: 8px"
-            >
-              <span :class="data.isSelected ? 'is-selected' : ''">{{
-                data.day.split("-").slice(2).join("")
-              }}</span>
-              <el-tag
-                v-if="trainingCountForCell(data.date)"
-                size="small"
-                type="success"
-                effect="light"
-              >
-                {{ trainingCountForCell(data.date) }}
-              </el-tag>
-            </div>
-            <div
-              v-for="e in trainingTitlesForCell(data.date)"
-              :key="e.id"
-              class="muted"
-              style="font-size: 12px; line-height: 1.2"
-            >
-              {{ e.title }}
+          <div
+            class="cal-cell"
+            @click.stop.prevent="selectCalendarDay(data.date)"
+          >
+            <div class="cal-cell-head">
+              <div class="cal-day-wrap">
+                <span
+                  class="cal-day"
+                  :class="data.isSelected ? 'is-selected' : ''"
+                  >{{ data.day.split("-").slice(2).join("") }}</span
+                >
+                <el-tag
+                  v-if="trainingCountForCell(data.date)"
+                  size="small"
+                  type="success"
+                  effect="light"
+                  class="cal-count"
+                >
+                  {{ trainingCountForCell(data.date) }}
+                </el-tag>
+              </div>
             </div>
           </div>
         </template>
       </el-calendar>
+
+      <div class="cal-agenda">
+        <div class="muted" style="margin: 10px 0 6px">
+          События на {{ selectedTrainingKey }}
+        </div>
+
+        <div
+          class="cal-agenda-empty muted"
+          v-if="!selectedTrainingEvents.length"
+        >
+          На выбранную дату мероприятий нет.
+        </div>
+
+        <div class="cal-agenda-list" v-else>
+          <div
+            v-for="e in selectedTrainingEvents"
+            :key="e.id"
+            class="cal-agenda-item"
+          >
+            <div class="cal-agenda-title">{{ e.title }}</div>
+            <div class="muted cal-agenda-meta">
+              {{ formatDateTime(e.startAt) }}
+              <template v-if="e.location"> · {{ e.location }}</template>
+            </div>
+          </div>
+        </div>
+      </div>
     </el-card>
 
     <el-tabs
@@ -876,5 +910,90 @@ onMounted(async () => {
 <style scoped>
 .is-selected {
   font-weight: 700;
+}
+
+.cal-cell {
+  display: grid;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.cal-cell-head {
+  display: flex;
+  align-items: flex-start;
+}
+
+.cal-day-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+/* Element Plus calendar tweaks */
+.events-calendar :deep(.el-calendar__header) {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.events-calendar :deep(.el-calendar__title) {
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.events-calendar :deep(.el-calendar__button-group) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.events-calendar :deep(.el-calendar__button-group .el-button) {
+  padding: 6px 10px;
+}
+
+.events-calendar :deep(.el-calendar-table .el-calendar-day) {
+  padding: 8px;
+}
+
+/* Mobile: keep cells compact, show agenda list below */
+@media (max-width: 480px) {
+  .events-calendar :deep(.el-calendar-table .el-calendar-day) {
+    padding: 6px;
+  }
+
+  .events-calendar :deep(.el-calendar-table td) {
+    vertical-align: top;
+  }
+}
+
+.cal-agenda {
+  margin-top: 8px;
+}
+
+.cal-agenda-list {
+  display: grid;
+  gap: 10px;
+}
+
+.cal-agenda-item {
+  padding: 10px 12px;
+  border: 1px solid #e7e7e7;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.cal-agenda-title {
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+.cal-agenda-meta {
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+.cal-agenda-empty {
+  padding: 8px 0;
 }
 </style>

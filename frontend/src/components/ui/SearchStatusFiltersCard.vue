@@ -29,7 +29,7 @@ const status = defineModel("status", { type: String, default: "" });
         v-model="q"
         clearable
         :placeholder="placeholder"
-        style="min-width: 320px"
+        style="min-width: 260px; max-width: 100%"
       />
 
       <el-select

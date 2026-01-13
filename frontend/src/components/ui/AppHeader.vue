@@ -3,65 +3,77 @@
     <div class="header-inner">
       <div class="brand" @click="router.push('/')" style="cursor: pointer">
         <div class="brand-mark">ИЖС</div>
-        <div>
+        <div class="brand-text">
           <div class="brand-title">ИЖС</div>
           <div class="brand-sub">ИЖС</div>
         </div>
       </div>
-      <el-menu
-        mode="horizontal"
-        :default-active="active"
-        router
-        class="menu"
-        :ellipsis="false"
-      >
-        <el-menu-item v-if="!isAuthed" index="/">Главная</el-menu-item>
-        <el-menu-item v-if="isAuthed" index="/properties">
-          {{ isDeveloper ? "Мои объекты" : "Поиск" }}
-        </el-menu-item>
-        <el-menu-item index="/news">Новости</el-menu-item>
-        <el-menu-item index="/events">Мероприятия</el-menu-item>
-        <el-menu-item v-if="isAgent" index="/applications"
-          >Мои заявки</el-menu-item
+      <div class="desktop-menu">
+        <el-menu
+          mode="horizontal"
+          :default-active="active"
+          router
+          class="menu"
+          :ellipsis="false"
         >
-        <el-menu-item v-if="isManager" index="/incoming">Входящие</el-menu-item>
-        <el-menu-item v-if="isAdmin" index="/admin/chat">
-          <el-badge
-            v-if="supportStore.adminUnreadCount > 0"
-            :value="supportStore.adminUnreadCount"
-            type="danger"
-            :offset="[0, 10]"
+          <el-menu-item v-if="!isAuthed" index="/">Главная</el-menu-item>
+          <el-menu-item v-if="isAuthed" index="/properties">
+            {{ isDeveloper ? "Мои объекты" : "Поиск" }}
+          </el-menu-item>
+          <el-menu-item index="/news">Новости</el-menu-item>
+          <el-menu-item index="/events">Мероприятия</el-menu-item>
+          <el-menu-item v-if="isAgent" index="/applications"
+            >Мои заявки</el-menu-item
           >
-            Чат поддержки
-          </el-badge>
-          <span v-else>Чат поддержки</span>
-        </el-menu-item>
-        <el-menu-item v-if="isAuthed" index="/notifications">
-          <el-badge
-            v-if="notifications.unreadBadge"
-            :value="notifications.unreadBadge"
-            type="danger"
-            :offset="[0, 10]"
+          <el-menu-item v-if="isManager" index="/incoming"
+            >Входящие</el-menu-item
           >
-            <span>Уведомления</span>
-          </el-badge>
-          <span v-else>Уведомления</span>
-        </el-menu-item>
-      </el-menu>
+          <el-menu-item v-if="isAdmin" index="/admin/chat">
+            <el-badge
+              v-if="supportStore.adminUnreadCount > 0"
+              :value="supportStore.adminUnreadCount"
+              type="danger"
+              :offset="[0, 10]"
+            >
+              Чат поддержки
+            </el-badge>
+            <span v-else>Чат поддержки</span>
+          </el-menu-item>
+          <el-menu-item v-if="isAuthed" index="/notifications">
+            <el-badge
+              v-if="notifications.unreadBadge"
+              :value="notifications.unreadBadge"
+              type="danger"
+              :offset="[0, 10]"
+            >
+              <span>Уведомления</span>
+            </el-badge>
+            <span v-else>Уведомления</span>
+          </el-menu-item>
+        </el-menu>
+      </div>
+
       <div class="header-actions">
-        <el-button v-if="!auth.user" type="warning" @click="goLogin"
+        <div class="mobile-toggle" @click="toggleMobileMenu">
+          <el-icon :size="24"><MenuIcon /></el-icon>
+        </div>
+        <el-button
+          class="desktop-only-btn"
+          v-if="!auth.user"
+          type="warning"
+          @click="goLogin"
           >Войти</el-button
         >
         <el-dropdown v-else trigger="click">
           <span class="profile" role="button">
-            <el-avatar :size="36" :src="avatarSrc">
+            <el-avatar class="profile-avatar" :size="36" :src="avatarSrc">
               {{ initials }}
             </el-avatar>
             <div class="profile-info">
               <span class="name">{{ displayName }}</span>
               <span class="role">{{ roleLabel }}</span>
             </div>
-            <el-icon><ArrowDown /></el-icon>
+            <el-icon class="profile-caret"><ArrowDown /></el-icon>
           </span>
           <template #dropdown>
             <el-dropdown-menu>
@@ -77,16 +89,111 @@
         </el-dropdown>
       </div>
     </div>
+
+    <el-drawer
+      v-model="mobileMenuOpen"
+      direction="rtl"
+      size="280px"
+      :with-header="false"
+      destroy-on-close
+    >
+      <div style="padding: 20px 0">
+        <div style="font-weight: 800; font-size: 20px; margin-bottom: 20px">
+          Меню
+        </div>
+        <div class="mobile-nav">
+          <router-link
+            v-if="!isAuthed"
+            to="/"
+            class="mobile-nav-item"
+            :class="{ active: route.path === '/' }"
+            >Главная</router-link
+          >
+          <router-link
+            v-if="isAuthed"
+            to="/properties"
+            class="mobile-nav-item"
+            :class="{ active: route.path === '/properties' }"
+          >
+            {{ isDeveloper ? "Мои объекты" : "Поиск" }}
+          </router-link>
+          <router-link
+            to="/news"
+            class="mobile-nav-item"
+            :class="{ active: route.path === '/news' }"
+            >Новости</router-link
+          >
+          <router-link
+            to="/events"
+            class="mobile-nav-item"
+            :class="{ active: route.path === '/events' }"
+            >Мероприятия</router-link
+          >
+          <router-link
+            v-if="isAgent"
+            to="/applications"
+            class="mobile-nav-item"
+            :class="{ active: route.path === '/applications' }"
+            >Мои заявки</router-link
+          >
+          <router-link
+            v-if="isManager"
+            to="/incoming"
+            class="mobile-nav-item"
+            :class="{ active: route.path === '/incoming' }"
+            >Входящие</router-link
+          >
+          <router-link
+            v-if="isAdmin"
+            to="/admin/chat"
+            class="mobile-nav-item"
+            :class="{ active: route.path === '/admin/chat' }"
+          >
+            Чат поддержки
+            <el-tag
+              v-if="supportStore.adminUnreadCount > 0"
+              type="danger"
+              size="small"
+              effect="dark"
+              round
+              >{{ supportStore.adminUnreadCount }}</el-tag
+            >
+          </router-link>
+          <router-link
+            v-if="isAuthed"
+            to="/notifications"
+            class="mobile-nav-item"
+            :class="{ active: route.path === '/notifications' }"
+          >
+            Уведомления
+            <el-tag
+              v-if="notifications.unreadBadge"
+              type="danger"
+              size="small"
+              effect="dark"
+              round
+              >{{ notifications.unreadBadge }}</el-tag
+            >
+          </router-link>
+
+          <div v-if="!auth.user" style="margin-top: 20px">
+            <el-button type="warning" style="width: 100%" @click="goLogin"
+              >Войти</el-button
+            >
+          </div>
+        </div>
+      </div>
+    </el-drawer>
   </el-header>
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, watch, onMounted } from "vue";
+import { ref, computed, onBeforeUnmount, watch, onMounted } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import { useAuthStore, apiClient } from "@/stores/auth";
 import { useNotificationsStore } from "@/stores/notifications";
 import { useSupportStore } from "@/stores/support";
-import { ArrowDown } from "@element-plus/icons-vue";
+import { ArrowDown, Menu as MenuIcon } from "@element-plus/icons-vue";
 import { getSocket } from "@/utils/socket";
 
 const auth = useAuthStore();
@@ -95,6 +202,8 @@ const supportStore = useSupportStore();
 const router = useRouter();
 const route = useRoute();
 const socket = getSocket();
+
+const mobileMenuOpen = ref(false);
 
 const active = computed(() => route.path);
 const isAuthed = computed(() => !!auth.user);
@@ -105,6 +214,17 @@ const isManager = computed(
   () =>
     (auth.user?.role === "developer" && auth.user?.developerApproved) ||
     auth.user?.role === "admin"
+);
+
+function toggleMobileMenu() {
+  mobileMenuOpen.value = !mobileMenuOpen.value;
+}
+
+watch(
+  () => route.path,
+  () => {
+    mobileMenuOpen.value = false;
+  }
 );
 
 const avatarSrc = computed(() => auth.user?.avatarUrl || "");
@@ -247,6 +367,9 @@ function goProfile() {
   gap: var(--gap-xs);
   color: #fff;
 }
+.profile-avatar {
+  flex: 0 0 auto;
+}
 .profile-info {
   display: flex;
   flex-direction: column;
@@ -259,5 +382,59 @@ function goProfile() {
   color: #e0e0e0;
   font-size: 12px;
   text-transform: uppercase;
+}
+
+.desktop-menu {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+}
+
+.mobile-toggle {
+  display: none;
+  cursor: pointer;
+  color: #fff;
+}
+
+@media (max-width: 960px) {
+  .desktop-menu {
+    display: none;
+  }
+  .mobile-toggle {
+    display: flex;
+    align-items: center;
+  }
+  .desktop-only-btn {
+    display: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .app-header {
+    padding: 0 var(--gap-md);
+  }
+  .header-inner {
+    gap: var(--gap-sm);
+  }
+  .brand-text {
+    display: none;
+  }
+  .profile-info {
+    display: none;
+  }
+  .profile-caret {
+    display: none;
+  }
+}
+
+.mobile-nav-item {
+  display: block;
+  padding: 12px 0;
+  color: var(--text-main);
+  font-weight: 500;
+  border-bottom: 1px solid var(--muted-bg);
+}
+.mobile-nav-item.active {
+  color: var(--accent-yellow-dark);
 }
 </style>

@@ -22,7 +22,7 @@ import { onMounted } from "vue";
 
 const stats = ref([
   { value: 0, target: 1500, suffix: "+", label: "Активных агентов" },
-  { value: 0, target: 40000, suffix: "", label: "Квартир в базе" },
+  { value: 0, target: 40000, suffix: "", label: "Объектов в базе" },
   { value: 0, target: 120, suffix: "", label: "Жилых комплексов" },
   { value: 24, target: 24, suffix: "/7", label: "Поддержка", isStatic: true },
 ]);

@@ -8,6 +8,19 @@
 .cards-list {
   display: grid;
   gap: var(--gap-md);
-  grid-template-columns: repeat(auto-fit, minmax(460px, 1fr));
+  /* Force 3 columns on larger screens as requested */
+  grid-template-columns: repeat(3, 1fr);
+}
+
+@media (max-width: 1100px) {
+  .cards-list {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .cards-list {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

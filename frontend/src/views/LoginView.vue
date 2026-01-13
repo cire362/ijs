@@ -132,7 +132,7 @@ const submit = async () => {
 
 <template>
   <div
-    class="flex items-center justify-center min-h-full py-12 px-4 sm:px-6 lg:px-8"
+    class="flex items-center justify-center min-h-full pt-12 pb-28 px-4 sm:py-12 sm:px-6 lg:px-8"
   >
     <div class="w-full max-w-md space-y-8" style="max-width: 600px">
       <el-card shadow="hover">
@@ -178,7 +178,7 @@ const submit = async () => {
               label-position="top"
             >
               <el-row :gutter="20">
-                <el-col :span="8">
+                <el-col :xs="24" :sm="8">
                   <el-form-item label="Фамилия" prop="lastName">
                     <el-input
                       v-model="registerForm.lastName"
@@ -187,7 +187,7 @@ const submit = async () => {
                     />
                   </el-form-item>
                 </el-col>
-                <el-col :span="8">
+                <el-col :xs="24" :sm="8">
                   <el-form-item label="Имя" prop="firstName">
                     <el-input
                       v-model="registerForm.firstName"
@@ -196,7 +196,7 @@ const submit = async () => {
                     />
                   </el-form-item>
                 </el-col>
-                <el-col :span="8">
+                <el-col :xs="24" :sm="8">
                   <el-form-item label="Отчество" prop="middleName">
                     <el-input
                       v-model="registerForm.middleName"
@@ -207,7 +207,7 @@ const submit = async () => {
                 </el-col>
               </el-row>
               <el-row :gutter="20">
-                <el-col :span="12">
+                <el-col :xs="24" :sm="12">
                   <el-form-item label="Роль" prop="role">
                     <el-select
                       v-model="registerForm.role"
@@ -219,11 +219,10 @@ const submit = async () => {
                     </el-select>
                   </el-form-item>
                 </el-col>
-                <el-col :span="12">
+                <el-col :xs="24" :sm="12">
                   <el-form-item label="Компания" prop="companyName">
                     <el-input
                       v-model="registerForm.companyName"
-                      placeholder="Для застройщика"
                       :maxlength="limits.auth.companyName"
                     />
                   </el-form-item>
@@ -263,38 +262,36 @@ const submit = async () => {
                 />
               </el-form-item>
 
-              <div style="margin-bottom: 20px">
-                <el-form-item prop="agreeLegal">
-                  <el-checkbox v-model="registerForm.agreeLegal">
-                    <div style="white-space: normal; line-height: 1.4">
-                      Я принимаю условия
-                      <a
-                        href="/terms"
-                        target="_blank"
-                        class="text-blue-600 hover:underline"
-                        >Пользовательского соглашения</a
-                      >
-                      и даю согласие на обработку моих персональных данных в
-                      соответствии с
-                      <a
-                        href="/privacy"
-                        target="_blank"
-                        class="text-blue-600 hover:underline"
-                        >Политикой конфиденциальности</a
-                      >
-                    </div>
-                  </el-checkbox>
-                </el-form-item>
-              </div>
+              <el-form-item prop="agreeLegal" class="checkbox-item">
+                <el-checkbox v-model="registerForm.agreeLegal">
+                  <span class="checkbox-text">
+                    Я принимаю условия
+                    <a
+                      href="/terms"
+                      target="_blank"
+                      class="text-blue-600 hover:underline"
+                      >Пользовательского соглашения</a
+                    >
+                    и даю согласие на обработку моих персональных данных в
+                    соответствии с
+                    <a
+                      href="/privacy"
+                      target="_blank"
+                      class="text-blue-600 hover:underline"
+                      >Политикой конфиденциальности</a
+                    >
+                  </span>
+                </el-checkbox>
+              </el-form-item>
 
-              <div style="margin-bottom: 20px">
+              <el-form-item class="checkbox-item">
                 <el-checkbox v-model="registerForm.agreeMarketing">
-                  <div style="white-space: normal; line-height: 1.4">
+                  <span class="checkbox-text">
                     Я даю согласие на получение информационных и рекламных
                     рассылок (новости сервиса, анонсы вебинаров).
-                  </div>
+                  </span>
                 </el-checkbox>
-              </div>
+              </el-form-item>
 
               <el-form-item>
                 <el-button
@@ -312,3 +309,33 @@ const submit = async () => {
     </div>
   </div>
 </template>
+
+<style scoped>
+:deep(.el-checkbox) {
+  display: flex;
+  align-items: flex-start;
+  height: auto !important; /* Force auto height for wrapped text */
+  padding: 4px 0; /* Add vertical padding */
+}
+
+:deep(.el-checkbox__input) {
+  margin-top: 2px;
+  flex-shrink: 0; /* Prevent checkbox squeeze */
+}
+
+:deep(.el-checkbox__label) {
+  white-space: normal;
+  word-break: break-word; /* Ensure long words don't overflow */
+  line-height: 1.4;
+  padding-left: 8px;
+  display: inline-block; /* Helps with calculation */
+}
+
+.checkbox-item {
+  margin-bottom: 24px; /* Increase gap between items */
+}
+
+.checkbox-text {
+  display: block;
+}
+</style>
