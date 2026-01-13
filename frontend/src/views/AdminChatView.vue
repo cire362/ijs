@@ -1,9 +1,9 @@
 <script setup>
-import { ref, onMounted, computed, nextTick } from "vue";
+import { ref, onMounted, onBeforeUnmount, computed, nextTick } from "vue";
 import { useAuthStore, apiClient } from "../stores/auth";
 import { useSupportStore } from "../stores/support";
 import { getSocket } from "../utils/socket";
-import { UserFilled, Avatar } from "@element-plus/icons-vue";
+import { UserFilled, Avatar, ArrowLeft } from "@element-plus/icons-vue";
 
 const auth = useAuthStore();
 const supportStore = useSupportStore();
@@ -15,12 +15,19 @@ const activeChatMessages = ref([]);
 const replyText = ref("");
 const messagesContainer = ref(null);
 
+const isMobile = ref(false);
+function onResize() {
+  isMobile.value = window.innerWidth <= 768;
+}
+
 // Computed active chat object
 const activeChat = computed(() =>
   chats.value.find((c) => c.roomId === activeChatId.value)
 );
 
 onMounted(async () => {
+  onResize();
+  window.addEventListener("resize", onResize);
   // Join admin room
   socket.emit("admin_subscribe");
 
@@ -75,6 +82,10 @@ onMounted(async () => {
 
   // Try to fetch initial state if API exists (we can stub this or actually implement it)
   await fetchActiveChats();
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener("resize", onResize);
 });
 
 const updateGlobalCounter = () => {
@@ -171,10 +182,11 @@ const formatTime = (date) => {
 </script>
 
 <template>
-  <div class="h-[calc(100vh-140px)] flex gap-6 mt-6">
+  <div class="h-[calc(100vh-140px)] flex md:gap-6 mt-6">
     <!-- Chat List -->
     <div
-      class="w-1/3 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col"
+      v-show="!isMobile || !activeChatId"
+      class="w-full md:w-1/3 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col"
     >
       <div class="p-4 border-b border-gray-100 font-bold text-gray-700">
         Обращения
@@ -222,10 +234,11 @@ const formatTime = (date) => {
 
     <!-- Active Chat -->
     <div
-      class="flex-1 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col relative"
+      v-show="!isMobile || activeChatId"
+      class="w-full md:flex-1 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col relative"
     >
       <div
-        v-if="!activeChatId"
+        v-if="!activeChat"
         class="flex-1 flex items-center justify-center text-gray-400"
       >
         Выберите чат из списка
@@ -234,21 +247,30 @@ const formatTime = (date) => {
         <div
           class="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50"
         >
-          <div class="flex items-center gap-3">
+          <div class="flex items-center gap-3 overflow-hidden">
+            <el-button
+              v-if="isMobile"
+              :icon="ArrowLeft"
+              circle
+              size="small"
+              @click="activeChatId = null"
+            />
             <div
-              class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold"
+              class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold shrink-0"
             >
               {{ activeChat.senderName?.[0]?.toUpperCase() }}
             </div>
-            <div>
-              <div class="font-bold text-sm">{{ activeChat.senderName }}</div>
-              <div class="text-xs text-gray-500">
+            <div class="overflow-hidden">
+              <div class="font-bold text-sm truncate">
+                {{ activeChat.senderName }}
+              </div>
+              <div class="text-xs text-gray-500 truncate">
                 {{ activeChat.senderEmail }}
               </div>
             </div>
           </div>
-          <div class="text-xs text-gray-400 font-mono">
-            {{ activeChat.roomId }}
+          <div class="text-xs text-gray-400 font-mono shrink-0 ml-2">
+            {{ activeChat.roomId.slice(0, 8) }}...
           </div>
         </div>
 

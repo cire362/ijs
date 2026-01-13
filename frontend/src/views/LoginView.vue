@@ -223,6 +223,7 @@ const submit = async () => {
                   <el-form-item label="Компания" prop="companyName">
                     <el-input
                       v-model="registerForm.companyName"
+                      placeholder="Название компании"
                       :maxlength="limits.auth.companyName"
                     />
                   </el-form-item>

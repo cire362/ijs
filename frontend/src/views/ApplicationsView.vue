@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, onBeforeUnmount, ref, watch } from "vue";
 import { useAuthStore, apiClient } from "../stores/auth";
 import { ElMessage } from "element-plus";
 import { limits } from "@/utils/constraints";
@@ -21,6 +21,20 @@ import {
 const auth = useAuthStore();
 const items = ref([]);
 const loading = ref(false);
+
+const isMobile = ref(false);
+function onResize() {
+  isMobile.value = window.innerWidth <= 768;
+}
+
+onMounted(() => {
+  onResize();
+  window.addEventListener("resize", onResize);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener("resize", onResize);
+});
 
 const q = ref("");
 const selectedStatus = ref("");
@@ -397,7 +411,8 @@ const pagedRows = computed(() => {
               "
               :active="statusActiveIndex(selected.status)"
               finish-status="success"
-              align-center
+              :direction="isMobile ? 'vertical' : 'horizontal'"
+              :align-center="!isMobile"
             >
               <el-step
                 v-for="s in STATUS_FLOW"
