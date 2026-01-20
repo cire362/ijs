@@ -8,6 +8,7 @@ import SearchStatusFiltersCard from "@/components/ui/SearchStatusFiltersCard.vue
 import { normalizeText } from "@/utils/text";
 import { formatDate, formatDateTime } from "@/utils/datetime";
 import { personName } from "@/utils/person";
+import { humanizeApiError } from "@/utils/errors";
 import {
   UploadFilled,
   CircleCheckFilled,
@@ -129,7 +130,7 @@ async function saveClientInfo() {
     }
     ElMessage.success("Данные клиента сохранены");
   } catch (err) {
-    ElMessage.error(err.response?.data?.error || "Не удалось сохранить");
+    ElMessage.error(humanizeApiError(err, "Не удалось сохранить"));
   } finally {
     savingClientInfo.value = false;
   }

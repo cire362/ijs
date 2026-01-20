@@ -11,6 +11,7 @@ import PropertiesSearchSection from "@/components/properties/PropertiesSearchSec
 import PropertyCreateFormCard from "@/components/properties/PropertyCreateFormCard.vue";
 import SearchStatusFiltersCard from "@/components/ui/SearchStatusFiltersCard.vue";
 import { normalizeText } from "@/utils/text";
+import { humanizeApiError } from "@/utils/errors";
 
 const auth = useAuthStore();
 const router = useRouter();
@@ -746,7 +747,7 @@ async function applyToProperty(propertyId) {
     applicationClientFullNames.value[propertyId] = "";
     applicationClientPhones.value[propertyId] = "";
   } catch (err) {
-    ElMessage.error(err.response?.data?.error || "Не удалось отправить заявку");
+    ElMessage.error(humanizeApiError(err, "Не удалось отправить заявку"));
   }
 }
 
