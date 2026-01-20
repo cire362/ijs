@@ -41,13 +41,34 @@ io.on("connection", (socket) => {
     // For now we trust the client logic to some extent or create a unique session ID
     // Simpler: use the email as room identifier if available, or socket.id
 
-    let roomId = msg.email ? `email:${msg.email}` : `socket:${socket.id}`;
-    if (msg.roomId) roomId = msg.roomId; // Allow continuing convo
+    const incomingEmail = msg?.senderEmail || msg?.email || null;
+    let roomId = incomingEmail
+      ? `email:${incomingEmail}`
+      : `socket:${socket.id}`;
+    if (msg?.roomId) roomId = msg.roomId; // Allow continuing convo
+
+    let senderName = msg?.senderName || msg?.name || null;
+    let senderEmail = incomingEmail;
+
+    // If the room is bound to an authenticated user, we can hydrate missing identity.
+    if (
+      (senderName == null || senderEmail == null) &&
+      /^user:\d+$/.test(roomId)
+    ) {
+      const userId = parseInt(roomId.split(":")[1], 10);
+      if (Number.isFinite(userId)) {
+        const user = await User.findByPk(userId);
+        if (user) {
+          senderName = senderName || user.fullName || user.name || null;
+          senderEmail = senderEmail || user.email || null;
+        }
+      }
+    }
 
     try {
       await ChatMessage.create({
-        senderName: msg.name,
-        senderEmail: msg.email,
+        senderName,
+        senderEmail,
         text: msg.text,
         isAdmin: false,
         roomId: roomId,
@@ -57,6 +78,8 @@ io.on("connection", (socket) => {
       // Notify admins
       io.to("admins").emit("new_support_message", {
         ...msg,
+        senderName,
+        senderEmail,
         roomId: roomId,
         timestamp: new Date(),
       });
@@ -125,14 +148,14 @@ async function bootstrap() {
     // Background: expire applications stuck at initial stage
     setInterval(() => {
       expireSentApplications().catch((err) =>
-        console.error("Failed to expire applications", err)
+        console.error("Failed to expire applications", err),
       );
     }, 60 * 1000);
 
     // Background: event reminders (best-effort)
     setInterval(() => {
       sendEventReminders().catch((err) =>
-        console.error("Failed to send event reminders", err)
+        console.error("Failed to send event reminders", err),
       );
     }, 60 * 1000);
 

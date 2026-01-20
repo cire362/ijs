@@ -1,6 +1,7 @@
 import { defineStore } from "pinia";
 import axios from "axios";
 import { humanizeApiError } from "@/utils/errors";
+import { getSocket } from "@/utils/socket";
 
 const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || "/api" });
 
@@ -29,6 +30,26 @@ function applyAuthHeader(token) {
     api.defaults.headers.common.Authorization = `Bearer ${token}`;
   } else {
     delete api.defaults.headers.common.Authorization;
+  }
+}
+
+function clearLocalStorageOnLogout() {
+  // Keep non-auth UX prefs (e.g. cookie consent). Remove keys that can leak user context.
+  try {
+    localStorage.removeItem("chat_guest_room");
+  } catch {
+    // Ignore (private mode / disabled storage)
+  }
+}
+
+function resetSocketConnectionOnLogout() {
+  try {
+    const socket = getSocket();
+    // Reconnect to drop any server-side room memberships from the previous session.
+    socket.disconnect();
+    socket.connect();
+  } catch {
+    // Ignore
   }
 }
 
@@ -95,6 +116,8 @@ export const useAuthStore = defineStore("auth", {
       try {
         await api.post("/auth/logout", null, { headers: csrfHeaders() });
       } finally {
+        clearLocalStorageOnLogout();
+        resetSocketConnectionOnLogout();
         this.clearLocalState();
       }
     },
@@ -129,5 +152,5 @@ api.interceptors.response.use(
       auth.clearLocalState();
       return Promise.reject(error);
     }
-  }
+  },
 );
