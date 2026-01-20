@@ -75,4 +75,26 @@ const props = defineProps({
   font-weight: 700;
   letter-spacing: -0.2px;
 }
+
+/* Make Element Plus table scrollbars more visible (applications/incoming tables) */
+:deep(.el-table__body-wrapper .el-scrollbar__bar.is-horizontal) {
+  height: 12px;
+}
+
+:deep(.el-table__body-wrapper .el-scrollbar__bar.is-vertical) {
+  width: 12px;
+}
+
+:deep(.el-table__body-wrapper .el-scrollbar__thumb) {
+  background-color: rgba(17, 24, 39, 0.35); /* gray-900 */
+  border-radius: 10px;
+}
+
+:deep(.el-table__body-wrapper .el-scrollbar__thumb:hover) {
+  background-color: rgba(17, 24, 39, 0.55);
+}
+
+:deep(.el-table__body-wrapper .el-scrollbar__thumb:active) {
+  background-color: rgba(17, 24, 39, 0.7);
+}
 </style>
