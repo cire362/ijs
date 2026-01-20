@@ -663,6 +663,8 @@ async function createProperty() {
     }
 
     const payload = { ...form.value };
+    if (!payload.developerId) delete payload.developerId;
+    
     const { data: created } = await apiClient.post("/properties", payload);
 
     let finalProperty = created;
