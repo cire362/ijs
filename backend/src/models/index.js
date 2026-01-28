@@ -12,7 +12,9 @@ const AddressSuggestion = require("./addressSuggestion");
 const AuthSession = require("./authSession");
 const SupportRequest = require("./supportRequest");
 const ChatMessage = require("./chatMessage");
+const SupportChat = require("./supportChat");
 const PropertyDocument = require("./propertyDocument");
+const ApplicationChatMessage = require("./applicationChatMessage");
 
 User.hasMany(Property, { foreignKey: "developerId", as: "properties" });
 Property.belongsTo(User, { foreignKey: "developerId", as: "developer" });
@@ -38,6 +40,20 @@ Application.hasMany(StatusHistory, {
 });
 StatusHistory.belongsTo(Application, { foreignKey: "applicationId" });
 StatusHistory.belongsTo(User, { foreignKey: "changedBy", as: "actor" });
+
+Application.hasMany(ApplicationChatMessage, {
+  foreignKey: "applicationId",
+  as: "chatMessages",
+});
+ApplicationChatMessage.belongsTo(Application, { foreignKey: "applicationId" });
+User.hasMany(ApplicationChatMessage, {
+  foreignKey: "senderId",
+  as: "applicationChatMessages",
+});
+ApplicationChatMessage.belongsTo(User, {
+  foreignKey: "senderId",
+  as: "sender",
+});
 
 User.hasMany(Notification, { foreignKey: "userId", as: "notifications" });
 Notification.belongsTo(User, { foreignKey: "userId" });
@@ -81,5 +97,7 @@ module.exports = {
   AuthSession,
   SupportRequest,
   ChatMessage,
+  SupportChat,
   PropertyDocument,
+  ApplicationChatMessage,
 };

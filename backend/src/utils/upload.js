@@ -10,7 +10,14 @@ const propertyDocsDir = path.join(
   "..",
   "..",
   "uploads",
-  "property_docs"
+  "property_docs",
+);
+const applicationDocsDir = path.join(
+  __dirname,
+  "..",
+  "..",
+  "uploads",
+  "application_docs",
 );
 const newsDir = path.join(__dirname, "..", "..", "uploads", "news");
 const eventsDir = path.join(__dirname, "..", "..", "uploads", "events");
@@ -18,6 +25,7 @@ const eventsDir = path.join(__dirname, "..", "..", "uploads", "events");
 fs.mkdirSync(avatarsDir, { recursive: true });
 fs.mkdirSync(propertiesDir, { recursive: true });
 fs.mkdirSync(propertyDocsDir, { recursive: true });
+fs.mkdirSync(applicationDocsDir, { recursive: true });
 fs.mkdirSync(newsDir, { recursive: true });
 fs.mkdirSync(eventsDir, { recursive: true });
 
@@ -102,6 +110,17 @@ const propertyDocStorage = multer.diskStorage({
   },
 });
 
+const applicationDocStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, applicationDocsDir),
+  filename: (req, file, cb) => {
+    file.originalname = fixUtf8(file.originalname);
+    const id = safeRouteId(req.params.id);
+    const safe = safeFileBaseName(file.originalname);
+    const finalName = `appdoc-${id}-${Date.now()}-${safe}`;
+    cb(null, finalName);
+  },
+});
+
 const fileFilter = (req, file, cb) => {
   const ok = ["image/jpeg", "image/png", "image/webp"].includes(file.mimetype);
   cb(ok ? null : new Error("Invalid file type"), ok);
@@ -126,10 +145,30 @@ const docFilter = (req, file, cb) => {
   }
 };
 
+const applicationDocFilter = (req, file, cb) => {
+  // Strict: PDF, DOC, DOCX for payout docs
+  const allowed = [
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ];
+  if (allowed.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error("File type not allowed"), false);
+  }
+};
+
 const uploadPropertyDoc = multer({
   storage: propertyDocStorage,
   fileFilter: docFilter,
   limits: { fileSize: 10 * 1024 * 1024 },
+}).single("document");
+
+const uploadApplicationDoc = multer({
+  storage: applicationDocStorage,
+  fileFilter: applicationDocFilter,
+  limits: { fileSize: 15 * 1024 * 1024 },
 }).single("document");
 
 const uploadAvatar = multer({
@@ -162,4 +201,5 @@ module.exports = {
   uploadNewsImages,
   uploadEventCoverImage,
   uploadPropertyDoc,
+  uploadApplicationDoc,
 };

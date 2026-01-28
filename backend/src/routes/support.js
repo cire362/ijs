@@ -1,9 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const asyncHandler = require("../utils/asyncHandler");
-const { SupportRequest, ChatMessage } = require("../models");
+const { SupportRequest, ChatMessage, SupportChat } = require("../models");
 const { optionalAuthenticate, authenticate } = require("../middleware/auth");
-const { Op } = require("sequelize");
 
 // GET /api/support/chats - Get list of unique chats (Admin only)
 router.get(
@@ -48,8 +47,49 @@ router.get(
     }
 
     const chats = Array.from(chatsMap.values());
+
+    // Attach resolve status per room
+    const roomIds = chats.map((c) => c.roomId).filter(Boolean);
+    const states = roomIds.length
+      ? await SupportChat.findAll({
+          where: { roomId: roomIds },
+          attributes: ["roomId", "isResolved", "resolvedAt", "resolvedBy"],
+        })
+      : [];
+    const stateMap = new Map(states.map((s) => [s.roomId, s]));
+
+    for (const c of chats) {
+      const st = stateMap.get(c.roomId);
+      c.isResolved = Boolean(st?.isResolved);
+      c.resolvedAt = st?.resolvedAt || null;
+      c.resolvedBy = st?.resolvedBy || null;
+    }
+
     res.json(chats);
-  })
+  }),
+);
+
+// POST /api/support/chats/resolve - Mark chat resolved/unresolved (Admin only)
+router.post(
+  "/chats/resolve",
+  authenticate,
+  asyncHandler(async (req, res) => {
+    if (req.user.role !== "admin") return res.sendStatus(403);
+
+    const { roomId, resolved } = req.body || {};
+    if (!roomId) return res.status(400).json({ error: "No roomId" });
+
+    const wantResolved = Boolean(resolved);
+
+    await SupportChat.upsert({
+      roomId,
+      isResolved: wantResolved,
+      resolvedAt: wantResolved ? new Date() : null,
+      resolvedBy: wantResolved ? req.user.id : null,
+    });
+
+    res.json({ ok: true, roomId, isResolved: wantResolved });
+  }),
 );
 
 // GET /api/support/history?roomId=...
@@ -81,7 +121,7 @@ router.get(
       order: [["createdAt", "ASC"]],
     });
     res.json(messages);
-  })
+  }),
 );
 
 router.post(
@@ -113,7 +153,7 @@ router.post(
     });
 
     res.json({ success: true, message: "Сообщение отправлено" });
-  })
+  }),
 );
 
 // POST /api/support/read - Mark messages as read (Admin only)
@@ -134,11 +174,11 @@ router.post(
           isAdmin: false,
           isRead: false,
         },
-      }
+      },
     );
 
     res.json({ ok: true });
-  })
+  }),
 );
 
 module.exports = router;

@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, onBeforeUnmount, ref, watch } from "vue";
+import { useRouter } from "vue-router";
 import { useAuthStore, apiClient } from "../stores/auth";
 import { ElMessage } from "element-plus";
 import CRMTable from "@/components/ui/CRMTable.vue";
@@ -7,6 +8,7 @@ import SearchStatusFiltersCard from "@/components/ui/SearchStatusFiltersCard.vue
 import { normalizeText } from "@/utils/text";
 import { formatDate, formatDateTime } from "@/utils/datetime";
 import { personName } from "@/utils/person";
+const router = useRouter();
 import {
   UploadFilled,
   CircleCheckFilled,
@@ -38,7 +40,7 @@ onBeforeUnmount(() => {
 const isManager = computed(
   () =>
     (auth.user?.role === "developer" && auth.user?.developerApproved) ||
-    auth.user?.role === "admin"
+    auth.user?.role === "admin",
 );
 const isAdmin = computed(() => auth.user?.role === "admin");
 
@@ -134,7 +136,7 @@ function statusActiveIndex(status) {
 
 const selectedId = ref(null);
 const selected = computed(() =>
-  selectedId.value ? items.value.find((a) => a.id === selectedId.value) : null
+  selectedId.value ? items.value.find((a) => a.id === selectedId.value) : null,
 );
 
 const selectedHistory = computed(() => {
@@ -149,6 +151,10 @@ const selectedHistory = computed(() => {
 
 function selectForTracking(id) {
   selectedId.value = id;
+}
+
+function openChat(id) {
+  router.push({ path: "/application-chats", query: { appId: String(id) } });
 }
 
 async function searchDevelopers(query) {
@@ -252,7 +258,7 @@ watch(
   () => pageSize.value,
   (v) => {
     if (typeof v === "number" && v < 5) pageSize.value = 5;
-  }
+  },
 );
 
 const tableRows = computed(() =>
@@ -288,14 +294,14 @@ const tableRows = computed(() =>
     comment:
       a.comment != null && String(a.comment).trim() ? String(a.comment) : "—",
     deadline: a.expiresAt,
-  }))
+  })),
 );
 
 watch(
   () => tableRows.value.length,
   () => {
     page.value = 1;
-  }
+  },
 );
 
 const pagedRows = computed(() => {
@@ -413,6 +419,15 @@ const pagedRows = computed(() => {
               @click="selectForTracking(row.id)"
               >Отследить</el-button
             >
+
+            <el-button
+              v-if="isAdmin"
+              type="default"
+              plain
+              size="small"
+              @click="openChat(row.id)"
+              >Чат</el-button
+            >
           </div>
         </template>
       </CRMTable>
@@ -436,7 +451,7 @@ const pagedRows = computed(() => {
       </div>
 
       <el-card shadow="never" style="margin-top: var(--gap-md)">
-        <div class="pill">История</div>
+        <div class="pill">Заявка</div>
         <div v-if="!selected" class="muted" style="margin-top: 8px">
           Нажмите «Отследить» у нужной заявки.
         </div>

@@ -6,6 +6,7 @@ import LoginView from "../views/LoginView.vue";
 import IncomingView from "../views/IncomingView.vue";
 import NotificationsView from "../views/NotificationsView.vue";
 import ProfileView from "../views/ProfileView.vue";
+import ApplicationChatsView from "../views/ApplicationChatsView.vue";
 import NewsView from "../views/NewsView.vue";
 import NewsDetailsView from "../views/NewsDetailsView.vue";
 import EventsView from "../views/EventsView.vue";
@@ -36,6 +37,11 @@ const routes = [
     path: "/applications",
     component: ApplicationsView,
     meta: { requiresAuth: true, roles: ["agent"] },
+  },
+  {
+    path: "/application-chats",
+    component: ApplicationChatsView,
+    meta: { requiresAuth: true, roles: ["agent", "admin"] },
   },
   {
     path: "/incoming",

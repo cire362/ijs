@@ -20,7 +20,7 @@ const updateStatus = asyncHandler(async (req, res) => {
   const app = await applicationService.updateStatus(
     req.params.id,
     req.body,
-    req.user
+    req.user,
   );
   res.json(app);
 });
@@ -29,7 +29,7 @@ const updateClientInfo = asyncHandler(async (req, res) => {
   const app = await applicationService.updateClientInfo(
     req.params.id,
     req.body,
-    req.user
+    req.user,
   );
   res.json(app);
 });

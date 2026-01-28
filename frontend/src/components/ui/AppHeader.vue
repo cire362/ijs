@@ -25,6 +25,17 @@
           <el-menu-item v-if="isAgent" index="/applications"
             >Мои заявки</el-menu-item
           >
+          <el-menu-item v-if="isAgent || isAdmin" index="/application-chats">
+            <el-badge
+              v-if="appChats.unreadBadge"
+              :value="appChats.unreadBadge"
+              type="danger"
+              :offset="[0, 10]"
+            >
+              <span>Чаты заявок</span>
+            </el-badge>
+            <span v-else>Чаты заявок</span>
+          </el-menu-item>
           <el-menu-item v-if="isManager" index="/incoming"
             >Входящие</el-menu-item
           >
@@ -137,12 +148,22 @@
             >Мои заявки</router-link
           >
           <router-link
-            v-if="isManager"
-            to="/incoming"
+            v-if="isAgent || isAdmin"
+            to="/application-chats"
             class="mobile-nav-item"
-            :class="{ active: route.path === '/incoming' }"
-            >Входящие</router-link
+            :class="{ active: route.path === '/application-chats' }"
           >
+            Чаты заявок
+            <el-tag
+              v-if="appChats.unreadBadge"
+              type="danger"
+              size="small"
+              effect="dark"
+              round
+            >
+              {{ appChats.unreadBadge }}
+            </el-tag>
+          </router-link>
           <router-link
             v-if="isAdmin"
             to="/admin/chat"
@@ -159,6 +180,14 @@
               >{{ supportStore.adminUnreadCount }}</el-tag
             >
           </router-link>
+          <router-link
+            v-if="isManager"
+            to="/incoming"
+            class="mobile-nav-item"
+            :class="{ active: route.path === '/incoming' }"
+            >Входящие</router-link
+          >
+
           <router-link
             v-if="isAuthed"
             to="/notifications"
@@ -193,15 +222,43 @@ import { useRouter, useRoute } from "vue-router";
 import { useAuthStore, apiClient } from "@/stores/auth";
 import { useNotificationsStore } from "@/stores/notifications";
 import { useSupportStore } from "@/stores/support";
+import { useApplicationChatsStore } from "@/stores/applicationChats";
 import { ArrowDown, Menu as MenuIcon } from "@element-plus/icons-vue";
 import { getSocket } from "@/utils/socket";
+import { ElNotification } from "element-plus";
 
 const auth = useAuthStore();
 const notifications = useNotificationsStore();
 const supportStore = useSupportStore();
+const appChats = useApplicationChatsStore();
 const router = useRouter();
 const route = useRoute();
 const socket = getSocket();
+
+const joinedAgentChatIds = ref(new Set());
+
+async function subscribeAgentChats() {
+  if (!auth.user || auth.user.role !== "agent") return;
+  if (!auth.token) return;
+
+  try {
+    const { data } = await apiClient.get("/applications/chat/chats");
+    const list = Array.isArray(data) ? data : [];
+    for (const c of list) {
+      const appId = Number(c?.applicationId);
+      if (!Number.isFinite(appId)) continue;
+      if (joinedAgentChatIds.value.has(appId)) continue;
+      socket.emit("application_chat_join", {
+        applicationId: appId,
+        token: auth.token,
+      });
+      joinedAgentChatIds.value.add(appId);
+    }
+  } catch (e) {
+    // Без критики: просто не будет realtime по "чужим" чатам до открытия экрана.
+    console.warn("Failed to subscribe agent chats", e);
+  }
+}
 
 const mobileMenuOpen = ref(false);
 
@@ -213,7 +270,7 @@ const isAdmin = computed(() => auth.user?.role === "admin");
 const isManager = computed(
   () =>
     (auth.user?.role === "developer" && auth.user?.developerApproved) ||
-    auth.user?.role === "admin"
+    auth.user?.role === "admin",
 );
 
 function toggleMobileMenu() {
@@ -224,7 +281,7 @@ watch(
   () => route.path,
   () => {
     mobileMenuOpen.value = false;
-  }
+  },
 );
 
 const avatarSrc = computed(() => auth.user?.avatarUrl || "");
@@ -271,13 +328,34 @@ onMounted(async () => {
       // Ensure admin room
       socket.emit("admin_subscribe");
 
+      // Ensure global application chats room
+      if (auth.token) {
+        socket.emit("application_admin_subscribe", { token: auth.token });
+      }
+
       socket.on("new_support_message", (msg) => {
         // Increment global count
         supportStore.incrementAdminUnreadCount();
       });
     }
   }
+
+  if (isAgent.value) {
+    await subscribeAgentChats();
+  }
 });
+
+watch(
+  () => auth.token,
+  async () => {
+    if (isAdmin.value && auth.token) {
+      socket.emit("application_admin_subscribe", { token: auth.token });
+    }
+    if (isAgent.value) {
+      await subscribeAgentChats();
+    }
+  },
+);
 
 watch(
   () => auth.user?.id,
@@ -285,11 +363,42 @@ watch(
     if (id) {
       notifications.connect(id);
       await notifications.refreshUnreadCount();
+
+      if (auth.user?.role === "admin" || auth.user?.role === "agent") {
+        appChats.connect({ userId: id });
+      }
     } else {
       notifications.disconnect();
+      appChats.disconnect();
+      joinedAgentChatIds.value = new Set();
     }
   },
-  { immediate: true }
+  { immediate: true },
+);
+
+watch(
+  () => appChats.lastIncoming,
+  (evt) => {
+    if (!evt) return;
+    // Не показываем всплывашку, если пользователь уже на экране чатов
+    if (route.path === "/application-chats") return;
+
+    const applicationId = evt.applicationId;
+    const msg = evt.message;
+    const text = String(msg?.text || "").trim();
+    const label = text
+      ? text
+      : msg?.attachmentOriginalName
+        ? `Файл: ${msg.attachmentOriginalName}`
+        : "Новое сообщение";
+
+    ElNotification({
+      title: "Чаты заявок",
+      message: `Заявка №${applicationId}: ${label}`,
+      type: "info",
+      duration: 4500,
+    });
+  },
 );
 
 onBeforeUnmount(() => {

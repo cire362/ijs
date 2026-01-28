@@ -10,6 +10,7 @@ const supportStore = useSupportStore();
 const socket = getSocket();
 
 const chats = ref([]); // List of active chats/rooms
+const activeListTab = ref("new"); // 'new' | 'resolved'
 const activeChatId = ref(null);
 const activeChatMessages = ref([]);
 const replyText = ref("");
@@ -20,9 +21,72 @@ function onResize() {
   isMobile.value = window.innerWidth <= 768;
 }
 
+const onNewSupportMessage = (msg) => {
+  // msg: { roomId, text, senderName, senderEmail, timestamp ... }
+
+  // Update chat list
+  const existingChat = chats.value.find((c) => c.roomId === msg.roomId);
+  if (existingChat) {
+    existingChat.lastMessage = msg.text;
+    existingChat.lastTime = msg.timestamp;
+
+    // If chat was resolved, move it back to new
+    if (msg.movedToNew || msg.isResolved === false) {
+      existingChat.isResolved = false;
+      if (msg.movedToNew && activeListTab.value === "resolved") {
+        activeListTab.value = "new";
+      }
+    }
+
+    // Only increment if not currently active
+    if (activeChatId.value !== msg.roomId) {
+      existingChat.unreadCount = (existingChat.unreadCount || 0) + 1;
+    }
+
+    // Move chat to top
+    const idx = chats.value.findIndex((c) => c.roomId === msg.roomId);
+    if (idx > 0) {
+      chats.value.splice(idx, 1);
+      chats.value.unshift(existingChat);
+    }
+
+    updateGlobalCounter();
+
+    // If this is the active chat, append message
+    if (activeChatId.value === msg.roomId) {
+      activeChatMessages.value.push({
+        text: msg.text,
+        sender: "user",
+        time: msg.timestamp,
+      });
+      scrollToBottom();
+    }
+  } else {
+    // New Chat
+    chats.value.unshift({
+      roomId: msg.roomId,
+      senderName: msg.senderName || "Гость",
+      senderEmail: msg.senderEmail,
+      lastMessage: msg.text,
+      lastTime: msg.timestamp,
+      unreadCount: 1,
+      isResolved: false,
+    });
+    updateGlobalCounter();
+  }
+};
+
 // Computed active chat object
 const activeChat = computed(() =>
-  chats.value.find((c) => c.roomId === activeChatId.value)
+  chats.value.find((c) => c.roomId === activeChatId.value),
+);
+
+const newChats = computed(() => chats.value.filter((c) => !c.isResolved));
+
+const resolvedChats = computed(() => chats.value.filter((c) => c.isResolved));
+
+const visibleChats = computed(() =>
+  activeListTab.value === "resolved" ? resolvedChats.value : newChats.value,
 );
 
 onMounted(async () => {
@@ -36,49 +100,7 @@ onMounted(async () => {
   // unless we fetch from DB. Let's add a fetch method later.)
 
   // Listen for new messages from users
-  socket.on("new_support_message", (msg) => {
-    // msg: { roomId, text, senderName, senderEmail, timestamp ... }
-
-    // Update chat list
-    const existingChat = chats.value.find((c) => c.roomId === msg.roomId);
-    if (existingChat) {
-      existingChat.lastMessage = msg.text;
-      existingChat.lastTime = msg.timestamp;
-
-      // Only increment if not currently active (or we could handle "active but unread" differently)
-      if (activeChatId.value !== msg.roomId) {
-        existingChat.unreadCount = (existingChat.unreadCount || 0) + 1;
-      }
-
-      updateGlobalCounter();
-
-      // If this is the active chat, append message
-      if (activeChatId.value === msg.roomId) {
-        activeChatMessages.value.push({
-          text: msg.text,
-          sender: "user",
-          time: msg.timestamp,
-        });
-        scrollToBottom();
-      }
-    } else {
-      // New Chat
-      chats.value.unshift({
-        roomId: msg.roomId,
-        senderName: msg.senderName || "Гость",
-        senderEmail: msg.senderEmail,
-        lastMessage: msg.text,
-        lastTime: msg.timestamp,
-        unreadCount: 1,
-      });
-      updateGlobalCounter();
-
-      if (chats.value.length === 1 && !activeChatId.value) {
-        // Auto select first
-        // selectChat(chats.value[0]);
-      }
-    }
-  });
+  socket.on("new_support_message", onNewSupportMessage);
 
   // Try to fetch initial state if API exists (we can stub this or actually implement it)
   await fetchActiveChats();
@@ -86,6 +108,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener("resize", onResize);
+  socket.off("new_support_message", onNewSupportMessage);
 });
 
 const updateGlobalCounter = () => {
@@ -100,6 +123,32 @@ const fetchActiveChats = async () => {
     updateGlobalCounter();
   } catch (e) {
     console.error("Failed to load chats", e);
+  }
+};
+
+const setResolved = async (wantResolved) => {
+  if (!activeChat.value) return;
+  try {
+    await apiClient.post("/support/chats/resolve", {
+      roomId: activeChat.value.roomId,
+      resolved: wantResolved,
+    });
+    const chat = chats.value.find((c) => c.roomId === activeChat.value.roomId);
+    if (chat) {
+      chat.isResolved = wantResolved;
+      if (!wantResolved) {
+        chat.resolvedAt = null;
+        chat.resolvedBy = null;
+      }
+    }
+
+    // Keep the chat visible in list after change
+    if (wantResolved && activeListTab.value === "new")
+      activeListTab.value = "resolved";
+    if (!wantResolved && activeListTab.value === "resolved")
+      activeListTab.value = "new";
+  } catch (e) {
+    console.error("Failed to change resolve status", e);
   }
 };
 
@@ -130,7 +179,7 @@ const selectChat = async (chat) => {
   // Let's implement a quick API on backend for history to make this usable
   try {
     const { data } = await apiClient.get(
-      `/support/history?roomId=${chat.roomId}`
+      `/support/history?roomId=${chat.roomId}`,
     );
     activeChatMessages.value = data.map((m) => ({
       text: m.text,
@@ -189,17 +238,28 @@ const formatTime = (date) => {
       class="w-full md:w-1/3 bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col"
     >
       <div class="p-4 border-b border-gray-100 font-bold text-gray-700">
-        Обращения
+        <div class="flex items-center justify-between gap-3">
+          <span>Обращения</span>
+        </div>
+      </div>
+      <div class="px-4 pt-2 pb-3 border-b border-gray-100">
+        <el-tabs v-model="activeListTab" class="support-tabs">
+          <el-tab-pane :label="`Новые (${newChats.length})`" name="new" />
+          <el-tab-pane
+            :label="`Выполненные (${resolvedChats.length})`"
+            name="resolved"
+          />
+        </el-tabs>
       </div>
       <div class="overflow-y-auto flex-1">
         <div
-          v-if="chats.length === 0"
+          v-if="visibleChats.length === 0"
           class="p-8 text-center text-gray-400 text-sm"
         >
-          Нет активных чатов
+          Нет чатов
         </div>
         <div
-          v-for="chat in chats"
+          v-for="chat in visibleChats"
           :key="chat.roomId"
           @click="selectChat(chat)"
           class="p-4 border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition"
@@ -269,8 +329,26 @@ const formatTime = (date) => {
               </div>
             </div>
           </div>
-          <div class="text-xs text-gray-400 font-mono shrink-0 ml-2">
-            {{ activeChat.roomId.slice(0, 8) }}...
+          <div class="flex items-center gap-3 shrink-0 ml-2">
+            <el-button
+              v-if="!activeChat.isResolved"
+              size="small"
+              type="success"
+              plain
+              @click="setResolved(true)"
+              >Пометить выполненным</el-button
+            >
+            <el-button
+              v-else
+              size="small"
+              type="warning"
+              plain
+              @click="setResolved(false)"
+              >Вернуть в новые</el-button
+            >
+            <div class="text-xs text-gray-400 font-mono">
+              {{ activeChat.roomId.slice(0, 8) }}...
+            </div>
           </div>
         </div>
 

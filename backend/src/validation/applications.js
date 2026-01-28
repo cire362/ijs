@@ -15,7 +15,10 @@ const phoneSchema = Joi.string()
     }
 
     // RU fallback: 11 digits starting with 7 or 8 (allow spaces/dashes/etc)
-    if (digits.length === 11 && (digits.startsWith("7") || digits.startsWith("8"))) {
+    if (
+      digits.length === 11 &&
+      (digits.startsWith("7") || digits.startsWith("8"))
+    ) {
       return raw;
     }
 
