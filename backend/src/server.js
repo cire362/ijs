@@ -1,11 +1,22 @@
 require("dotenv").config();
+
 const http = require("http");
+const jwt = require("jsonwebtoken");
 const { sequelize } = require("./db");
 const app = require("./app");
-const { Notification, ChatMessage, User } = require("./models");
+const {
+  Notification,
+  ChatMessage,
+  User,
+  Application,
+  SupportChat,
+} = require("./models");
 const { Server } = require("socket.io");
 const { expireSentApplications } = require("./jobs/applicationExpiry");
 const { sendEventReminders } = require("./jobs/eventReminders");
+const { setIO } = require("./socket");
+
+const jwtSecret = process.env.JWT_SECRET || "dev_jwt_secret";
 
 function dbInfo() {
   const cfg = sequelize?.config;
@@ -20,6 +31,25 @@ function dbInfo() {
 const port = process.env.PORT || 4000;
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
+setIO(io);
+
+async function getUserFromToken(token) {
+  if (!token) return null;
+  try {
+    const payload = jwt.verify(token, jwtSecret);
+    const user = await User.findByPk(payload.sub);
+    return user || null;
+  } catch {
+    return null;
+  }
+}
+
+async function canAccessApplicationChat(appEntity, user) {
+  if (!user || !appEntity) return false;
+  if (user.role === "admin") return true;
+  if (user.role === "agent" && appEntity.agentId === user.id) return true;
+  return false;
+}
 
 io.on("connection", (socket) => {
   socket.on("subscribe", (userId) => {
@@ -28,51 +58,88 @@ io.on("connection", (socket) => {
 
   // Admin joins the admin room
   socket.on("admin_subscribe", () => {
-    // Ideally verify admin token here or trust the event if behind auth middleware (socket auth is simpler here)
     socket.join("admins");
   });
 
+  // Admin room for application chats (all applications)
+  socket.on("application_admin_subscribe", async (payload) => {
+    try {
+      const token = payload?.token;
+      const user = await getUserFromToken(token);
+      if (!user || user.role !== "admin") return;
+      socket.join("application_admins");
+      socket.emit("application_admin_subscribed", { ok: true });
+    } catch (e) {
+      console.error("application_admin_subscribe error", e);
+    }
+  });
+
   socket.on("chat_message", async (msg) => {
-    // msg: { text, sender: 'user', name?, email? }
-    // Identify user by socket.id or passed user info.
-    // We use socket.id as a session identifier for guests if no user info.
+    const incomingEmail = msg?.senderEmail || msg?.email || null;
+    let roomId = incomingEmail
+      ? `email:${incomingEmail}`
+      : `socket:${socket.id}`;
+    if (msg?.roomId) roomId = msg.roomId;
 
-    // Determine room ID (could be userId or socketId)
-    // For now we trust the client logic to some extent or create a unique session ID
-    // Simpler: use the email as room identifier if available, or socket.id
+    let senderName = msg?.senderName || msg?.name || null;
+    let senderEmail = incomingEmail;
 
-    let roomId = msg.email ? `email:${msg.email}` : `socket:${socket.id}`;
-    if (msg.roomId) roomId = msg.roomId; // Allow continuing convo
+    // If the room is bound to an authenticated user, we can hydrate missing identity.
+    if (
+      (senderName == null || senderEmail == null) &&
+      /^user:\d+$/.test(roomId)
+    ) {
+      const userId = parseInt(roomId.split(":")[1], 10);
+      if (Number.isFinite(userId)) {
+        const user = await User.findByPk(userId);
+        if (user) {
+          senderName = senderName || user.fullName || user.name || null;
+          senderEmail = senderEmail || user.email || null;
+        }
+      }
+    }
 
     try {
       await ChatMessage.create({
-        senderName: msg.name,
-        senderEmail: msg.email,
+        senderName,
+        senderEmail,
         text: msg.text,
         isAdmin: false,
-        roomId: roomId,
+        roomId,
         isRead: false,
       });
+
+      // If this chat was resolved, move it back to "new".
+      let movedToNew = false;
+      try {
+        const [affected] = await SupportChat.update(
+          { isResolved: false, resolvedAt: null, resolvedBy: null },
+          { where: { roomId, isResolved: true } },
+        );
+        movedToNew = affected > 0;
+      } catch (e) {
+        console.error("SupportChat update error", e);
+      }
 
       // Notify admins
       io.to("admins").emit("new_support_message", {
         ...msg,
-        roomId: roomId,
+        senderName,
+        senderEmail,
+        roomId,
         timestamp: new Date(),
+        isResolved: false,
+        movedToNew,
       });
 
       // Confirm to user
       socket.emit("message_sent", { status: "ok" });
-
-      // OPTIONAL: Auto-reply if no admins online?
-      // For now, removing the auto-reply simulation since user asked for REAL logic.
     } catch (e) {
       console.error("Chat error", e);
     }
   });
 
   socket.on("admin_reply", async (msg) => {
-    // msg: { text, roomId }
     try {
       await ChatMessage.create({
         text: msg.text,
@@ -81,8 +148,6 @@ io.on("connection", (socket) => {
         isRead: true,
       });
 
-      // If roomId is socket-based
-      // Just emit to the room. The user (guest or logged-in) has joined this room.
       io.to(msg.roomId).emit("chat_message", {
         text: msg.text,
         sender: "support",
@@ -96,6 +161,34 @@ io.on("connection", (socket) => {
   socket.on("join_room", (roomId) => {
     socket.join(roomId);
   });
+
+  // Application chat rooms (1 application = 1 chat)
+  socket.on("application_chat_join", async (payload) => {
+    try {
+      const applicationId = parseInt(payload?.applicationId, 10);
+      const token = payload?.token;
+      if (!Number.isFinite(applicationId)) return;
+
+      const user = await getUserFromToken(token);
+      if (!user) return;
+      if (!["admin", "agent"].includes(user.role)) return;
+
+      const appEntity = await Application.findByPk(applicationId);
+      if (!appEntity) return;
+      if (!(await canAccessApplicationChat(appEntity, user))) return;
+
+      socket.join(`application:${applicationId}`);
+      socket.emit("application_chat_joined", { applicationId });
+    } catch (e) {
+      console.error("application_chat_join error", e);
+    }
+  });
+
+  socket.on("application_chat_leave", (payload) => {
+    const applicationId = parseInt(payload?.applicationId, 10);
+    if (!Number.isFinite(applicationId)) return;
+    socket.leave(`application:${applicationId}`);
+  });
 });
 
 // Hook to send notifications to sockets when they are created
@@ -104,8 +197,7 @@ Notification.addHook("afterCreate", (notification) => {
   io.to(room).emit("notification", notification.toJSON());
 });
 
-// bulkCreate does NOT trigger afterCreate per-row by default, so admins (often
-// notified via bulkCreate) won't receive real-time socket events without this.
+// bulkCreate does NOT trigger afterCreate per-row by default
 Notification.addHook("afterBulkCreate", (notifications) => {
   if (!Array.isArray(notifications)) return;
   for (const notification of notifications) {
@@ -125,14 +217,14 @@ async function bootstrap() {
     // Background: expire applications stuck at initial stage
     setInterval(() => {
       expireSentApplications().catch((err) =>
-        console.error("Failed to expire applications", err)
+        console.error("Failed to expire applications", err),
       );
     }, 60 * 1000);
 
     // Background: event reminders (best-effort)
     setInterval(() => {
       sendEventReminders().catch((err) =>
-        console.error("Failed to send event reminders", err)
+        console.error("Failed to send event reminders", err),
       );
     }, 60 * 1000);
 

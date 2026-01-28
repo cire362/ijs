@@ -11,6 +11,7 @@ import PropertiesSearchSection from "@/components/properties/PropertiesSearchSec
 import PropertyCreateFormCard from "@/components/properties/PropertyCreateFormCard.vue";
 import SearchStatusFiltersCard from "@/components/ui/SearchStatusFiltersCard.vue";
 import { normalizeText } from "@/utils/text";
+import { humanizeApiError } from "@/utils/errors";
 
 const auth = useAuthStore();
 const router = useRouter();
@@ -21,15 +22,15 @@ const isAgent = computed(() => auth.user?.role === "agent");
 const isManager = computed(
   () =>
     (auth.user?.role === "developer" && auth.user?.developerApproved) ||
-    auth.user?.role === "admin"
+    auth.user?.role === "admin",
 );
 const isAdmin = computed(() => auth.user?.role === "admin");
 const isDeveloper = computed(
-  () => auth.user?.role === "developer" && auth.user?.developerApproved
+  () => auth.user?.role === "developer" && auth.user?.developerApproved,
 );
 const isDeveloperRole = computed(() => auth.user?.role === "developer");
 const isDeveloperPending = computed(
-  () => isDeveloperRole.value && auth.user?.developerApproved === false
+  () => isDeveloperRole.value && auth.user?.developerApproved === false,
 );
 
 const activeTab = ref("catalog");
@@ -173,7 +174,7 @@ const developerFilterOptions = computed(() => {
     byId.set(id, { value: id, label: developerLabel(d) });
   }
   return Array.from(byId.values()).sort((a, b) =>
-    String(a.label || "").localeCompare(String(b.label || ""), "ru")
+    String(a.label || "").localeCompare(String(b.label || ""), "ru"),
   );
 });
 
@@ -272,7 +273,7 @@ watch(
   () => page.value,
   () => {
     scrollToResultsTop();
-  }
+  },
 );
 
 const pagedItems = computed(() => {
@@ -284,40 +285,40 @@ watch(
   () => filteredItems.value.length,
   () => {
     page.value = 1;
-  }
+  },
 );
 
 const regions = computed(() =>
-  Array.from(new Set(items.value.map((p) => p.region).filter(Boolean))).sort()
+  Array.from(new Set(items.value.map((p) => p.region).filter(Boolean))).sort(),
 );
 const cities = computed(() =>
-  Array.from(new Set(items.value.map((p) => p.city).filter(Boolean))).sort()
+  Array.from(new Set(items.value.map((p) => p.city).filter(Boolean))).sort(),
 );
 const stages = computed(() =>
   Array.from(
-    new Set(items.value.map((p) => p.buildStage).filter(Boolean))
-  ).sort()
+    new Set(items.value.map((p) => p.buildStage).filter(Boolean)),
+  ).sort(),
 );
 
 const finishingTypes = computed(() =>
   Array.from(
-    new Set(items.value.map((p) => p.finishingType).filter(Boolean))
-  ).sort()
+    new Set(items.value.map((p) => p.finishingType).filter(Boolean)),
+  ).sort(),
 );
 const contractTypes = computed(() =>
   Array.from(
-    new Set(items.value.map((p) => p.contractType).filter(Boolean))
-  ).sort()
+    new Set(items.value.map((p) => p.contractType).filter(Boolean)),
+  ).sort(),
 );
 const constructionTypes = computed(() =>
   Array.from(
-    new Set(items.value.map((p) => p.constructionType).filter(Boolean))
-  ).sort()
+    new Set(items.value.map((p) => p.constructionType).filter(Boolean)),
+  ).sort(),
 );
 const readinessTypes = computed(() =>
   Array.from(
-    new Set(items.value.map((p) => p.readinessType).filter(Boolean))
-  ).sort()
+    new Set(items.value.map((p) => p.readinessType).filter(Boolean)),
+  ).sort(),
 );
 
 function isWithinLastDays(dateLike, days) {
@@ -340,7 +341,7 @@ const agentScopeItems = computed(() => {
   const devId = filters.value.developerId;
   if (!devId) return items.value;
   return items.value.filter(
-    (p) => String(p?.developer?.id || "") === String(devId)
+    (p) => String(p?.developer?.id || "") === String(devId),
   );
 });
 
@@ -351,14 +352,14 @@ const agentAnalytics = computed(() => {
     : raw.filter(
         (p) =>
           p.saleStatus === "available" ||
-          (p.saleStatus === "reserved" && isHouseProperty(p))
+          (p.saleStatus === "reserved" && isHouseProperty(p)),
       );
   const total = base.length;
   const available = base.filter((p) => p.saleStatus === "available").length;
   const reserved = base.filter((p) => p.saleStatus === "reserved").length;
   const sold = base.filter((p) => p.saleStatus === "sold").length;
   const createdLast7 = base.filter((p) =>
-    isWithinLastDays(p.createdAt, 7)
+    isWithinLastDays(p.createdAt, 7),
   ).length;
 
   const availablePct = total ? Math.round((available / total) * 100) : 0;
@@ -378,14 +379,14 @@ const agentAnalytics = computed(() => {
 const analytics = computed(() => {
   const total = items.value.length;
   const available = items.value.filter(
-    (p) => p.saleStatus === "available"
+    (p) => p.saleStatus === "available",
   ).length;
   const reserved = items.value.filter(
-    (p) => p.saleStatus === "reserved"
+    (p) => p.saleStatus === "reserved",
   ).length;
   const sold = items.value.filter((p) => p.saleStatus === "sold").length;
   const createdLast7 = items.value.filter((p) =>
-    isWithinLastDays(p.createdAt, 7)
+    isWithinLastDays(p.createdAt, 7),
   ).length;
 
   const availablePct = total ? Math.round((available / total) * 100) : 0;
@@ -431,7 +432,7 @@ watch(
       loadPendingDevelopers();
     }
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 async function load() {
@@ -497,7 +498,7 @@ async function rejectDeveloper(dev) {
 
 async function deleteDeveloperRequest(dev) {
   const ok = window.confirm(
-    "Удалить заявку и аккаунт застройщика? Действие необратимо."
+    "Удалить заявку и аккаунт застройщика? Действие необратимо.",
   );
   if (!ok) return;
   try {
@@ -663,6 +664,8 @@ async function createProperty() {
     }
 
     const payload = { ...form.value };
+    if (!payload.developerId) delete payload.developerId;
+
     const { data: created } = await apiClient.post("/properties", payload);
 
     let finalProperty = created;
@@ -676,14 +679,14 @@ async function createProperty() {
           const { data: full } = await apiClient.post(
             `/properties/${created.id}/images`,
             fd,
-            { headers: { "Content-Type": "multipart/form-data" } }
+            { headers: { "Content-Type": "multipart/form-data" } },
           );
           finalProperty = full;
           ElMessage.success("Объект создан и изображения загружены");
         } catch (err) {
           ElMessage.error(
             err.response?.data?.error ||
-              "Объект создан, но не удалось загрузить изображения"
+              "Объект создан, но не удалось загрузить изображения",
           );
         }
       }
@@ -744,7 +747,7 @@ async function applyToProperty(propertyId) {
     applicationClientFullNames.value[propertyId] = "";
     applicationClientPhones.value[propertyId] = "";
   } catch (err) {
-    ElMessage.error(err.response?.data?.error || "Не удалось отправить заявку");
+    ElMessage.error(humanizeApiError(err, "Не удалось отправить заявку"));
   }
 }
 

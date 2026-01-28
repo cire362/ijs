@@ -47,6 +47,13 @@ cp .env.example .env
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
+Если вы запускаете проект на обычном HTTP (без HTTPS) и у вас не сохраняются auth-cookie,
+используйте override:
+
+```bash
+docker compose -f docker-compose.prod.yml -f docker-compose.http.yml up -d --build
+```
+
 Проверка:
 
 - сайт: `http://<ваш-домен>/`

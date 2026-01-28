@@ -18,19 +18,43 @@ const {
   extendInitialDeadline,
 } = require("../controllers/applicationController");
 
+const {
+  listChats,
+  listMessages,
+  createMessage,
+} = require("../controllers/applicationChatController");
+
+const { uploadApplicationDoc } = require("../utils/upload");
+
+function maybeUploadApplicationDoc(req, res, next) {
+  // Multer should run only for multipart requests.
+  if (req.is && req.is("multipart/form-data")) {
+    return uploadApplicationDoc(req, res, (err) => (err ? next(err) : next()));
+  }
+  return next();
+}
+
 router.get("/mine", authenticate, allowRoles("agent"), asyncHandler(listMine));
 router.get(
   "/incoming",
   authenticate,
   allowRoles("developer", "admin"),
-  asyncHandler(listIncoming)
+  asyncHandler(listIncoming),
+);
+
+// Application chats list (1 application = 1 chat)
+router.get(
+  "/chat/chats",
+  authenticate,
+  allowRoles("agent", "admin"),
+  asyncHandler(listChats),
 );
 router.post(
   "/",
   authenticate,
   allowRoles("agent"),
   validate(createApplicationSchema),
-  asyncHandler(createApplication)
+  asyncHandler(createApplication),
 );
 
 router.patch(
@@ -38,14 +62,14 @@ router.patch(
   authenticate,
   allowRoles("agent"),
   validate(updateClientInfoSchema),
-  asyncHandler(updateClientInfo)
+  asyncHandler(updateClientInfo),
 );
 router.patch(
   "/:id/status",
   authenticate,
   allowRoles("developer", "admin"),
   validate(updateStatusSchema),
-  asyncHandler(updateStatus)
+  asyncHandler(updateStatus),
 );
 
 router.patch(
@@ -53,7 +77,23 @@ router.patch(
   authenticate,
   allowRoles("developer", "admin"),
   validate(extendDeadlineSchema),
-  asyncHandler(extendInitialDeadline)
+  asyncHandler(extendInitialDeadline),
+);
+
+// Chat per application (1 application = 1 chat)
+router.get(
+  "/:id/chat/messages",
+  authenticate,
+  allowRoles("agent", "admin"),
+  asyncHandler(listMessages),
+);
+
+router.post(
+  "/:id/chat/messages",
+  authenticate,
+  allowRoles("agent", "admin"),
+  maybeUploadApplicationDoc,
+  asyncHandler(createMessage),
 );
 
 module.exports = router;

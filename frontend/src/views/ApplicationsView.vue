@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, onBeforeUnmount, ref, watch } from "vue";
+import { useRouter } from "vue-router";
 import { useAuthStore, apiClient } from "../stores/auth";
 import { ElMessage } from "element-plus";
 import { limits } from "@/utils/constraints";
@@ -8,6 +9,8 @@ import SearchStatusFiltersCard from "@/components/ui/SearchStatusFiltersCard.vue
 import { normalizeText } from "@/utils/text";
 import { formatDate, formatDateTime } from "@/utils/datetime";
 import { personName } from "@/utils/person";
+import { humanizeApiError } from "@/utils/errors";
+const router = useRouter();
 import {
   UploadFilled,
   CircleCheckFilled,
@@ -87,7 +90,7 @@ function statusActiveIndex(status) {
 
 const selectedId = ref(null);
 const selected = computed(() =>
-  selectedId.value ? items.value.find((a) => a.id === selectedId.value) : null
+  selectedId.value ? items.value.find((a) => a.id === selectedId.value) : null,
 );
 
 const clientFullNameEdit = ref("");
@@ -100,7 +103,7 @@ watch(
     clientFullNameEdit.value = String(selected.value?.clientFullName || "");
     clientPhoneEdit.value = String(selected.value?.clientPhone || "");
   },
-  { immediate: true }
+  { immediate: true },
 );
 
 async function saveClientInfo() {
@@ -120,7 +123,7 @@ async function saveClientInfo() {
   try {
     const { data } = await apiClient.patch(
       `/applications/${selected.value.id}/client`,
-      { clientFullName: fio, clientPhone: phone }
+      { clientFullName: fio, clientPhone: phone },
     );
 
     const idx = items.value.findIndex((a) => a.id === selected.value.id);
@@ -129,7 +132,7 @@ async function saveClientInfo() {
     }
     ElMessage.success("Данные клиента сохранены");
   } catch (err) {
-    ElMessage.error(err.response?.data?.error || "Не удалось сохранить");
+    ElMessage.error(humanizeApiError(err, "Не удалось сохранить"));
   } finally {
     savingClientInfo.value = false;
   }
@@ -139,12 +142,16 @@ const selectedHistory = computed(() => {
   const h = selected.value?.history;
   if (!Array.isArray(h)) return [];
   return [...h].sort(
-    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
   );
 });
 
 function selectForTracking(id) {
   selectedId.value = id;
+}
+
+function openChat(id) {
+  router.push({ path: "/application-chats", query: { appId: String(id) } });
 }
 
 onMounted(() => {
@@ -241,7 +248,7 @@ const tableRows = computed(() =>
       a.clientPhone != null && String(a.clientPhone).trim()
         ? String(a.clientPhone)
         : "—",
-  }))
+  })),
 );
 
 const page = ref(1);
@@ -256,7 +263,7 @@ watch(
   (len) => {
     const totalPages = Math.max(1, Math.ceil(len / pageSize.value));
     if (page.value > totalPages) page.value = totalPages;
-  }
+  },
 );
 
 watch(pageSize, () => {
@@ -327,6 +334,9 @@ const pagedRows = computed(() => {
             @click="selectForTracking(row.id)"
             >Отследить</el-button
           >
+          <el-button type="default" plain size="small" @click="openChat(row.id)"
+            >Чат</el-button
+          >
         </template>
       </CRMTable>
 
@@ -348,7 +358,7 @@ const pagedRows = computed(() => {
       </div>
 
       <el-card shadow="never" style="margin-top: var(--gap-md)">
-        <div class="pill">История</div>
+        <div class="pill">Заявка</div>
         <div v-if="!selected" class="muted" style="margin-top: 8px">
           Нажмите «Отследить» у нужной заявки.
         </div>

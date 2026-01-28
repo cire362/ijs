@@ -25,6 +25,17 @@ const messageInput = ref("");
 const roomId = ref(null);
 const unreadCount = ref(0); // Local unread count for user
 
+const userDisplayName = computed(() => {
+  const u = auth.user;
+  if (!u) return "";
+  return (
+    u.fullName ||
+    [u.lastName, u.firstName, u.middleName].filter(Boolean).join(" ") ||
+    u.name ||
+    ""
+  );
+});
+
 // History of chat
 const messages = ref([
   {
@@ -34,6 +45,36 @@ const messages = ref([
     time: new Date(),
   },
 ]);
+
+const resetChatUiState = () => {
+  loading.value = false;
+  messageInput.value = "";
+  unreadCount.value = 0;
+  guestData.value = { name: "", email: "" };
+  messages.value = [
+    {
+      id: 1,
+      text: "Здравствуйте! Чем мы можем вам помочь?",
+      isBot: true,
+      time: new Date(),
+    },
+  ];
+};
+
+const ensureGuestRoom = () => {
+  if (roomId.value) return roomId.value;
+  if (!socket) return null;
+  // Create a stable guest room only when needed (first send)
+  const randomId = Math.random().toString(36).substring(2, 15);
+  roomId.value = `guest:${randomId}`;
+  try {
+    localStorage.setItem("chat_guest_room", roomId.value);
+  } catch {
+    // Ignore
+  }
+  socket.emit("join_room", roomId.value);
+  return roomId.value;
+};
 
 // Guest data if not logged in
 const guestData = ref({
@@ -64,47 +105,19 @@ const loadHistory = async (id) => {
 };
 
 onMounted(() => {
-  if (auth.user) {
-    guestData.value.name = auth.user.name || auth.user.fullName || "";
-    guestData.value.email = auth.user.email || "";
-  }
-
-  // Determine/Restore Room ID
+  // Determine/Restore Room ID (initial)
   if (auth.user) {
     roomId.value = `user:${auth.user.id}`;
   } else {
-    // Check localStorage for guest session
     const storedGuestRoom = localStorage.getItem("chat_guest_room");
-    if (storedGuestRoom) {
-      roomId.value = storedGuestRoom;
-    } else if (socket) {
-      // Will be set when socket connects if not restored
-    }
-  }
-
-  // Load history immediately if we know the room
-  if (roomId.value) {
-    loadHistory(roomId.value);
+    if (storedGuestRoom) roomId.value = storedGuestRoom;
   }
 
   if (socket) {
     const setupRoom = () => {
-      // If we already have a persistent roomId, join it
-      if (roomId.value) {
-        socket.emit("join_room", roomId.value);
-      } else if (socket.id) {
-        // First time guest without storage
-        // Generate a stable UUID-like ID instead of socket.id for persistence
-        // OR just use socket.id but save it.
-        // Problem with socket.id is it looks like "socket:..."
-        // Better: create "guest:random"
-
-        const randomId = Math.random().toString(36).substring(2, 15);
-        roomId.value = `guest:${randomId}`;
-        localStorage.setItem("chat_guest_room", roomId.value);
-
-        socket.emit("join_room", roomId.value);
-      }
+      // Join only if we already know roomId.
+      // For guests, we create a room lazily on first send.
+      if (roomId.value) socket.emit("join_room", roomId.value);
     };
 
     if (socket.connected) setupRoom();
@@ -126,6 +139,41 @@ onMounted(() => {
     });
   }
 });
+
+watch(
+  () => auth.user?.id,
+  async (id) => {
+    if (id) {
+      guestData.value.name = userDisplayName.value;
+      guestData.value.email = auth.user?.email || "";
+      roomId.value = `user:${id}`;
+
+      if (socket) socket.emit("join_room", roomId.value);
+      await loadHistory(roomId.value);
+    } else {
+      // Logged out: clear UI and drop any previous room bindings.
+      resetChatUiState();
+      roomId.value = null;
+      try {
+        localStorage.removeItem("chat_guest_room");
+      } catch {
+        // Ignore
+      }
+
+      // Important: socket.io rooms are server-side; easiest way to leave old rooms
+      // is to reconnect.
+      if (socket) {
+        try {
+          socket.disconnect();
+          socket.connect();
+        } catch {
+          // Ignore
+        }
+      }
+    }
+  },
+  { immediate: true },
+);
 
 // Watch open to scroll to bottom
 watch(isOpen, async (val) => {
@@ -226,12 +274,25 @@ const submitGuestForm = async () => {
 const processSubmission = async (text) => {
   loading.value = true;
   try {
+    const senderName =
+      userDisplayName.value || auth.user?.name || guestData.value.name;
+    const senderEmail = auth.user?.email || guestData.value.email;
+
+    if (!auth.user) {
+      ensureGuestRoom();
+    } else if (roomId.value && socket) {
+      socket.emit("join_room", roomId.value);
+    }
+
     // Send via Socket
     socket.emit("chat_message", {
       text: text,
       sender: "user",
-      name: auth.user?.name || guestData.value.name,
-      email: auth.user?.email || guestData.value.email,
+      senderName,
+      senderEmail,
+      // legacy keys (backward compatibility)
+      name: senderName,
+      email: senderEmail,
       roomId: roomId.value, // Send current room
     });
   } catch (e) {

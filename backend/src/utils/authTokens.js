@@ -3,6 +3,23 @@ const crypto = require("crypto");
 const DEFAULT_ACCESS_TTL = process.env.ACCESS_TOKEN_TTL || "15m";
 const DEFAULT_REFRESH_DAYS = Number(process.env.REFRESH_TOKEN_DAYS || 30);
 
+function parseBool(v) {
+  if (v == null) return null;
+  const s = String(v).trim().toLowerCase();
+  if (["1", "true", "yes", "y", "on"].includes(s)) return true;
+  if (["0", "false", "no", "n", "off"].includes(s)) return false;
+  return null;
+}
+
+function isHttpsRequest(req) {
+  if (!req) return false;
+  if (req.secure) return true;
+  const xfProto = req.get?.("x-forwarded-proto");
+  if (xfProto && String(xfProto).toLowerCase().includes("https")) return true;
+  const proto = req.protocol;
+  return proto === "https";
+}
+
 function getHmacSecret() {
   return (
     process.env.REFRESH_TOKEN_SECRET ||
@@ -34,37 +51,42 @@ function refreshTtlMs() {
   return days * 24 * 60 * 60 * 1000;
 }
 
-function cookieCommonOptions() {
+function cookieCommonOptions(req) {
   const isProd = process.env.NODE_ENV === "production";
+  const forced = parseBool(process.env.COOKIE_SECURE);
+  const secure = forced != null ? forced : isProd && isHttpsRequest(req);
   return {
-    secure: isProd,
+    secure,
     sameSite: "lax",
     path: "/",
   };
 }
 
-function setAuthCookies(res, { refreshToken, csrfToken }) {
+function setAuthCookies(res, { refreshToken, csrfToken }, req) {
   const maxAge = refreshTtlMs();
 
   res.cookie("refresh_token", refreshToken, {
-    ...cookieCommonOptions(),
+    ...cookieCommonOptions(req),
     httpOnly: true,
     maxAge,
   });
 
   res.cookie("csrf_token", csrfToken, {
-    ...cookieCommonOptions(),
+    ...cookieCommonOptions(req),
     httpOnly: false,
     maxAge,
   });
 }
 
-function clearAuthCookies(res) {
+function clearAuthCookies(res, req) {
   res.clearCookie("refresh_token", {
-    ...cookieCommonOptions(),
+    ...cookieCommonOptions(req),
     httpOnly: true,
   });
-  res.clearCookie("csrf_token", { ...cookieCommonOptions(), httpOnly: false });
+  res.clearCookie("csrf_token", {
+    ...cookieCommonOptions(req),
+    httpOnly: false,
+  });
 }
 
 module.exports = {

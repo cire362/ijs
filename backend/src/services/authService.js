@@ -97,7 +97,7 @@ class AuthService {
               email: user.email,
               companyName: user.companyName,
             },
-          }))
+          })),
         );
       }
     }
@@ -131,7 +131,7 @@ class AuthService {
       userAgent: req.get("user-agent") || null,
     });
 
-    setAuthCookies(res, { refreshToken, csrfToken });
+    setAuthCookies(res, { refreshToken, csrfToken }, req);
 
     const token = issueAccessToken(user);
     return { token, user: toUserPayload(user) };
@@ -140,7 +140,7 @@ class AuthService {
   async refresh(cookies, { req, res }) {
     const refreshToken = cookies.refresh_token;
     if (!refreshToken) {
-      clearAuthCookies(res);
+      clearAuthCookies(res, req);
       throw { status: 401, message: "Refresh token is missing" };
     }
 
@@ -151,13 +151,13 @@ class AuthService {
     });
 
     if (!session) {
-      clearAuthCookies(res);
+      clearAuthCookies(res, req);
       throw { status: 401, message: "Session not found" };
     }
 
     if (session.expiresAt < new Date()) {
       await session.destroy();
-      clearAuthCookies(res);
+      clearAuthCookies(res, req);
       throw { status: 401, message: "Session expired" };
     }
 
@@ -183,24 +183,28 @@ class AuthService {
     // Set new cookies
     // Need csrfToken. Rotate csrf too? Yes usually.
     const newCsrfToken = randomToken(24);
-    setAuthCookies(res, {
-      refreshToken: newRefreshToken,
-      csrfToken: newCsrfToken,
-    });
+    setAuthCookies(
+      res,
+      {
+        refreshToken: newRefreshToken,
+        csrfToken: newCsrfToken,
+      },
+      req,
+    );
 
     return { token, user: toUserPayload(session.user) };
   }
 
-  async logout(cookies, res) {
+  async logout(cookies, { req, res }) {
     const refreshToken = cookies.refresh_token;
     if (refreshToken) {
       const hashed = hashToken(refreshToken);
       await AuthSession.destroy({ where: { refreshTokenHash: hashed } });
     }
-    clearAuthCookies(res);
+    clearAuthCookies(res, req);
   }
 
-  async logoutAll(cookies, res) {
+  async logoutAll(cookies, { req, res }) {
     const refreshToken = cookies.refresh_token;
     if (!refreshToken) {
       // If no token, we can't identify user to logout all.
@@ -218,7 +222,7 @@ class AuthService {
       await AuthSession.destroy({ where: { userId: session.userId } });
     }
 
-    clearAuthCookies(res);
+    clearAuthCookies(res, req);
   }
 }
 

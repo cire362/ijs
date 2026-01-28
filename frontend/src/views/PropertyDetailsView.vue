@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
 import { limits } from "@/utils/constraints";
 import { apiClient, useAuthStore } from "@/stores/auth";
+import { humanizeApiError } from "@/utils/errors";
 
 const auth = useAuthStore();
 const route = useRoute();
@@ -339,7 +340,7 @@ async function applyToProperty() {
     clientPhone.value = "";
     applicationComment.value = "";
   } catch (err) {
-    ElMessage.error(err.response?.data?.error || "Не удалось отправить заявку");
+    ElMessage.error(humanizeApiError(err, "Не удалось отправить заявку"));
   }
 }
 

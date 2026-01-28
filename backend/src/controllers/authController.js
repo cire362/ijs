@@ -20,12 +20,12 @@ const refresh = asyncHandler(async (req, res) => {
 });
 
 const logout = asyncHandler(async (req, res) => {
-  await authService.logout(req.cookies, res);
+  await authService.logout(req.cookies, { req, res });
   res.json({ success: true });
 });
 
 const logoutAll = asyncHandler(async (req, res) => {
-  await authService.logoutAll(req.cookies, res);
+  await authService.logoutAll(req.cookies, { req, res });
   res.json({ success: true });
 });
 
