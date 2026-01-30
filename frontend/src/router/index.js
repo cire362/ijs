@@ -14,6 +14,7 @@ import ShowcaseView from "../views/ShowcaseView.vue";
 import PrivacyView from "../views/PrivacyView.vue";
 import TermsView from "../views/TermsView.vue";
 import AdminChatView from "../views/AdminChatView.vue";
+import TariffsView from "../views/TariffsView.vue";
 import { useAuthStore } from "../stores/auth";
 
 const routes = [
@@ -52,6 +53,11 @@ const routes = [
     path: "/admin/chat",
     component: AdminChatView,
     meta: { requiresAuth: true, roles: ["admin"] },
+  },
+  {
+    path: "/tariffs",
+    component: TariffsView,
+    meta: { requiresAuth: true },
   },
   {
     path: "/notifications",

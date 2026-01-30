@@ -15,6 +15,7 @@ const ChatMessage = require("./chatMessage");
 const SupportChat = require("./supportChat");
 const PropertyDocument = require("./propertyDocument");
 const ApplicationChatMessage = require("./applicationChatMessage");
+const TariffPropertyRate = require("./tariffPropertyRate");
 
 User.hasMany(Property, { foreignKey: "developerId", as: "properties" });
 Property.belongsTo(User, { foreignKey: "developerId", as: "developer" });
@@ -27,6 +28,15 @@ Property.hasMany(PropertyDocument, {
   as: "documents",
 });
 PropertyDocument.belongsTo(Property, { foreignKey: "propertyId" });
+
+Property.hasMany(TariffPropertyRate, {
+  foreignKey: "propertyId",
+  as: "tariffRates",
+});
+TariffPropertyRate.belongsTo(Property, {
+  foreignKey: "propertyId",
+  as: "property",
+});
 
 Property.hasMany(Application, { foreignKey: "propertyId", as: "applications" });
 Application.belongsTo(Property, { foreignKey: "propertyId" });
@@ -100,4 +110,5 @@ module.exports = {
   SupportChat,
   PropertyDocument,
   ApplicationChatMessage,
+  TariffPropertyRate,
 };
