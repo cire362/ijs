@@ -11,12 +11,16 @@ COPY frontend/ ./
 # но можно переопределить при build: --build-arg VITE_API_URL=https://api.example.com
 ARG VITE_API_URL
 ENV VITE_API_URL=$VITE_API_URL
-RUN rm -rf /app/frontend/index.html \
+RUN set -eux \
+	&& rm -rf /app/frontend/index.html \
 	&& cp /tmp/index.html /app/frontend/index.html \
-	&& echo "index.html after restore:" \
+	&& echo "index.html before vite:" \
 	&& ls -la /app/frontend/index.html \
-	&& node -e "const fs=require('fs'); const s=fs.statSync('/app/frontend/index.html'); console.log('isFile:', s.isFile(), 'isDirectory:', s.isDirectory());" \
-	&& npm run build
+	&& node -e "const fs=require('fs'); const p='/app/frontend/index.html'; const s=fs.statSync(p); console.log('stat before vite => isFile:', s.isFile(), 'isDirectory:', s.isDirectory()); console.log('read before vite (first 40):', JSON.stringify(fs.readFileSync(p,'utf8').slice(0,40)));" \
+	&& (npm run build || (echo "vite failed; inspecting index.html:" \
+			&& ls -la /app/frontend/index.html || true) \
+			&& node -e "const fs=require('fs'); const p='/app/frontend/index.html'; try { const s=fs.statSync(p); console.log('stat after vite => isFile:', s.isFile(), 'isDirectory:', s.isDirectory()); } catch(e){ console.error('stat after vite error:', e); } try { console.log('read after vite (first 40):', JSON.stringify(fs.readFileSync(p,'utf8').slice(0,40))); } catch(e){ console.error('read after vite error:', e); }" \
+			&& exit 1))
 
 # Serve via nginx + reverse proxy
 FROM nginx:1.27-alpine
