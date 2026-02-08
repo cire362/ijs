@@ -170,6 +170,7 @@ async function seed() {
   await sequelize.sync({ force });
 
   const passwordHash = await bcrypt.hash("password", 10);
+  const password12345Hash = await bcrypt.hash("12345", 10);
 
   const lastNames = [
     "Иванов",
@@ -313,6 +314,18 @@ async function seed() {
     phone: "+7 900 000-00-99",
   };
 
+  const fixedDeveloper = {
+    email: "dev@test.com",
+    role: "developer",
+    developerApproved: true,
+    developerRejected: false,
+    companyName: "СЗ Тест Дев",
+    lastName: "Тестов",
+    firstName: "Дев",
+    middleName: "Девович",
+    phone: "+7 900 000-12-34",
+  };
+
   const createdDevelopers = [];
   for (const d of developers) {
     createdDevelopers.push(
@@ -337,9 +350,23 @@ async function seed() {
     });
   }
 
+  // Fixed credentials for quick manual testing
+  await findOrCreateUserByEmail({
+    ...agents[0],
+    email: "agent@test.com",
+    passwordHash: password12345Hash,
+    name: `${agents[0].lastName} ${agents[0].firstName} ${agents[0].middleName}`.trim(),
+  });
+
+  await findOrCreateUserByEmail({
+    ...fixedDeveloper,
+    passwordHash: password12345Hash,
+    name: `${fixedDeveloper.lastName} ${fixedDeveloper.firstName} ${fixedDeveloper.middleName}`.trim(),
+  });
+
   await findOrCreateUserByEmail({
     ...admin,
-    passwordHash,
+    passwordHash: password12345Hash,
     name: `${admin.lastName} ${admin.firstName} ${admin.middleName}`.trim(),
   });
 
@@ -750,12 +777,13 @@ async function seed() {
 
   console.log("Seed complete.");
   console.log("Logins:");
-  console.log("- agent@test.com / password");
+  console.log("- admin@test.com / 12345");
+  console.log("- agent@test.com / 12345");
+  console.log("- dev@test.com / 12345");
   console.log("- dev1@test.com / password");
   console.log("- dev2@test.com / password");
   console.log("- dev10@test.com / password");
   console.log("- pending-dev@test.com / password (needs admin approval)");
-  console.log("- admin@test.com / password");
   console.log("Tip: set SEED_FORCE=1 to recreate tables.");
   console.log("Tip: set SEED_RANDOM_SEED=42 to get deterministic randomness.");
 }
