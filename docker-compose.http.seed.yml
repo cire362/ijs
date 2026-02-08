@@ -1,0 +1,34 @@
+# HTTP + seed override for production stack.
+# Usage:
+#   docker compose -f docker-compose.prod.yml -f docker-compose.http.seed.yml up -d --build
+
+services:
+  db:
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-ijshub}
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    environment:
+      NODE_ENV: development
+      COOKIE_SECURE: "false"
+
+  seed:
+    build: ./backend
+    env_file:
+      - ./.env
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@db:5432/ijshub}
+      SEED_FORCE: ${SEED_FORCE:-0}
+    command: npm run seed
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - uploads:/app/uploads
+    restart: "no"
