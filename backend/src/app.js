@@ -14,6 +14,7 @@ const newsRoutes = require("./routes/news");
 const eventsRoutes = require("./routes/events");
 const addressRoutes = require("./routes/address");
 const supportRoutes = require("./routes/support");
+const tariffRoutes = require("./routes/tariffs");
 
 const app = express();
 
@@ -28,7 +29,7 @@ app.use(
     // API also serves images from /uploads that are consumed by the frontend.
     // Avoid blocking cross-origin image loads.
     crossOriginResourcePolicy: false,
-  })
+  }),
 );
 
 const apiLimiter = rateLimit({
@@ -65,6 +66,7 @@ app.use("/users", userRoutes);
 app.use("/news", newsRoutes);
 app.use("/events", eventsRoutes);
 app.use("/support", supportRoutes);
+app.use("/tariffs", tariffRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err);

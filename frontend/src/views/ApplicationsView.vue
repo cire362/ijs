@@ -73,6 +73,11 @@ function formatMoney(v) {
   return `${n.toLocaleString()} ₽`;
 }
 
+function formatCommission(v) {
+  if (v == null || v === "") return "На рассмотрении администратора";
+  return formatMoney(v);
+}
+
 // formatDate/formatDateTime вынесены в utils
 
 function statusLabel(status) {
@@ -237,7 +242,7 @@ const tableRows = computed(() =>
       .filter(Boolean)
       .join(", "),
     price: formatMoney(a.property?.price),
-    commission: formatMoney(a.commissionAmount),
+    commission: formatCommission(a.commissionAmount),
     deadline: a.expiresAt ? formatDate(a.expiresAt) : "—",
     fio: personName(a.agent) || personName(auth.user),
     clientFullName:
@@ -281,7 +286,7 @@ const pagedRows = computed(() => {
     <div class="section-head">
       <div>
         <div class="pill">Ваши сделки</div>
-        <h2 style="margin: 4px 0">Мои заявки</h2>
+        <h1 style="margin: 4px 0">Мои заявки</h1>
         <div class="muted">
           Прогресс отправленных заявок и история статусов.
         </div>

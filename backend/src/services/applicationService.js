@@ -5,6 +5,7 @@ const {
   StatusHistory,
   Notification,
   User,
+  TariffPropertyRate,
 } = require("../models");
 
 const RESERVING_STATUSES = new Set([
@@ -15,6 +16,31 @@ const RESERVING_STATUSES = new Set([
 ]);
 
 const INITIAL_DEADLINE_DAYS = 7;
+
+function pickActiveTariffRate(property) {
+  const rates = Array.isArray(property?.tariffRates)
+    ? property.tariffRates
+    : [];
+  if (!rates.length) return null;
+  return rates.find((r) => r?.isActive !== false) || rates[0] || null;
+}
+
+function computeCommissionAmount(property) {
+  if (!property) return null;
+  const rate = pickActiveTariffRate(property);
+  if (!rate) return null;
+  const percent = Number(rate.commissionFrom);
+  if (!Number.isFinite(percent)) return null;
+  const price = Number(property.price);
+  if (!Number.isFinite(price)) return null;
+  return Math.round(price * (percent / 100) * 100) / 100;
+}
+
+function applyComputedCommission(app) {
+  if (!app) return;
+  const computed = computeCommissionAmount(app.property);
+  app.setDataValue("commissionAmount", computed);
+}
 
 function stripDeadlineIfNotSent(app) {
   if (!app) return;
@@ -51,7 +77,17 @@ class ApplicationService {
     const apps = await Application.findAll({
       where: { agentId: user.id },
       include: [
-        { model: Property },
+        {
+          model: Property,
+          include: [
+            {
+              model: TariffPropertyRate,
+              as: "tariffRates",
+              required: false,
+              where: { isActive: true },
+            },
+          ],
+        },
         {
           model: User,
           as: "agent",
@@ -79,6 +115,7 @@ class ApplicationService {
       order: [["createdAt", "DESC"]],
     });
     apps.forEach(stripDeadlineIfNotSent);
+    apps.forEach(applyComputedCommission);
     return apps;
   }
 
@@ -100,6 +137,12 @@ class ApplicationService {
         {
           model: Property,
           include: [
+            {
+              model: TariffPropertyRate,
+              as: "tariffRates",
+              required: false,
+              where: { isActive: true },
+            },
             {
               model: User,
               as: "developer",
@@ -142,6 +185,7 @@ class ApplicationService {
       order: [["createdAt", "DESC"]],
     });
     apps.forEach(stripDeadlineIfNotSent);
+    apps.forEach(applyComputedCommission);
     return apps;
   }
 
@@ -154,23 +198,29 @@ class ApplicationService {
       clientPhone,
     } = data;
 
-    const property = await Property.findByPk(propertyId);
+    const property = await Property.findByPk(propertyId, {
+      include: [
+        {
+          model: TariffPropertyRate,
+          as: "tariffRates",
+          required: false,
+          where: { isActive: true },
+        },
+      ],
+    });
     if (!property) throw { status: 404, message: "Объект не найден" };
 
     if (property.saleStatus && property.saleStatus !== "available") {
       throw { status: 400, message: "Объект недоступен" };
     }
 
-    let computedCommission = commissionAmount;
-    if (computedCommission == null && property.price != null) {
-      const price = Number(property.price);
-      if (!Number.isNaN(price)) {
-        computedCommission = Math.round(price * 0.03 * 100) / 100;
-      }
+    let computedCommission = computeCommissionAmount(property);
+    if (computedCommission == null && commissionAmount != null) {
+      computedCommission = commissionAmount;
     }
 
     const expiresAt = new Date(
-      Date.now() + INITIAL_DEADLINE_DAYS * 24 * 60 * 60 * 1000
+      Date.now() + INITIAL_DEADLINE_DAYS * 24 * 60 * 60 * 1000,
     );
 
     const app = await Application.create({
@@ -218,7 +268,7 @@ class ApplicationService {
             propertyId: property.id,
             agentId: user.id,
           },
-        }))
+        })),
       );
     }
 
@@ -318,7 +368,7 @@ class ApplicationService {
     }
 
     const newDeadline = new Date(
-      Date.now() + INITIAL_DEADLINE_DAYS * 24 * 60 * 60 * 1000
+      Date.now() + INITIAL_DEADLINE_DAYS * 24 * 60 * 60 * 1000,
     );
     await app.update({ expiresAt: newDeadline });
 

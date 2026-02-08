@@ -346,7 +346,6 @@ onBeforeUnmount(() => {
       <div>
         <div class="pill">Коммуникации</div>
         <h2 style="margin: 4px 0">Чаты заявок</h2>
-        <div class="muted">Один чат на одну заявку.</div>
       </div>
       <el-button type="default" :loading="chatsLoading" @click="loadChats"
         >Обновить</el-button

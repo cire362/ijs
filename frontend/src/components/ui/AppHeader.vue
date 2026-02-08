@@ -22,6 +22,9 @@
           </el-menu-item>
           <el-menu-item index="/news">Новости</el-menu-item>
           <el-menu-item index="/events">Мероприятия</el-menu-item>
+          <el-menu-item v-if="isAuthed" index="/tariffs"
+            >Тарифная карта</el-menu-item
+          >
           <el-menu-item v-if="isAgent" index="/applications"
             >Мои заявки</el-menu-item
           >
@@ -139,6 +142,13 @@
             class="mobile-nav-item"
             :class="{ active: route.path === '/events' }"
             >Мероприятия</router-link
+          >
+          <router-link
+            v-if="isAuthed"
+            to="/tariffs"
+            class="mobile-nav-item"
+            :class="{ active: route.path === '/tariffs' }"
+            >Тарифная карта</router-link
           >
           <router-link
             v-if="isAgent"
