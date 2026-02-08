@@ -2,6 +2,9 @@
 FROM node:18-alpine AS build
 WORKDIR /app
 COPY frontend/package*.json ./
+# Кладём исходный index.html отдельно, чтобы в конце гарантированно восстановить
+# его как *файл* (на случай, если в процессе копирования/установки появится директория).
+COPY frontend/index.html /tmp/index.html
 RUN npm ci
 COPY frontend/ ./
 # VITE_API_URL по умолчанию не нужен (axios уже использует /api),
