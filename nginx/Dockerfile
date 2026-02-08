@@ -2,11 +2,12 @@
 FROM node:18-alpine AS build
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
-# Защита от ситуации, когда в процессе npm-установки (или по иной причине)
-# появляется директория index.html. Vite ожидает файл.
-RUN touch index.html
+# Кладём исходный index.html отдельно, чтобы в конце гарантированно восстановить
+# его как *файл* (на случай, если в процессе копирования/установки появится директория).
+COPY frontend/index.html /tmp/index.html
 RUN npm ci
 COPY frontend/ ./
+RUN rm -rf /app/frontend/index.html && cp /tmp/index.html /app/frontend/index.html
 # VITE_API_URL по умолчанию не нужен (axios уже использует /api),
 # но можно переопределить при build: --build-arg VITE_API_URL=https://api.example.com
 ARG VITE_API_URL
