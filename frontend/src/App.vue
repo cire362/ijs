@@ -3,11 +3,15 @@
     class="app-shell min-h-screen flex flex-col"
     style="min-height: 100vh; display: flex; flex-direction: column"
   >
-    <AppHeader v-if="!isLanding" />
+    <header v-if="!isLanding">
+      <AppHeader />
+    </header>
     <main :class="['flex-1', { 'page-shell': !isLanding }]" style="flex: 1">
       <RouterView />
     </main>
-    <AppFooter />
+    <footer>
+      <AppFooter />
+    </footer>
     <CookieBanner />
     <SupportWidget v-if="!isAdmin" />
   </div>

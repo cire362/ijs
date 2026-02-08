@@ -81,7 +81,7 @@ async function suggestCities(queryString, cb) {
           resolve(
             await fetchSuggestions("city", queryString, {
               region: form.value.region || undefined,
-            })
+            }),
           );
         } catch {
           resolve([]);
@@ -105,7 +105,7 @@ async function suggestStreets(queryString, cb) {
             await fetchSuggestions("street", queryString, {
               region: form.value.region || undefined,
               city: form.value.city || undefined,
-            })
+            }),
           );
         } catch {
           resolve([]);
@@ -152,9 +152,6 @@ function onImagesChange(file, fileList) {
           <div class="pill">{{ pill }}</div>
           <div style="font-weight: 700">{{ title }}</div>
         </div>
-        <el-button type="primary" @click="emit('save')" :loading="saving">
-          {{ saveLabel }}
-        </el-button>
       </div>
     </template>
 
@@ -369,7 +366,11 @@ function onImagesChange(file, fileList) {
           </el-form-item>
         </el-col>
 
-        <el-col :span="24">
+        <el-col
+          :span="24"
+          class="docs"
+          style="display: flex; justify-content: space-around"
+        >
           <el-form-item label="Фотографии (до 10 шт.)">
             <el-upload
               v-model:file-list="images"
@@ -390,9 +391,7 @@ function onImagesChange(file, fileList) {
               </div>
             </el-upload>
           </el-form-item>
-        </el-col>
 
-        <el-col :span="24">
           <el-form-item label="Документы">
             <el-upload
               v-model:file-list="documents"
@@ -409,7 +408,25 @@ function onImagesChange(file, fileList) {
             </el-upload>
           </el-form-item>
         </el-col>
+        <el-button
+          style="margin-left: auto"
+          type="primary"
+          @click="emit('save')"
+          :loading="saving"
+        >
+          {{ saveLabel }}
+        </el-button>
       </el-row>
     </el-form>
   </el-card>
 </template>
+
+<style scoped>
+@media screen and (max-width: 830px) {
+  .docs {
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+  }
+}
+</style>
