@@ -17,10 +17,14 @@ RUN set -eux \
 	&& echo "index.html before vite:" \
 	&& ls -la /app/frontend/index.html \
 	&& node -e "const fs=require('fs'); const p='/app/frontend/index.html'; const s=fs.statSync(p); console.log('stat before vite => isFile:', s.isFile(), 'isDirectory:', s.isDirectory()); console.log('read before vite (first 40):', JSON.stringify(fs.readFileSync(p,'utf8').slice(0,40)));" \
-	&& (npm run build || (echo "vite failed; inspecting index.html:" \
-			&& ls -la /app/frontend/index.html || true) \
-			&& node -e "const fs=require('fs'); const p='/app/frontend/index.html'; try { const s=fs.statSync(p); console.log('stat after vite => isFile:', s.isFile(), 'isDirectory:', s.isDirectory()); } catch(e){ console.error('stat after vite error:', e); } try { console.log('read after vite (first 40):', JSON.stringify(fs.readFileSync(p,'utf8').slice(0,40))); } catch(e){ console.error('read after vite error:', e); }" \
-			&& exit 1))
+	&& if npm run build; then \
+			echo "vite build ok"; \
+		else \
+			echo "vite failed; inspecting index.html:"; \
+			ls -la /app/frontend/index.html || true; \
+			node -e "const fs=require('fs'); const p='/app/frontend/index.html'; try { const s=fs.statSync(p); console.log('stat after vite => isFile:', s.isFile(), 'isDirectory:', s.isDirectory()); } catch(e){ console.error('stat after vite error:', e); } try { console.log('read after vite (first 40):', JSON.stringify(fs.readFileSync(p,'utf8').slice(0,40))); } catch(e){ console.error('read after vite error:', e); }"; \
+			exit 1; \
+		fi
 
 # Serve via nginx + reverse proxy
 FROM nginx:1.27-alpine
