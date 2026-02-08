@@ -8,6 +8,9 @@ COPY frontend/ ./
 # но можно переопределить при build: --build-arg VITE_API_URL=https://api.example.com
 ARG VITE_API_URL
 ENV VITE_API_URL=$VITE_API_URL
+# Debug: verify index.html type before build.
+RUN ls -la /app/frontend
+RUN if [ -d /app/frontend/index.html ]; then echo "index.html is a directory"; ls -la /app/frontend/index.html; else echo "index.html is a file"; fi
 RUN npm run build
 
 # Serve via nginx + reverse proxy
