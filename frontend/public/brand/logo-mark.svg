@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <title>IJS Logo Mark</title>
+  <g stroke="#D4A62A" stroke-width="24" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M92 236L256 112L420 236"/>
+    <path d="M144 218V292"/>
+    <path d="M392 218V268"/>
+    <path d="M200 308C200 258 240 218 290 218C324 218 355 236 371 264"/>
+    <path d="M176 330C176 298 202 272 234 272"/>
+  </g>
+
+  <g stroke="#0F4B8B" stroke-width="22" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M252 262V378"/>
+    <path d="M252 300L328 332"/>
+    <path d="M252 338L252 426"/>
+  </g>
+
+  <g fill="none" stroke-width="22">
+    <circle cx="252" cy="244" r="26" stroke="#0F4B8B"/>
+    <circle cx="350" cy="342" r="26" stroke="#0F4B8B"/>
+    <circle cx="252" cy="448" r="26" stroke="#0F4B8B"/>
+
+    <path d="M224 344L160 374" stroke="#D4A62A" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="136" cy="386" r="26" stroke="#D4A62A"/>
+  </g>
+</svg>

@@ -11,8 +11,7 @@ import NewsView from "../views/NewsView.vue";
 import NewsDetailsView from "../views/NewsDetailsView.vue";
 import EventsView from "../views/EventsView.vue";
 import ShowcaseView from "../views/ShowcaseView.vue";
-import PrivacyView from "../views/PrivacyView.vue";
-import TermsView from "../views/TermsView.vue";
+import LegalDocumentsView from "../views/LegalDocumentsView.vue";
 import AdminChatView from "../views/AdminChatView.vue";
 import TariffsView from "../views/TariffsView.vue";
 import { useAuthStore } from "../stores/auth";
@@ -29,20 +28,20 @@ const routes = [
     },
   },
   {
-    path: "/privacy",
-    component: PrivacyView,
+    path: "/legal",
+    component: LegalDocumentsView,
     meta: {
-      title: "Политика конфиденциальности — ИЖС",
-      description: "Политика конфиденциальности сервиса ИЖС.",
+      title: "Правовые документы — ИЖС",
+      description: "Правовые документы и условия использования сервиса ИЖС.",
     },
   },
   {
+    path: "/privacy",
+    redirect: { path: "/legal", query: { tab: "privacy" } },
+  },
+  {
     path: "/terms",
-    component: TermsView,
-    meta: {
-      title: "Пользовательское соглашение — ИЖС",
-      description: "Условия использования сервиса ИЖС.",
-    },
+    redirect: { path: "/legal", query: { tab: "terms" } },
   },
   {
     path: "/properties",

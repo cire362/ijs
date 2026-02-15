@@ -21,6 +21,12 @@ function toPublicUser(user) {
     developerApproved: user.developerApproved,
     developerRejected: user.developerRejected,
     avatarUrl: user.avatarUrl,
+    legalConsentAcceptedAt: user.legalConsentAcceptedAt,
+    legalConsentVersion: user.legalConsentVersion,
+    marketingConsentGiven: Boolean(user.marketingConsentGiven),
+    marketingConsentAcceptedAt: user.marketingConsentAcceptedAt,
+    marketingConsentWithdrawnAt: user.marketingConsentWithdrawnAt,
+    marketingConsentVersion: user.marketingConsentVersion,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
   };
@@ -78,7 +84,7 @@ class UserService {
     if (!currentPassword || !newPassword) {
       throw { status: 400, message: "Текущий и новый пароль обязательны" };
     }
-    if (newPassword.length < 6) {
+    if (newPassword.length < 8) {
       throw { status: 400, message: "Пароль слишком короткий" };
     }
 
@@ -89,6 +95,34 @@ class UserService {
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
     await user.update({ passwordHash });
+  }
+
+  async setMyMarketingConsent(user, { accepted, documentVersion }) {
+    const decision = Boolean(accepted);
+    const now = new Date();
+
+    if (decision) {
+      await user.update({
+        marketingConsentGiven: true,
+        marketingConsentAcceptedAt: now,
+        marketingConsentWithdrawnAt: null,
+        marketingConsentVersion:
+          normalizeSpace(documentVersion) ||
+          user.marketingConsentVersion ||
+          null,
+      });
+    } else {
+      await user.update({
+        marketingConsentGiven: false,
+        marketingConsentWithdrawnAt: now,
+        marketingConsentVersion:
+          normalizeSpace(documentVersion) ||
+          user.marketingConsentVersion ||
+          null,
+      });
+    }
+
+    return toPublicUser(user);
   }
 
   async listDevelopers(query) {
@@ -111,10 +145,10 @@ class UserService {
         approvedRaw == null || approvedRaw === ""
           ? null
           : ["1", "true", 1, true].includes(approvedRaw)
-          ? true
-          : ["0", "false", 0, false].includes(approvedRaw)
-          ? false
-          : null;
+            ? true
+            : ["0", "false", 0, false].includes(approvedRaw)
+              ? false
+              : null;
 
       if (approvedFilter === false) {
         where.developerApproved = false;

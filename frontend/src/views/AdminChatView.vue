@@ -93,7 +93,9 @@ onMounted(async () => {
   onResize();
   window.addEventListener("resize", onResize);
   // Join admin room
-  socket.emit("admin_subscribe");
+  if (auth.token) {
+    socket.emit("admin_subscribe", { token: auth.token });
+  }
 
   // Load existing chats (Prototype: we'll build list from incoming events for now,
   // or fetch from API if we implemented that. For this MVP, we might only see new activity
@@ -201,6 +203,7 @@ const sendReply = () => {
   socket.emit("admin_reply", {
     roomId: activeChatId.value,
     text: text,
+    token: auth.token,
   });
 
   // Optimistic UI

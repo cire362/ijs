@@ -72,7 +72,10 @@ const ensureGuestRoom = () => {
   } catch {
     // Ignore
   }
-  socket.emit("join_room", roomId.value);
+  socket.emit("join_room", {
+    roomId: roomId.value,
+    token: auth.token,
+  });
   return roomId.value;
 };
 
@@ -117,7 +120,12 @@ onMounted(() => {
     const setupRoom = () => {
       // Join only if we already know roomId.
       // For guests, we create a room lazily on first send.
-      if (roomId.value) socket.emit("join_room", roomId.value);
+      if (roomId.value) {
+        socket.emit("join_room", {
+          roomId: roomId.value,
+          token: auth.token,
+        });
+      }
     };
 
     if (socket.connected) setupRoom();
@@ -148,7 +156,12 @@ watch(
       guestData.value.email = auth.user?.email || "";
       roomId.value = `user:${id}`;
 
-      if (socket) socket.emit("join_room", roomId.value);
+      if (socket) {
+        socket.emit("join_room", {
+          roomId: roomId.value,
+          token: auth.token,
+        });
+      }
       await loadHistory(roomId.value);
     } else {
       // Logged out: clear UI and drop any previous room bindings.
@@ -281,7 +294,10 @@ const processSubmission = async (text) => {
     if (!auth.user) {
       ensureGuestRoom();
     } else if (roomId.value && socket) {
-      socket.emit("join_room", roomId.value);
+      socket.emit("join_room", {
+        roomId: roomId.value,
+        token: auth.token,
+      });
     }
 
     // Send via Socket
@@ -290,6 +306,7 @@ const processSubmission = async (text) => {
       sender: "user",
       senderName,
       senderEmail,
+      token: auth.token,
       // legacy keys (backward compatibility)
       name: senderName,
       email: senderEmail,

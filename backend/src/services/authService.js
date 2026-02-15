@@ -9,8 +9,9 @@ const {
   setAuthCookies,
   clearAuthCookies,
 } = require("../utils/authTokens");
+const { getJwtSecret } = require("../utils/secrets");
 
-const jwtSecret = process.env.JWT_SECRET || "dev_jwt_secret";
+const jwtSecret = getJwtSecret();
 
 function toUserPayload(user) {
   return {
@@ -23,6 +24,12 @@ function toUserPayload(user) {
     role: user.role,
     developerApproved: user.developerApproved,
     avatarUrl: user.avatarUrl,
+    legalConsentAcceptedAt: user.legalConsentAcceptedAt,
+    legalConsentVersion: user.legalConsentVersion,
+    marketingConsentGiven: Boolean(user.marketingConsentGiven),
+    marketingConsentAcceptedAt: user.marketingConsentAcceptedAt,
+    marketingConsentWithdrawnAt: user.marketingConsentWithdrawnAt,
+    marketingConsentVersion: user.marketingConsentVersion,
   };
 }
 
@@ -44,6 +51,7 @@ class AuthService {
       password,
       role,
       companyName,
+      consent,
     } = data;
 
     const emailNorm = email.toLowerCase();
@@ -65,6 +73,16 @@ class AuthService {
       derivedMiddleName = derivedMiddleName || parts.slice(2).join(" ");
     }
 
+    const legalConsentAcceptedAt = consent?.legal?.acceptedAt
+      ? new Date(consent.legal.acceptedAt)
+      : new Date();
+    const marketingAccepted = Boolean(consent?.marketing?.accepted);
+    const marketingConsentAcceptedAt = marketingAccepted
+      ? consent?.marketing?.acceptedAt
+        ? new Date(consent.marketing.acceptedAt)
+        : new Date()
+      : null;
+
     const user = await User.create({
       name: name || null,
       firstName: derivedFirstName || null,
@@ -76,6 +94,18 @@ class AuthService {
       role,
       companyName: companyName || null,
       developerApproved: role === "developer" ? false : true,
+
+      legalConsentAcceptedAt,
+      legalConsentVersion: consent?.legal?.documentVersion || null,
+      legalConsentMeta: {
+        termsPath: consent?.legal?.termsPath || null,
+        privacyPath: consent?.legal?.privacyPath || null,
+      },
+
+      marketingConsentGiven: marketingAccepted,
+      marketingConsentAcceptedAt,
+      marketingConsentWithdrawnAt: marketingAccepted ? null : new Date(),
+      marketingConsentVersion: consent?.marketing?.documentVersion || null,
     });
 
     if (role === "developer") {

@@ -81,11 +81,11 @@ function ensureSvg(filePath, title) {
   <rect x="60" y="60" width="1080" height="555" rx="28" fill="#ffffff" opacity="0.75"/>
   <text x="120" y="190" font-family="Arial, sans-serif" font-size="44" font-weight="700" fill="#111827">${safeTitle.replace(
     /[<>]/g,
-    ""
+    "",
   )}</text>
   <text x="120" y="260" font-family="Arial, sans-serif" font-size="22" fill="#374151">Автосгенерированная тестовая картинка (seed)</text>
   <text x="120" y="320" font-family="Arial, sans-serif" font-size="18" fill="#6b7280">${path.basename(
-    filePath
+    filePath,
   )}</text>
 </svg>
 `;
@@ -227,7 +227,7 @@ async function seed() {
     const middleName = randomChoice(rng, middleNames);
     const companyName = `${randomChoice(rng, companyPrefixes)} ${randomChoice(
       rng,
-      companyWords
+      companyWords,
     )} ${randomChoice(rng, companyWords)}`.replace(/\s+/g, " ");
     return {
       email: `dev${i + 1}@test.com`,
@@ -263,7 +263,7 @@ async function seed() {
     const middleName = randomChoice(rng, middleNames);
     const companyName = `${randomChoice(rng, companyPrefixes)} ${randomChoice(
       rng,
-      companyWords
+      companyWords,
     )} ${randomChoice(rng, companyWords)}`.replace(/\s+/g, " ");
 
     // Ensure at least a couple of pending accounts exist
@@ -334,12 +334,12 @@ async function seed() {
         passwordHash,
         // legacy field for older clients
         name: `${d.lastName} ${d.firstName} ${d.middleName}`.trim(),
-      })
+      }),
     );
   }
 
   const approvedDevelopers = createdDevelopers.filter(
-    (d) => d.role === "developer" && d.developerApproved
+    (d) => d.role === "developer" && d.developerApproved,
   );
 
   for (const a of agents) {
@@ -430,7 +430,7 @@ async function seed() {
   for (let i = 0; i < propertiesCount; i++) {
     const dev = randomChoice(
       rng,
-      approvedDevelopers.length ? approvedDevelopers : createdDevelopers
+      approvedDevelopers.length ? approvedDevelopers : createdDevelopers,
     );
     const loc = randomChoice(rng, regions);
     const city = randomChoice(rng, loc.cities);
@@ -513,16 +513,16 @@ async function seed() {
 
     const clientFullName = `${randomChoice(rng, lastNames)} ${randomChoice(
       rng,
-      firstNames
+      firstNames,
     )} ${randomChoice(rng, middleNames)}`
       .replace(/\s+/g, " ")
       .trim();
     const clientPhone = `+7 9${randomInt(rng, 10, 99)} ${randomInt(
       rng,
       100,
-      999
+      999,
     )}-${String(randomInt(rng, 0, 99)).padStart(2, "0")}-${String(
-      randomInt(rng, 0, 99)
+      randomInt(rng, 0, 99),
     ).padStart(2, "0")}`;
 
     // Ensure expired only happens from 'sent' stage
@@ -535,8 +535,8 @@ async function seed() {
       status === "sent"
         ? daysFromNow(7 + randomInt(rng, -2, 10))
         : status === "expired"
-        ? daysAgo(randomInt(rng, 1, 10))
-        : null;
+          ? daysAgo(randomInt(rng, 1, 10))
+          : null;
 
     const app = await Application.create({
       propertyId: property.id,
@@ -627,8 +627,8 @@ async function seed() {
     const nextStatus = hasDone
       ? "sold"
       : hasReserving
-      ? "reserved"
-      : "available";
+        ? "reserved"
+        : "available";
     if (prop.saleStatus !== nextStatus) {
       await prop.update({ saleStatus: nextStatus });
     }
@@ -667,7 +667,7 @@ async function seed() {
         (_, p) =>
           `Абзац ${
             p + 1
-          }. Это тестовый текст новости для демонстрации. Seed: ${seedValue}.`
+          }. Это тестовый текст новости для демонстрации. Seed: ${seedValue}.`,
       );
 
       const content = paragraphs.join("\n\n");
@@ -733,21 +733,21 @@ async function seed() {
         randomInt(rng, 10, 19),
         randomChoice(rng, [0, 0, 15, 30, 45]),
         0,
-        0
+        0,
       );
       const endAt = new Date(
-        startAt.getTime() + randomInt(rng, 60, 180) * 60 * 1000
+        startAt.getTime() + randomInt(rng, 60, 180) * 60 * 1000,
       );
 
       const location =
         format === "online"
           ? randomChoice(rng, locationsOnline)
           : format === "hybrid"
-          ? `${randomChoice(rng, locationsOffline)} + ${randomChoice(
-              rng,
-              locationsOnline
-            )}`
-          : randomChoice(rng, locationsOffline);
+            ? `${randomChoice(rng, locationsOffline)} + ${randomChoice(
+                rng,
+                locationsOnline,
+              )}`
+            : randomChoice(rng, locationsOffline);
 
       const capacity = rng() < 0.75 ? randomInt(rng, 10, 80) : null;
 

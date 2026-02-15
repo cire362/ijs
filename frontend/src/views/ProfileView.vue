@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import { ElMessage } from "element-plus";
 import { apiClient, useAuthStore } from "../stores/auth";
 import { limits } from "@/utils/constraints";
+import { LEGAL_DOC_VERSION } from "@/utils/consent";
 
 const auth = useAuthStore();
 
@@ -10,6 +11,7 @@ const loading = ref(false);
 const saving = ref(false);
 
 const passwordSaving = ref(false);
+const consentSaving = ref(false);
 const passwordForm = ref({
   currentPassword: "",
   newPassword: "",
@@ -26,6 +28,25 @@ const form = ref({
 });
 
 const isAuthed = computed(() => Boolean(auth.user));
+const marketingConsentGiven = computed(() =>
+  Boolean(auth.user?.marketingConsentGiven),
+);
+
+const marketingConsentText = computed(() => {
+  if (marketingConsentGiven.value) {
+    const at = auth.user?.marketingConsentAcceptedAt;
+    return at
+      ? `Согласие активно с ${new Date(at).toLocaleString("ru-RU")}`
+      : "Согласие активно";
+  }
+
+  const withdrawnAt = auth.user?.marketingConsentWithdrawnAt;
+  if (withdrawnAt) {
+    return `Согласие отозвано ${new Date(withdrawnAt).toLocaleString("ru-RU")}`;
+  }
+
+  return "Согласие не предоставлено";
+});
 
 onMounted(() => {
   if (isAuthed.value) load();
@@ -49,7 +70,7 @@ async function load() {
     }
   } catch (err) {
     ElMessage.error(
-      err.response?.data?.error || "Не удалось загрузить профиль"
+      err.response?.data?.error || "Не удалось загрузить профиль",
     );
   } finally {
     loading.value = false;
@@ -58,7 +79,7 @@ async function load() {
 
 const avatarSrc = computed(() => auth.user?.avatarUrl || "");
 const displayName = computed(
-  () => auth.user?.fullName || auth.user?.name || "Пользователь"
+  () => auth.user?.fullName || auth.user?.name || "Пользователь",
 );
 
 async function uploadAvatar(options) {
@@ -125,7 +146,7 @@ async function save() {
     ElMessage.success("Профиль обновлён");
   } catch (err) {
     ElMessage.error(
-      err.response?.data?.error || "Не удалось сохранить профиль"
+      err.response?.data?.error || "Не удалось сохранить профиль",
     );
   } finally {
     saving.value = false;
@@ -137,8 +158,8 @@ async function changePassword() {
     ElMessage.error("Укажите текущий и новый пароль");
     return;
   }
-  if (passwordForm.value.newPassword.length < 6) {
-    ElMessage.error("Пароль должен быть минимум 6 символов");
+  if (passwordForm.value.newPassword.length < 8) {
+    ElMessage.error("Пароль должен быть минимум 8 символов");
     return;
   }
   if (passwordForm.value.newPassword !== passwordForm.value.confirmPassword) {
@@ -162,6 +183,32 @@ async function changePassword() {
     ElMessage.error(err.response?.data?.error || "Не удалось сменить пароль");
   } finally {
     passwordSaving.value = false;
+  }
+}
+
+async function setMarketingConsent(accepted) {
+  consentSaving.value = true;
+  try {
+    const { data } = await apiClient.patch("/users/me/consents/marketing", {
+      accepted,
+      documentVersion: LEGAL_DOC_VERSION,
+    });
+
+    if (auth.user) {
+      auth.user = { ...auth.user, ...data };
+    }
+
+    ElMessage.success(
+      accepted
+        ? "Маркетинговое согласие включено"
+        : "Маркетинговое согласие отозвано",
+    );
+  } catch (err) {
+    ElMessage.error(
+      err.response?.data?.error || "Не удалось обновить маркетинговое согласие",
+    );
+  } finally {
+    consentSaving.value = false;
   }
 }
 </script>
@@ -329,6 +376,44 @@ async function changePassword() {
           </el-col>
         </el-row>
       </el-form>
+    </el-card>
+
+    <el-card v-if="isAuthed" shadow="never" style="margin-top: var(--gap-md)">
+      <template #header>
+        <div class="section-head" style="margin: 0">
+          <div>
+            <div class="pill">Согласия</div>
+            <div style="font-weight: 700">Маркетинговые коммуникации</div>
+          </div>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap">
+            <el-button
+              type="default"
+              :loading="consentSaving"
+              :disabled="marketingConsentGiven"
+              @click="setMarketingConsent(true)"
+            >
+              Дать согласие
+            </el-button>
+            <el-button
+              type="warning"
+              plain
+              :loading="consentSaving"
+              :disabled="!marketingConsentGiven"
+              @click="setMarketingConsent(false)"
+            >
+              Отозвать согласие
+            </el-button>
+          </div>
+        </div>
+      </template>
+
+      <div class="muted" style="margin-bottom: 10px">
+        {{ marketingConsentText }}
+      </div>
+      <div class="muted">
+        Вы можете в любой момент изменить решение по рекламно-информационным
+        рассылкам без влияния на использование сервиса.
+      </div>
     </el-card>
   </div>
 </template>

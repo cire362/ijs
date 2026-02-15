@@ -15,8 +15,10 @@ const { Server } = require("socket.io");
 const { expireSentApplications } = require("./jobs/applicationExpiry");
 const { sendEventReminders } = require("./jobs/eventReminders");
 const { setIO } = require("./socket");
+const { getJwtSecret } = require("./utils/secrets");
+const { getSocketCorsOptions } = require("./utils/cors");
 
-const jwtSecret = process.env.JWT_SECRET || "dev_jwt_secret";
+const jwtSecret = getJwtSecret();
 
 function dbInfo() {
   const cfg = sequelize?.config;
@@ -30,7 +32,7 @@ function dbInfo() {
 
 const port = process.env.PORT || 4000;
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
+const io = new Server(server, { cors: getSocketCorsOptions() });
 setIO(io);
 
 async function getUserFromToken(token) {
@@ -51,13 +53,34 @@ async function canAccessApplicationChat(appEntity, user) {
   return false;
 }
 
+function parseSocketPayload(payload) {
+  if (payload && typeof payload === "object") return payload;
+  return { roomId: payload };
+}
+
+function canJoinGuestSupportRoom(roomId) {
+  return (
+    /^guest:[a-z0-9_-]{6,}$/i.test(roomId) || /^socket:[\w-]+$/.test(roomId)
+  );
+}
+
 io.on("connection", (socket) => {
-  socket.on("subscribe", (userId) => {
-    socket.join(`user:${userId}`);
+  socket.on("subscribe", async (payload) => {
+    const data = payload && typeof payload === "object" ? payload : {};
+    const requestedUserId = parseInt(data.userId, 10);
+    if (!Number.isFinite(requestedUserId)) return;
+
+    const user = await getUserFromToken(data.token);
+    if (!user) return;
+    if (user.role !== "admin" && user.id !== requestedUserId) return;
+
+    socket.join(`user:${requestedUserId}`);
   });
 
   // Admin joins the admin room
-  socket.on("admin_subscribe", () => {
+  socket.on("admin_subscribe", async (payload) => {
+    const user = await getUserFromToken(payload?.token);
+    if (!user || user.role !== "admin") return;
     socket.join("admins");
   });
 
@@ -85,18 +108,16 @@ io.on("connection", (socket) => {
     let senderEmail = incomingEmail;
 
     // If the room is bound to an authenticated user, we can hydrate missing identity.
-    if (
-      (senderName == null || senderEmail == null) &&
-      /^user:\d+$/.test(roomId)
-    ) {
+    if (/^user:\d+$/.test(roomId)) {
       const userId = parseInt(roomId.split(":")[1], 10);
-      if (Number.isFinite(userId)) {
-        const user = await User.findByPk(userId);
-        if (user) {
-          senderName = senderName || user.fullName || user.name || null;
-          senderEmail = senderEmail || user.email || null;
-        }
-      }
+      if (!Number.isFinite(userId)) return;
+
+      const user = await getUserFromToken(msg?.token);
+      if (!user) return;
+      if (user.role !== "admin" && user.id !== userId) return;
+
+      senderName = senderName || user.fullName || user.name || null;
+      senderEmail = senderEmail || user.email || null;
     }
 
     try {
@@ -141,6 +162,9 @@ io.on("connection", (socket) => {
 
   socket.on("admin_reply", async (msg) => {
     try {
+      const user = await getUserFromToken(msg?.token);
+      if (!user || user.role !== "admin") return;
+
       await ChatMessage.create({
         text: msg.text,
         isAdmin: true,
@@ -158,8 +182,30 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("join_room", (roomId) => {
-    socket.join(roomId);
+  socket.on("join_room", async (payload) => {
+    const data = parseSocketPayload(payload);
+    const roomId = String(data?.roomId || "").trim();
+    if (!roomId) return;
+
+    if (/^user:\d+$/.test(roomId)) {
+      const user = await getUserFromToken(data?.token);
+      const userId = parseInt(roomId.split(":")[1], 10);
+      if (!user || !Number.isFinite(userId)) return;
+      if (user.role !== "admin" && user.id !== userId) return;
+      socket.join(roomId);
+      return;
+    }
+
+    if (roomId === "admins" || roomId === "application_admins") {
+      const user = await getUserFromToken(data?.token);
+      if (!user || user.role !== "admin") return;
+      socket.join(roomId);
+      return;
+    }
+
+    if (canJoinGuestSupportRoom(roomId)) {
+      socket.join(roomId);
+    }
   });
 
   // Application chat rooms (1 application = 1 chat)

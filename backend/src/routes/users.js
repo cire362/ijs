@@ -8,6 +8,7 @@ const {
   updateMe,
   uploadMyAvatar,
   changeMyPassword,
+  setMyMarketingConsent,
   listDevelopers,
   approveDeveloper,
   rejectDeveloper,
@@ -18,47 +19,52 @@ const {
 router.get("/me", authenticate, asyncHandler(getMe));
 router.patch("/me", authenticate, asyncHandler(updateMe));
 router.patch("/me/password", authenticate, asyncHandler(changeMyPassword));
+router.patch(
+  "/me/consents/marketing",
+  authenticate,
+  asyncHandler(setMyMarketingConsent),
+);
 router.post(
   "/me/avatar",
   authenticate,
   (req, res, next) =>
     uploadAvatar(req, res, (err) => (err ? next(err) : next())),
-  asyncHandler(uploadMyAvatar)
+  asyncHandler(uploadMyAvatar),
 );
 
 router.get(
   "/developers",
   authenticate,
   allowRoles("admin"),
-  asyncHandler(listDevelopers)
+  asyncHandler(listDevelopers),
 );
 
 router.patch(
   "/developers/:id/approve",
   authenticate,
   allowRoles("admin"),
-  asyncHandler(approveDeveloper)
+  asyncHandler(approveDeveloper),
 );
 
 router.patch(
   "/developers/:id/reject",
   authenticate,
   allowRoles("admin"),
-  asyncHandler(rejectDeveloper)
+  asyncHandler(rejectDeveloper),
 );
 
 router.delete(
   "/developers/:id",
   authenticate,
   allowRoles("admin"),
-  asyncHandler(deleteDeveloperRequest)
+  asyncHandler(deleteDeveloperRequest),
 );
 
 router.post(
   "/developers",
   authenticate,
   allowRoles("admin"),
-  asyncHandler(createDeveloperByAdmin)
+  asyncHandler(createDeveloperByAdmin),
 );
 
 module.exports = router;

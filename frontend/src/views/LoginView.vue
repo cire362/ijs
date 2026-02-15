@@ -4,13 +4,14 @@ import { useRouter, useRoute } from "vue-router";
 import { useAuthStore } from "../stores/auth";
 import { ElMessage } from "element-plus";
 import { limits } from "@/utils/constraints";
+import { LEGAL_DOC_VERSION } from "@/utils/consent";
 
 const auth = useAuthStore();
 const router = useRouter();
 const route = useRoute();
 
 const activeTab = ref("login");
-const loginForm = ref({ email: "agent@test.com", password: "password" });
+const loginForm = ref({ email: "", password: "" });
 const registerForm = ref({
   lastName: "",
   firstName: "",
@@ -80,6 +81,24 @@ onMounted(() => {
   }
 });
 
+function buildConsentPayload() {
+  const acceptedAt = new Date().toISOString();
+  return {
+    legal: {
+      accepted: Boolean(registerForm.value.agreeLegal),
+      acceptedAt,
+      documentVersion: LEGAL_DOC_VERSION,
+      termsPath: "/terms",
+      privacyPath: "/privacy",
+    },
+    marketing: {
+      accepted: Boolean(registerForm.value.agreeMarketing),
+      acceptedAt: registerForm.value.agreeMarketing ? acceptedAt : null,
+      documentVersion: LEGAL_DOC_VERSION,
+    },
+  };
+}
+
 const submit = async () => {
   try {
     if (activeTab.value === "login") {
@@ -107,6 +126,7 @@ const submit = async () => {
             password: registerForm.value.password,
             role: registerForm.value.role,
             companyName: registerForm.value.companyName,
+            consent: buildConsentPayload(),
           });
         }
       });
@@ -268,7 +288,7 @@ const submit = async () => {
                   <span class="checkbox-text">
                     Я принимаю условия
                     <a
-                      href="/terms"
+                      href="/legal?tab=terms"
                       target="_blank"
                       class="text-blue-600 hover:underline"
                       >Пользовательского соглашения</a
@@ -276,7 +296,7 @@ const submit = async () => {
                     и даю согласие на обработку моих персональных данных в
                     соответствии с
                     <a
-                      href="/privacy"
+                      href="/legal?tab=privacy"
                       target="_blank"
                       class="text-blue-600 hover:underline"
                       >Политикой конфиденциальности</a
@@ -292,6 +312,9 @@ const submit = async () => {
                     рассылок (новости сервиса, анонсы вебинаров).
                   </span>
                 </el-checkbox>
+                <div class="consent-hint">
+                  Согласие на рассылку можно отозвать, обратившись в поддержку.
+                </div>
               </el-form-item>
 
               <el-form-item>
@@ -338,5 +361,11 @@ const submit = async () => {
 
 .checkbox-text {
   display: block;
+}
+
+.consent-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-muted, #737373);
 }
 </style>

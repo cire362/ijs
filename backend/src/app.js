@@ -15,6 +15,7 @@ const eventsRoutes = require("./routes/events");
 const addressRoutes = require("./routes/address");
 const supportRoutes = require("./routes/support");
 const tariffRoutes = require("./routes/tariffs");
+const { getHttpCorsOptions } = require("./utils/cors");
 
 const app = express();
 
@@ -23,7 +24,7 @@ if (process.env.NODE_ENV === "production") {
   app.set("trust proxy", 1);
 }
 
-app.use(cors({ origin: true, credentials: false }));
+app.use(cors(getHttpCorsOptions()));
 app.use(
   helmet({
     // API also serves images from /uploads that are consumed by the frontend.

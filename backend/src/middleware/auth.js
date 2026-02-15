@@ -1,7 +1,8 @@
 const jwt = require("jsonwebtoken");
 const { User } = require("../models");
+const { getJwtSecret } = require("../utils/secrets");
 
-const jwtSecret = process.env.JWT_SECRET || "dev_jwt_secret";
+const jwtSecret = getJwtSecret();
 
 const optionalAuthenticate = async (req, res, next) => {
   const header = req.headers.authorization;
@@ -48,11 +49,9 @@ const allowRoles =
       roles.includes("developer") &&
       req.user.developerApproved === false
     ) {
-      return res
-        .status(403)
-        .json({
-          error: "Аккаунт застройщика требует подтверждения администратора",
-        });
+      return res.status(403).json({
+        error: "Аккаунт застройщика требует подтверждения администратора",
+      });
     }
     next();
   };

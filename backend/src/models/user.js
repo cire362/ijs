@@ -42,8 +42,46 @@ User.init(
     developerRejected: { type: DataTypes.BOOLEAN, defaultValue: false },
     companyName: { type: DataTypes.STRING },
     avatarUrl: { type: DataTypes.STRING },
+
+    legalConsentAcceptedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      field: "legal_consent_accepted_at",
+    },
+    legalConsentVersion: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      field: "legal_consent_version",
+    },
+    legalConsentMeta: {
+      type: DataTypes.JSON,
+      allowNull: true,
+      field: "legal_consent_meta",
+    },
+
+    marketingConsentGiven: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+      field: "marketing_consent_given",
+    },
+    marketingConsentAcceptedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      field: "marketing_consent_accepted_at",
+    },
+    marketingConsentWithdrawnAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      field: "marketing_consent_withdrawn_at",
+    },
+    marketingConsentVersion: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      field: "marketing_consent_version",
+    },
   },
-  { sequelize, modelName: "user" }
+  { sequelize, modelName: "user" },
 );
 
 module.exports = User;

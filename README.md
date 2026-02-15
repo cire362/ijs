@@ -40,6 +40,8 @@ cp .env.example .env
 
 - `POSTGRES_PASSWORD`
 - `JWT_SECRET`
+- `CORS_ALLOWED_ORIGINS` (например: `https://example.com,https://www.example.com`)
+- `APP_ORIGIN` (например: `https://example.com`)
 
 ### 4) Запуск
 
@@ -58,6 +60,15 @@ docker compose -f docker-compose.prod.yml -f docker-compose.http.yml up -d --bui
 
 - сайт: `http://<ваш-домен>/`
 - API health: `http://<ваш-домен>/api/health`
+
+### 4.1) HTTPS (рекомендуется для production)
+
+В репозитории есть шаблон `nginx/default.https.conf.example`.
+Для включения TLS:
+
+1. Подготовьте сертификаты (`fullchain.pem`, `privkey.pem`) и смонтируйте их в контейнер nginx.
+2. Замените `nginx/default.conf` на конфиг из шаблона (подставьте ваш домен и пути к сертификатам).
+3. Откройте порт `443` на сервере.
 
 ### 5) (Опционально) сиды
 

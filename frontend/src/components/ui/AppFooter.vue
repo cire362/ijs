@@ -46,18 +46,31 @@
       >
         <div>IJSHub © 2026 ООО «АйДжейЭс». Все права защищены.</div>
         <div class="flex flex-wrap gap-4 md:gap-8 justify-center">
-          <router-link to="/privacy" class="hover:text-white transition"
+          <router-link to="/legal" class="hover:text-white transition"
+            >Правовые документы</router-link
+          >
+          <router-link
+            :to="{ path: '/legal', query: { tab: 'privacy' } }"
+            class="hover:text-white transition"
             >Политика конфиденциальности</router-link
           >
-          <router-link to="/terms" class="hover:text-white transition"
-            >Пользовательское соглашение</router-link
-          >
+          <button class="hover:text-white transition" @click="openCookies">
+            Настройки cookie
+          </button>
         </div>
         <div>ИНН 1234567890</div>
       </div>
     </div>
   </footer>
 </template>
+
+<script setup>
+import { openCookieSettings } from "@/utils/consent";
+
+function openCookies() {
+  openCookieSettings();
+}
+</script>
 
 <style scoped>
 .bg-accent {

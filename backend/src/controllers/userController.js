@@ -22,6 +22,19 @@ const changeMyPassword = asyncHandler(async (req, res) => {
   res.json({ success: true });
 });
 
+const setMyMarketingConsent = asyncHandler(async (req, res) => {
+  const accepted = req.body?.accepted;
+  if (typeof accepted !== "boolean") {
+    return res.status(400).json({ error: "Поле accepted должно быть boolean" });
+  }
+
+  const user = await userService.setMyMarketingConsent(req.user, {
+    accepted,
+    documentVersion: req.body?.documentVersion,
+  });
+  res.json(user);
+});
+
 const listDevelopers = asyncHandler(async (req, res) => {
   const users = await userService.listDevelopers(req.query);
   res.json(users);
@@ -52,6 +65,7 @@ module.exports = {
   updateMe,
   uploadMyAvatar,
   changeMyPassword,
+  setMyMarketingConsent,
   listDevelopers,
   approveDeveloper,
   rejectDeveloper,

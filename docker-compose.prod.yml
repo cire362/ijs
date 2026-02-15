@@ -21,7 +21,8 @@ services:
       NODE_ENV: production
       PORT: ${PORT:-4000}
       DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@db:5432/ijshub}
-      JWT_SECRET: ${JWT_SECRET:-supersecret_jwt_key_change_me}
+      JWT_SECRET: ${JWT_SECRET?JWT_SECRET is required}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS?CORS_ALLOWED_ORIGINS is required}
     depends_on:
       - db
     volumes:

@@ -40,14 +40,15 @@ export const useNotificationsStore = defineStore("notifications", () => {
     }
   }
 
-  function connect(userId) {
+  function connect({ userId, token } = {}) {
     if (!userId) return;
+    if (!token) return;
     if (subscribedUserId === userId && socket) return;
 
     socket = getSocket();
     subscribedUserId = userId;
 
-    socket.emit("subscribe", userId);
+    socket.emit("subscribe", { userId, token });
     socket.off("notification", handleIncoming);
     socket.on("notification", handleIncoming);
   }

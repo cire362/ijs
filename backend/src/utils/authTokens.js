@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const { getRefreshTokenSecret } = require("./secrets");
 
 const DEFAULT_ACCESS_TTL = process.env.ACCESS_TOKEN_TTL || "15m";
 const DEFAULT_REFRESH_DAYS = Number(process.env.REFRESH_TOKEN_DAYS || 30);
@@ -21,11 +22,7 @@ function isHttpsRequest(req) {
 }
 
 function getHmacSecret() {
-  return (
-    process.env.REFRESH_TOKEN_SECRET ||
-    process.env.JWT_SECRET ||
-    "dev_jwt_secret"
-  );
+  return getRefreshTokenSecret();
 }
 
 function hashToken(token) {

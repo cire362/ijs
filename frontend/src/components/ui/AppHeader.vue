@@ -2,7 +2,7 @@
   <el-header class="app-header">
     <div class="header-inner">
       <div class="brand" @click="router.push('/')" style="cursor: pointer">
-        <div class="brand-mark">ИЖС</div>
+        <img class="brand-mark" src="/brand/icon-home.svg" alt="ИЖС" />
         <div class="brand-text">
           <div class="brand-title">ИЖС</div>
           <div class="brand-sub">ИЖС</div>
@@ -336,7 +336,9 @@ onMounted(async () => {
     // 2. Listen for new messages
     if (socket) {
       // Ensure admin room
-      socket.emit("admin_subscribe");
+      if (auth.token) {
+        socket.emit("admin_subscribe", { token: auth.token });
+      }
 
       // Ensure global application chats room
       if (auth.token) {
@@ -358,7 +360,12 @@ onMounted(async () => {
 watch(
   () => auth.token,
   async () => {
+    if (auth.user?.id && auth.token) {
+      notifications.connect({ userId: auth.user.id, token: auth.token });
+    }
+
     if (isAdmin.value && auth.token) {
+      socket.emit("admin_subscribe", { token: auth.token });
       socket.emit("application_admin_subscribe", { token: auth.token });
     }
     if (isAgent.value) {
@@ -371,7 +378,7 @@ watch(
   () => auth.user?.id,
   async (id) => {
     if (id) {
-      notifications.connect(id);
+      notifications.connect({ userId: id, token: auth.token });
       await notifications.refreshUnreadCount();
 
       if (auth.user?.role === "admin" || auth.user?.role === "agent") {
@@ -448,13 +455,8 @@ function goProfile() {
   width: 42px;
   height: 42px;
   border-radius: 10px;
-  background: var(--accent-yellow);
-  color: var(--header-bg);
-  font-weight: 800;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  letter-spacing: -0.5px;
+  object-fit: cover;
+  display: block;
 }
 .brand-title {
   font-weight: 700;
