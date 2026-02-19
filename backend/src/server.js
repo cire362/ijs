@@ -49,7 +49,11 @@ async function getUserFromToken(token) {
 async function canAccessApplicationChat(appEntity, user) {
   if (!user || !appEntity) return false;
   if (user.role === "admin") return true;
-  if (user.role === "agent" && appEntity.agentId === user.id) return true;
+  if (
+    ["agent", "individual"].includes(user.role) &&
+    appEntity.agentId === user.id
+  )
+    return true;
   return false;
 }
 
@@ -217,7 +221,7 @@ io.on("connection", (socket) => {
 
       const user = await getUserFromToken(token);
       if (!user) return;
-      if (!["admin", "agent"].includes(user.role)) return;
+      if (!["admin", "agent", "individual"].includes(user.role)) return;
 
       const appEntity = await Application.findByPk(applicationId);
       if (!appEntity) return;

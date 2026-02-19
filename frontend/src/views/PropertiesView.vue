@@ -12,13 +12,17 @@ import PropertyCreateFormCard from "@/components/properties/PropertyCreateFormCa
 import SearchStatusFiltersCard from "@/components/ui/SearchStatusFiltersCard.vue";
 import { normalizeText } from "@/utils/text";
 import { humanizeApiError } from "@/utils/errors";
+import { normalizeRuPhone } from "@/utils/phone";
 
 const auth = useAuthStore();
 const router = useRouter();
 const items = ref([]);
 const loading = ref(false);
 
-const isAgent = computed(() => auth.user?.role === "agent");
+const isAgent = computed(() =>
+  ["agent", "individual"].includes(auth.user?.role),
+);
+const isIndividual = computed(() => auth.user?.role === "individual");
 const isManager = computed(
   () =>
     (auth.user?.role === "developer" && auth.user?.developerApproved) ||
@@ -725,15 +729,39 @@ async function createProperty() {
 }
 
 async function applyToProperty(propertyId) {
-  const fio = String(applicationClientFullNames.value[propertyId] || "").trim();
-  const phone = String(applicationClientPhones.value[propertyId] || "").trim();
+  const profileFio = [
+    auth.user?.lastName,
+    auth.user?.firstName,
+    auth.user?.middleName,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  const fio = isIndividual.value
+    ? profileFio ||
+      String(auth.user?.fullName || "").trim() ||
+      String(auth.user?.email || "").trim()
+    : String(applicationClientFullNames.value[propertyId] || "").trim();
+  const phone = isIndividual.value
+    ? normalizeRuPhone(auth.user?.phone)
+    : normalizeRuPhone(applicationClientPhones.value[propertyId]);
   if (!fio) {
-    ElMessage.error("Укажите ФИО клиента");
+    ElMessage.error(
+      isIndividual.value ? "Заполните ФИО в профиле" : "Укажите ФИО клиента",
+    );
     return;
   }
   if (!phone) {
-    ElMessage.error("Укажите телефон клиента");
+    ElMessage.error(
+      isIndividual.value
+        ? "Заполните телефон в профиле"
+        : "Укажите корректный телефон клиента (пример: +7 900 100-00-11)",
+    );
     return;
+  }
+  if (!isIndividual.value) {
+    applicationClientPhones.value[propertyId] = phone;
   }
   try {
     await apiClient.post("/applications", {
@@ -748,6 +776,15 @@ async function applyToProperty(propertyId) {
     applicationClientPhones.value[propertyId] = "";
   } catch (err) {
     ElMessage.error(humanizeApiError(err, "Не удалось отправить заявку"));
+  }
+}
+
+function normalizeApplicationPhone(propertyId) {
+  const normalized = normalizeRuPhone(
+    applicationClientPhones.value[propertyId],
+  );
+  if (normalized) {
+    applicationClientPhones.value[propertyId] = normalized;
   }
 }
 
@@ -800,7 +837,7 @@ function goDetails(propertyId) {
       <div>
         <div class="pill">{{ isDeveloperRole ? "Застройщик" : "Каталог" }}</div>
         <h1 style="margin: 4px 0">
-          {{ isDeveloperRole ? "Мои объекты" : "Объекты ИЖС" }}
+          {{ isDeveloperRole ? "Мои объекты" : "Объекты ИЖС платформа" }}
         </h1>
         <div class="muted">
           {{
@@ -868,16 +905,19 @@ function goDetails(propertyId) {
           >
           <template v-if="isAgent && p.saleStatus === 'available'">
             <el-input
+              v-if="!isIndividual"
               v-model="applicationClientFullNames[p.id]"
               placeholder="ФИО клиента"
               :maxlength="limits.application.clientFullName"
               style="flex: 1; min-width: 200px"
             />
             <el-input
+              v-if="!isIndividual"
               v-model="applicationClientPhones[p.id]"
               placeholder="Телефон клиента"
               :maxlength="limits.application.clientPhone"
               style="flex: 1; min-width: 180px"
+              @blur="normalizeApplicationPhone(p.id)"
             />
             <el-input
               v-model="applicationComments[p.id]"

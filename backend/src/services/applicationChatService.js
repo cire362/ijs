@@ -10,7 +10,8 @@ function canAccessApplicationChat(app, user) {
   if (!app) return false;
 
   if (user.role === "admin") return true;
-  if (user.role === "agent" && app.agentId === user.id) return true;
+  if (["agent", "individual"].includes(user.role) && app.agentId === user.id)
+    return true;
 
   return false;
 }
@@ -27,14 +28,14 @@ class ApplicationChatService {
       err.status = 401;
       throw err;
     }
-    if (!["admin", "agent"].includes(user.role)) {
+    if (!["admin", "agent", "individual"].includes(user.role)) {
       const err = new Error("Доступ запрещён");
       err.status = 403;
       throw err;
     }
 
     const appsWhere = {};
-    if (user.role === "agent") {
+    if (["agent", "individual"].includes(user.role)) {
       appsWhere.agentId = user.id;
     }
 

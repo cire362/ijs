@@ -1,4 +1,5 @@
 const Joi = require("joi");
+const { isValidRuPhone } = require("../utils/phone");
 
 const consentSchema = Joi.object({
   legal: Joi.object({
@@ -36,18 +37,41 @@ const registerSchema = Joi.object({
     "string.min": "Пароль должен быть не менее 8 символов",
     "any.required": "Укажите пароль",
   }),
-  role: Joi.string().valid("agent", "developer").required().messages({
-    "any.only": "Недопустимая роль",
-    "any.required": "Укажите роль",
-  }),
+  role: Joi.string()
+    .valid("agent", "individual", "developer")
+    .required()
+    .messages({
+      "any.only": "Недопустимая роль",
+      "any.required": "Укажите роль",
+    }),
   firstName: Joi.string().trim().max(100).allow(null, ""),
   lastName: Joi.string().trim().max(100).allow(null, ""),
   middleName: Joi.string().trim().max(100).allow(null, ""),
   name: Joi.string().trim().max(200).allow(null, ""), // legacy support
-  phone: Joi.string().trim().max(50).required().messages({
-    "any.required": "Укажите телефон",
+  phone: Joi.string()
+    .trim()
+    .max(50)
+    .required()
+    .custom((value, helpers) => {
+      if (!isValidRuPhone(value)) {
+        return helpers.error("string.pattern.base");
+      }
+      return value;
+    })
+    .messages({
+      "any.required": "Укажите телефон",
+      "string.empty": "Укажите телефон",
+      "string.pattern.base":
+        "Некорректный телефон (пример: +7 900 100-00-11 или 8 900 100-00-11)",
+    }),
+  companyName: Joi.when("role", {
+    is: Joi.valid("agent", "developer"),
+    then: Joi.string().trim().max(200).required().messages({
+      "any.required": "Укажите компанию",
+      "string.empty": "Укажите компанию",
+    }),
+    otherwise: Joi.string().trim().max(200).allow(null, ""),
   }),
-  companyName: Joi.string().trim().max(200).allow(null, ""),
   consent: consentSchema,
 });
 

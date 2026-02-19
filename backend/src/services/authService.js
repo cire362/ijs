@@ -1,6 +1,8 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const { Op, fn, col, where } = require("sequelize");
 const { User, AuthSession, Notification } = require("../models");
+const { formatRuPhone, toCanonicalRuDigits } = require("../utils/phone");
 const {
   hashToken,
   randomToken,
@@ -21,7 +23,9 @@ function toUserPayload(user) {
     middleName: user.middleName,
     fullName: user.fullName,
     email: user.email,
+    phone: user.phone,
     role: user.role,
+    companyName: user.companyName,
     developerApproved: user.developerApproved,
     avatarUrl: user.avatarUrl,
     legalConsentAcceptedAt: user.legalConsentAcceptedAt,
@@ -55,10 +59,34 @@ class AuthService {
     } = data;
 
     const emailNorm = email.toLowerCase();
+    const phoneNorm = formatRuPhone(phone);
+    const phoneCanonical = toCanonicalRuDigits(phone);
+
+    if (!phoneNorm || !phoneCanonical) {
+      throw {
+        status: 400,
+        message:
+          "Некорректный телефон (пример: +7 900 100-00-11 или 8 900 100-00-11)",
+      };
+    }
 
     const exists = await User.findOne({ where: { email: emailNorm } });
     if (exists) {
       throw { status: 409, message: "Email уже зарегистрирован" };
+    }
+
+    const existsByPhone = await User.findOne({
+      where: {
+        [Op.or]: [
+          { phone: phoneNorm },
+          where(fn("regexp_replace", col("phone"), "\\D", "", "g"), {
+            [Op.in]: [phoneCanonical, `8${phoneCanonical.slice(1)}`],
+          }),
+        ],
+      },
+    });
+    if (existsByPhone) {
+      throw { status: 409, message: "Телефон уже зарегистрирован" };
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
@@ -76,6 +104,12 @@ class AuthService {
     const legalConsentAcceptedAt = consent?.legal?.acceptedAt
       ? new Date(consent.legal.acceptedAt)
       : new Date();
+
+    const normalizedCompanyName = String(companyName || "").trim();
+    if (["agent", "developer"].includes(role) && !normalizedCompanyName) {
+      throw { status: 400, message: "Укажите компанию" };
+    }
+
     const marketingAccepted = Boolean(consent?.marketing?.accepted);
     const marketingConsentAcceptedAt = marketingAccepted
       ? consent?.marketing?.acceptedAt
@@ -89,10 +123,15 @@ class AuthService {
       lastName: derivedLastName || null,
       middleName: derivedMiddleName || null,
       email: emailNorm,
-      phone: phone,
+      phone: phoneNorm,
       passwordHash,
       role,
-      companyName: companyName || null,
+      companyName:
+        role === "individual"
+          ? null
+          : normalizedCompanyName
+            ? normalizedCompanyName
+            : null,
       developerApproved: role === "developer" ? false : true,
 
       legalConsentAcceptedAt,

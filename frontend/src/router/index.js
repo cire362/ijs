@@ -21,9 +21,9 @@ const routes = [
     path: "/",
     component: ShowcaseView,
     meta: {
-      title: "ИЖС — платформа для подбора объектов",
+      title: "ИЖС платформа — платформа для подбора объектов",
       description:
-        "ИЖС — платформа для подбора объектов, заявок, новостей и событий.",
+        "ИЖС платформа — платформа для подбора объектов, заявок, новостей и событий.",
       ogType: "website",
     },
   },
@@ -48,8 +48,8 @@ const routes = [
     component: PropertiesView,
     meta: {
       requiresAuth: true,
-      title: "Объекты — ИЖС",
-      description: "Список объектов в личном кабинете ИЖС.",
+      title: "Объекты — ИЖС платформа",
+      description: "Список объектов в личном кабинете ИЖС платформа.",
       robots: "noindex,nofollow",
     },
   },
@@ -58,8 +58,8 @@ const routes = [
     component: PropertyDetailsView,
     meta: {
       requiresAuth: true,
-      title: "Объект — ИЖС",
-      description: "Карточка объекта в личном кабинете ИЖС.",
+      title: "Объект — ИЖС платформа",
+      description: "Карточка объекта в личном кабинете ИЖС платформа.",
       robots: "noindex,nofollow",
     },
   },
@@ -67,24 +67,24 @@ const routes = [
     path: "/news",
     component: NewsView,
     meta: {
-      title: "Новости — ИЖС",
-      description: "Новости сервиса ИЖС.",
+      title: "Новости — ИЖС платформа",
+      description: "Новости сервиса ИЖС платформа.",
     },
   },
   {
     path: "/news/:id",
     component: NewsDetailsView,
     meta: {
-      title: "Новость — ИЖС",
-      description: "Подробности новости сервиса ИЖС.",
+      title: "Новость — ИЖС платформа",
+      description: "Подробности новости сервиса ИЖС платформа.",
     },
   },
   {
     path: "/events",
     component: EventsView,
     meta: {
-      title: "События — ИЖС",
-      description: "События и мероприятия сервиса ИЖС.",
+      title: "События — ИЖС платформа",
+      description: "События и мероприятия сервиса ИЖС платформа.",
     },
   },
   {
@@ -92,9 +92,10 @@ const routes = [
     component: ApplicationsView,
     meta: {
       requiresAuth: true,
-      roles: ["agent"],
-      title: "Мои заявки — ИЖС",
-      description: "Управление заявками в личном кабинете агента ИЖС.",
+      roles: ["agent", "individual"],
+      title: "Мои заявки — ИЖС платформа",
+      description:
+        "Управление заявками в личном кабинете агента ИЖС платформа.",
       robots: "noindex,nofollow",
     },
   },
@@ -103,9 +104,9 @@ const routes = [
     component: ApplicationChatsView,
     meta: {
       requiresAuth: true,
-      roles: ["agent", "admin"],
-      title: "Чаты по заявкам — ИЖС",
-      description: "Общение по заявкам в личном кабинете ИЖС.",
+      roles: ["agent", "individual", "admin"],
+      title: "Чаты по заявкам — ИЖС платформа",
+      description: "Общение по заявкам в личном кабинете ИЖС платформа.",
       robots: "noindex,nofollow",
     },
   },
@@ -115,8 +116,8 @@ const routes = [
     meta: {
       requiresAuth: true,
       roles: ["developer", "admin"],
-      title: "Входящие — ИЖС",
-      description: "Входящие обращения в личном кабинете ИЖС.",
+      title: "Входящие — ИЖС платформа",
+      description: "Входящие обращения в личном кабинете ИЖС платформа.",
       robots: "noindex,nofollow",
     },
   },
@@ -126,8 +127,8 @@ const routes = [
     meta: {
       requiresAuth: true,
       roles: ["admin"],
-      title: "Админ-чат — ИЖС",
-      description: "Административный чат ИЖС.",
+      title: "Админ-чат — ИЖС платформа",
+      description: "Административный чат ИЖС платформа.",
       robots: "noindex,nofollow",
     },
   },
@@ -136,8 +137,9 @@ const routes = [
     component: TariffsView,
     meta: {
       requiresAuth: true,
-      title: "Тарифы — ИЖС",
-      description: "Тарифы и условия сервиса ИЖС.",
+      roles: ["agent", "developer", "admin"],
+      title: "Тарифы — ИЖС платформа",
+      description: "Тарифы и условия сервиса ИЖС платформа.",
       robots: "noindex,nofollow",
     },
   },
@@ -146,8 +148,8 @@ const routes = [
     component: NotificationsView,
     meta: {
       requiresAuth: true,
-      title: "Уведомления — ИЖС",
-      description: "Уведомления пользователя в личном кабинете ИЖС.",
+      title: "Уведомления — ИЖС платформа",
+      description: "Уведомления пользователя в личном кабинете ИЖС платформа.",
       robots: "noindex,nofollow",
     },
   },
@@ -156,8 +158,8 @@ const routes = [
     component: ProfileView,
     meta: {
       requiresAuth: true,
-      title: "Профиль — ИЖС",
-      description: "Профиль пользователя в личном кабинете ИЖС.",
+      title: "Профиль — ИЖС платформа",
+      description: "Профиль пользователя в личном кабинете ИЖС платформа.",
       robots: "noindex,nofollow",
     },
   },
@@ -165,8 +167,8 @@ const routes = [
     path: "/login",
     component: LoginView,
     meta: {
-      title: "Вход — ИЖС",
-      description: "Вход в личный кабинет ИЖС.",
+      title: "Вход — ИЖС платформа",
+      description: "Вход в личный кабинет ИЖС платформа.",
       robots: "noindex,nofollow",
     },
   },
@@ -187,11 +189,12 @@ const router = createRouter({
 });
 
 const DEFAULT_META = {
-  title: "ИЖС",
-  description: "ИЖС — сервис для подбора объектов, заявок, новостей и событий.",
+  title: "ИЖС платформа",
+  description:
+    "ИЖС платформа — сервис для подбора объектов, заявок, новостей и событий.",
   robots: "index,follow",
   ogType: "website",
-  siteName: "ИЖС",
+  siteName: "ИЖС платформа",
 };
 
 function setMetaTag({ name, property, content }) {

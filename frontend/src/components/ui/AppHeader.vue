@@ -2,10 +2,14 @@
   <el-header class="app-header">
     <div class="header-inner">
       <div class="brand" @click="router.push('/')" style="cursor: pointer">
-        <img class="brand-mark" src="/brand/icon-home.svg" alt="ИЖС" />
+        <img
+          class="brand-mark"
+          src="/brand/icon-home.svg"
+          alt="ИЖС платформа"
+        />
         <div class="brand-text">
-          <div class="brand-title">ИЖС</div>
-          <div class="brand-sub">ИЖС</div>
+          <div class="brand-title">ИЖС платформа</div>
+          <div class="brand-sub">Выбор профессионалов</div>
         </div>
       </div>
       <div class="desktop-menu">
@@ -22,7 +26,7 @@
           </el-menu-item>
           <el-menu-item index="/news">Новости</el-menu-item>
           <el-menu-item index="/events">Мероприятия</el-menu-item>
-          <el-menu-item v-if="isAuthed" index="/tariffs"
+          <el-menu-item v-if="canViewTariffs" index="/tariffs"
             >Тарифная карта</el-menu-item
           >
           <el-menu-item v-if="isAgent" index="/applications"
@@ -144,7 +148,7 @@
             >Мероприятия</router-link
           >
           <router-link
-            v-if="isAuthed"
+            v-if="canViewTariffs"
             to="/tariffs"
             class="mobile-nav-item"
             :class="{ active: route.path === '/tariffs' }"
@@ -248,7 +252,7 @@ const socket = getSocket();
 const joinedAgentChatIds = ref(new Set());
 
 async function subscribeAgentChats() {
-  if (!auth.user || auth.user.role !== "agent") return;
+  if (!auth.user || !["agent", "individual"].includes(auth.user.role)) return;
   if (!auth.token) return;
 
   try {
@@ -274,9 +278,14 @@ const mobileMenuOpen = ref(false);
 
 const active = computed(() => route.path);
 const isAuthed = computed(() => !!auth.user);
-const isAgent = computed(() => auth.user?.role === "agent");
+const isAgent = computed(() =>
+  ["agent", "individual"].includes(auth.user?.role),
+);
 const isDeveloper = computed(() => auth.user?.role === "developer");
 const isAdmin = computed(() => auth.user?.role === "admin");
+const canViewTariffs = computed(
+  () => isAuthed.value && auth.user?.role !== "individual",
+);
 const isManager = computed(
   () =>
     (auth.user?.role === "developer" && auth.user?.developerApproved) ||
@@ -298,6 +307,7 @@ const avatarSrc = computed(() => auth.user?.avatarUrl || "");
 const roleLabel = computed(() => {
   const role = auth.user?.role;
   if (role === "agent") return "Агент";
+  if (role === "individual") return "Физическое лицо";
   if (role === "developer") return "Застройщик";
   if (role === "admin") return "Администратор";
   return "Пользователь";
@@ -381,7 +391,11 @@ watch(
       notifications.connect({ userId: id, token: auth.token });
       await notifications.refreshUnreadCount();
 
-      if (auth.user?.role === "admin" || auth.user?.role === "agent") {
+      if (
+        auth.user?.role === "admin" ||
+        auth.user?.role === "agent" ||
+        auth.user?.role === "individual"
+      ) {
         appChats.connect({ userId: id });
       }
     } else {

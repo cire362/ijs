@@ -33,7 +33,7 @@ User.init(
     phone: { type: DataTypes.STRING },
     passwordHash: { type: DataTypes.STRING, allowNull: false },
     role: {
-      type: DataTypes.ENUM("agent", "developer", "admin"),
+      type: DataTypes.ENUM("agent", "individual", "developer", "admin"),
       allowNull: false,
     },
     // For developers: access is blocked until admin approval

@@ -7,6 +7,7 @@ const {
   User,
   TariffPropertyRate,
 } = require("../models");
+const { formatRuPhone } = require("../utils/phone");
 
 const RESERVING_STATUSES = new Set([
   "confirmed",
@@ -70,6 +71,20 @@ function statusLabelRu(status) {
     default:
       return "Статус обновлен";
   }
+}
+
+function deriveApplicantFullName(user) {
+  const fromParts = [user?.lastName, user?.firstName, user?.middleName]
+    .map((v) => (typeof v === "string" ? v.trim() : ""))
+    .filter(Boolean)
+    .join(" ");
+
+  if (fromParts) return fromParts;
+
+  const fromFullName = String(user?.fullName || "").trim();
+  if (fromFullName) return fromFullName;
+
+  return String(user?.email || "").trim();
 }
 
 class ApplicationService {
@@ -223,6 +238,35 @@ class ApplicationService {
       Date.now() + INITIAL_DEADLINE_DAYS * 24 * 60 * 60 * 1000,
     );
 
+    const providedClientFullName = String(clientFullName || "").trim();
+    const resolvedClientFullName =
+      user.role === "individual"
+        ? deriveApplicantFullName(user)
+        : providedClientFullName;
+    const resolvedClientPhoneSource =
+      user.role === "individual" ? user?.phone : clientPhone;
+    const normalizedClientPhone = formatRuPhone(resolvedClientPhoneSource);
+
+    if (!resolvedClientFullName) {
+      throw {
+        status: 400,
+        message:
+          user.role === "individual"
+            ? "Заполните ФИО в профиле"
+            : "Укажите ФИО клиента",
+      };
+    }
+
+    if (!normalizedClientPhone) {
+      throw {
+        status: 400,
+        message:
+          user.role === "individual"
+            ? "Заполните телефон в профиле"
+            : "Некорректный телефон (пример: +7 900 100-00-11 или 8 900 100-00-11)",
+      };
+    }
+
     const app = await Application.create({
       propertyId,
       agentId: user.id,
@@ -230,8 +274,8 @@ class ApplicationService {
       expiresAt,
       commissionAmount: computedCommission,
       comment: comment || null,
-      clientFullName,
-      clientPhone,
+      clientFullName: resolvedClientFullName,
+      clientPhone: normalizedClientPhone,
     });
 
     await StatusHistory.create({
@@ -383,9 +427,18 @@ class ApplicationService {
       throw { status: 403, message: "Вы не создатель заявки" };
     }
 
+    const normalizedClientPhone = formatRuPhone(data.clientPhone);
+    if (!normalizedClientPhone) {
+      throw {
+        status: 400,
+        message:
+          "Некорректный телефон (пример: +7 900 100-00-11 или 8 900 100-00-11)",
+      };
+    }
+
     await app.update({
       clientFullName: data.clientFullName,
-      clientPhone: data.clientPhone,
+      clientPhone: normalizedClientPhone,
     });
 
     return app;

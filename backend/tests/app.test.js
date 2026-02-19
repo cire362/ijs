@@ -129,7 +129,7 @@ describe("API routes", () => {
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
     expect(res.body.every((p) => p.developerId === developerUser.id)).toBe(
-      true
+      true,
     );
   });
 
@@ -231,7 +231,7 @@ describe("API routes", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.clientFullName).toBe("Петров Пётр Петрович");
-    expect(res.body.clientPhone).toBe("+79991112233");
+    expect(res.body.clientPhone).toBe("+7 999 111-22-33");
   });
 
   test("agent can see own applications", async () => {
@@ -310,7 +310,7 @@ describe("API routes", () => {
   test("agent can upload avatar", async () => {
     const png1x1 = Buffer.from(
       "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/6X8k2sAAAAASUVORK5CYII=",
-      "base64"
+      "base64",
     );
 
     const res = await request(app)

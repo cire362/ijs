@@ -83,7 +83,11 @@ async function loadChats() {
     chats.value = Array.isArray(data) ? data : [];
 
     // For agents: subscribe to all their application rooms for notifications
-    if (auth.user?.role === "agent" && auth.token && socket) {
+    if (
+      ["agent", "individual"].includes(auth.user?.role) &&
+      auth.token &&
+      socket
+    ) {
       for (const c of chats.value) {
         const id = Number(c?.applicationId);
         if (!Number.isFinite(id)) continue;
@@ -143,7 +147,11 @@ async function selectChatById(id) {
   // Realtime:
   // - Admin subscribes to a global room (application_admins)
   // - Agent joins rooms for their applications (done in loadChats + fallback here)
-  if (auth.user?.role === "agent" && auth.token && socket) {
+  if (
+    ["agent", "individual"].includes(auth.user?.role) &&
+    auth.token &&
+    socket
+  ) {
     const appId = Number(id);
     if (Number.isFinite(appId) && !joinedApplicationIds.value.has(appId)) {
       socket.emit("application_chat_join", {

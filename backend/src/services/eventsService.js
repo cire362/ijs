@@ -132,7 +132,7 @@ class EventsService {
     const event = await Event.findByPk(id);
     if (!event) throw { status: 404, message: "Не найдено" };
 
-    if (user.role !== "agent") {
+    if (!["agent", "individual"].includes(user.role)) {
       throw { status: 403, message: "Доступ запрещён" };
     }
 
@@ -164,7 +164,7 @@ class EventsService {
           registrationId: reg.id,
           agentId: user.id,
         },
-      }))
+      })),
     );
 
     return reg;
@@ -198,7 +198,7 @@ class EventsService {
   }
 
   async listMyRegistrations(query, user) {
-    if (user.role !== "agent") {
+    if (!["agent", "individual"].includes(user.role)) {
       throw { status: 403, message: "Доступ запрещён" };
     }
 

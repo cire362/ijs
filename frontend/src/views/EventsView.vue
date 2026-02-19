@@ -19,7 +19,9 @@ const limit = ref(10);
 const q = ref("");
 
 const isAdmin = computed(() => auth.user?.role === "admin");
-const isAgent = computed(() => auth.user?.role === "agent");
+const isAgent = computed(() =>
+  ["agent", "individual"].includes(auth.user?.role),
+);
 
 const calendarDate = ref(new Date());
 
@@ -113,7 +115,7 @@ const filtered = computed(() => {
 });
 
 const trainingEvents = computed(() =>
-  filtered.value.filter((e) => !!e.isTraining)
+  filtered.value.filter((e) => !!e.isTraining),
 );
 
 const eventsByDay = computed(() => {
@@ -134,7 +136,7 @@ const eventsByDay = computed(() => {
 
 const selectedTrainingKey = computed(() => ymd(calendarDate.value));
 const selectedTrainingEvents = computed(
-  () => eventsByDay.value.get(selectedTrainingKey.value) || []
+  () => eventsByDay.value.get(selectedTrainingKey.value) || [],
 );
 
 async function load() {
@@ -158,7 +160,7 @@ async function load() {
     }
   } catch (err) {
     ElMessage.error(
-      err.response?.data?.error || "Не удалось загрузить мероприятия"
+      err.response?.data?.error || "Не удалось загрузить мероприятия",
     );
   } finally {
     loading.value = false;
@@ -183,7 +185,7 @@ async function loadMy() {
     myRegistrations.value = [];
     myTotal.value = 0;
     ElMessage.error(
-      err.response?.data?.error || "Не удалось загрузить мои мероприятия"
+      err.response?.data?.error || "Не удалось загрузить мои мероприятия",
     );
   } finally {
     myLoading.value = false;
@@ -283,7 +285,7 @@ async function setRegistrationStatus(row, status) {
   try {
     await apiClient.patch(`/events/registrations/${row.id}`, { status });
     ElMessage.success(
-      status === "approved" ? "Заявка подтверждена" : "Заявка отклонена"
+      status === "approved" ? "Заявка подтверждена" : "Заявка отклонена",
     );
     await loadRegistrations();
   } catch (err) {
@@ -604,8 +606,8 @@ onMounted(async () => {
                     scope.row.status === 'new'
                       ? 'warning'
                       : scope.row.status === 'approved'
-                      ? 'success'
-                      : 'danger'
+                        ? 'success'
+                        : 'danger'
                   "
                   effect="light"
                 >
@@ -613,8 +615,8 @@ onMounted(async () => {
                     scope.row.status === "new"
                       ? "Новая"
                       : scope.row.status === "approved"
-                      ? "Подтверждена"
-                      : "Отклонена"
+                        ? "Подтверждена"
+                        : "Отклонена"
                   }}
                 </el-tag>
               </template>
@@ -815,8 +817,8 @@ onMounted(async () => {
                     scope.row.status === 'new'
                       ? 'warning'
                       : scope.row.status === 'approved'
-                      ? 'success'
-                      : 'danger'
+                        ? 'success'
+                        : 'danger'
                   "
                   effect="light"
                 >
@@ -824,8 +826,8 @@ onMounted(async () => {
                     scope.row.status === "new"
                       ? "Новая"
                       : scope.row.status === "approved"
-                      ? "Подтверждена"
-                      : "Отклонена"
+                        ? "Подтверждена"
+                        : "Отклонена"
                   }}
                 </el-tag>
               </template>

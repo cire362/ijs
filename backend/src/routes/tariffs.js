@@ -12,6 +12,7 @@ const schemas = require("../validation/tariffs");
 router.get(
   "/view",
   authenticate,
+  allowRoles("agent", "developer", "admin"),
   validate(schemas.getTariffViewQuerySchema, "query"),
   asyncHandler(controller.getTariffView),
 );

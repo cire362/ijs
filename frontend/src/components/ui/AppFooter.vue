@@ -9,9 +9,11 @@
             >
               <span class="font-bold text-white text-xs">I</span>
             </div>
-            <span class="font-bold text-white tracking-tight">IJSHub</span>
+            <span class="font-bold text-white tracking-tight"
+              >ИЖС платформа</span
+            >
           </div>
-          <p>© 2024 IJSHub.</p>
+          <p>© 2024 ИЖС платформа.</p>
           <p>Все права защищены.</p>
         </div>
         <div>
@@ -44,7 +46,7 @@
       <div
         class="border-t border-gray-800 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-gray-500"
       >
-        <div>IJSHub © 2026 ООО «АйДжейЭс». Все права защищены.</div>
+        <div>ИЖС платформа © 2026 ООО «АйДжейЭс». Все права защищены.</div>
         <div class="flex flex-wrap gap-4 md:gap-8 justify-center">
           <router-link to="/legal" class="hover:text-white transition"
             >Правовые документы</router-link

@@ -34,7 +34,12 @@ function maybeUploadApplicationDoc(req, res, next) {
   return next();
 }
 
-router.get("/mine", authenticate, allowRoles("agent"), asyncHandler(listMine));
+router.get(
+  "/mine",
+  authenticate,
+  allowRoles("agent", "individual"),
+  asyncHandler(listMine),
+);
 router.get(
   "/incoming",
   authenticate,
@@ -46,13 +51,13 @@ router.get(
 router.get(
   "/chat/chats",
   authenticate,
-  allowRoles("agent", "admin"),
+  allowRoles("agent", "individual", "admin"),
   asyncHandler(listChats),
 );
 router.post(
   "/",
   authenticate,
-  allowRoles("agent"),
+  allowRoles("agent", "individual"),
   validate(createApplicationSchema),
   asyncHandler(createApplication),
 );
@@ -60,7 +65,7 @@ router.post(
 router.patch(
   "/:id/client",
   authenticate,
-  allowRoles("agent"),
+  allowRoles("agent", "individual"),
   validate(updateClientInfoSchema),
   asyncHandler(updateClientInfo),
 );
@@ -84,14 +89,14 @@ router.patch(
 router.get(
   "/:id/chat/messages",
   authenticate,
-  allowRoles("agent", "admin"),
+  allowRoles("agent", "individual", "admin"),
   asyncHandler(listMessages),
 );
 
 router.post(
   "/:id/chat/messages",
   authenticate,
-  allowRoles("agent", "admin"),
+  allowRoles("agent", "individual", "admin"),
   maybeUploadApplicationDoc,
   asyncHandler(createMessage),
 );

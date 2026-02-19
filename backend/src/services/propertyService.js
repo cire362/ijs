@@ -92,6 +92,7 @@ class PropertyService {
     const canSeeAllStatuses =
       user &&
       (user.role === "agent" ||
+        user.role === "individual" ||
         user.role === "admin" ||
         user.role === "developer");
 
@@ -286,7 +287,7 @@ class PropertyService {
         propertyId: property.id,
         url: `/uploads/properties/${f.filename}`,
         caption: f.originalname,
-      }))
+      })),
     );
 
     return this.getPropertyById(id, user);

@@ -127,7 +127,7 @@ const scrollTo = (id) => {
             <span class="font-bold text-white text-xl">I</span>
           </div>
           <span class="font-bold text-xl tracking-tight text-gray-900"
-            >IJSHub</span
+            >ИЖС платформа</span
           >
         </div>
         <div class="hidden md:flex items-center gap-8 font-medium text-sm">

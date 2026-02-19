@@ -5,6 +5,7 @@ import { useAuthStore } from "../stores/auth";
 import { ElMessage } from "element-plus";
 import { limits } from "@/utils/constraints";
 import { LEGAL_DOC_VERSION } from "@/utils/consent";
+import { normalizeRuPhone } from "@/utils/phone";
 
 const auth = useAuthStore();
 const router = useRouter();
@@ -26,6 +27,8 @@ const registerForm = ref({
   agreeMarketing: false,
 });
 
+const isIndividualRole = () => registerForm.value.role === "individual";
+
 const registerFormRef = ref(null);
 
 const registerRules = {
@@ -38,7 +41,39 @@ const registerRules = {
     { required: true, message: "Введите email", trigger: "blur" },
     { type: "email", message: "Некорректный email", trigger: "blur" },
   ],
-  phone: [{ required: true, message: "Введите телефон", trigger: "blur" }],
+  phone: [
+    { required: true, message: "Введите телефон", trigger: "blur" },
+    {
+      validator: (rule, value, callback) => {
+        const normalized = normalizeRuPhone(value);
+        if (!normalized) {
+          callback(
+            new Error("Введите корректный телефон (пример: +7 900 100-00-11)"),
+          );
+          return;
+        }
+        registerForm.value.phone = normalized;
+        callback();
+      },
+      trigger: "blur",
+    },
+  ],
+  companyName: [
+    {
+      validator: (rule, value, callback) => {
+        if (isIndividualRole()) {
+          callback();
+          return;
+        }
+        if (!String(value || "").trim()) {
+          callback(new Error("Введите компанию"));
+          return;
+        }
+        callback();
+      },
+      trigger: "blur",
+    },
+  ],
   password: [
     { required: true, message: "Введите пароль", trigger: "blur" },
     { min: 8, message: "Минимум 8 символов", trigger: "blur" },
@@ -99,6 +134,13 @@ function buildConsentPayload() {
   };
 }
 
+function normalizeRegisterPhone() {
+  const normalized = normalizeRuPhone(registerForm.value.phone);
+  if (normalized) {
+    registerForm.value.phone = normalized;
+  }
+}
+
 const submit = async () => {
   try {
     if (activeTab.value === "login") {
@@ -115,7 +157,15 @@ const submit = async () => {
           const email = String(registerForm.value.email || "")
             .trim()
             .toLowerCase();
-          const phone = String(registerForm.value.phone || "").trim();
+          const phone = normalizeRuPhone(registerForm.value.phone);
+
+          if (!phone) {
+            ElMessage.error(
+              "Введите корректный телефон (пример: +7 900 100-00-11)",
+            );
+            return;
+          }
+          registerForm.value.phone = phone;
 
           await auth.register({
             lastName: registerForm.value.lastName,
@@ -125,7 +175,9 @@ const submit = async () => {
             email,
             password: registerForm.value.password,
             role: registerForm.value.role,
-            companyName: registerForm.value.companyName,
+            companyName: isIndividualRole()
+              ? ""
+              : registerForm.value.companyName,
             consent: buildConsentPayload(),
           });
         }
@@ -235,11 +287,16 @@ const submit = async () => {
                       style="width: 100%"
                     >
                       <el-option label="Агент" value="agent" />
+                      <el-option label="Физическое лицо" value="individual" />
                       <el-option label="Застройщик" value="developer" />
                     </el-select>
                   </el-form-item>
                 </el-col>
-                <el-col :xs="24" :sm="12">
+                <el-col
+                  :xs="24"
+                  :sm="12"
+                  v-if="registerForm.role !== 'individual'"
+                >
                   <el-form-item label="Компания" prop="companyName">
                     <el-input
                       v-model="registerForm.companyName"
@@ -262,6 +319,7 @@ const submit = async () => {
                   v-model="registerForm.phone"
                   placeholder="+7..."
                   :maxlength="limits.auth.phone"
+                  @blur="normalizeRegisterPhone"
                 />
               </el-form-item>
               <el-form-item label="Пароль" prop="password">

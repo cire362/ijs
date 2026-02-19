@@ -30,7 +30,7 @@ router.post(
   authenticate,
   allowRoles("admin"),
   validate(createEventSchema),
-  asyncHandler(createEvent)
+  asyncHandler(createEvent),
 );
 
 router.post(
@@ -39,21 +39,21 @@ router.post(
   allowRoles("admin"),
   (req, res, next) =>
     uploadEventCoverImage(req, res, (err) => (err ? next(err) : next())),
-  asyncHandler(uploadEventCover)
+  asyncHandler(uploadEventCover),
 );
 
 router.post(
   "/:id/register",
   authenticate,
-  allowRoles("agent"),
-  asyncHandler(registerForEvent)
+  allowRoles("agent", "individual"),
+  asyncHandler(registerForEvent),
 );
 
 router.get(
   "/registrations",
   authenticate,
   allowRoles("admin"),
-  asyncHandler(listRegistrations)
+  asyncHandler(listRegistrations),
 );
 
 router.patch(
@@ -61,14 +61,14 @@ router.patch(
   authenticate,
   allowRoles("admin"),
   validate(updateRegistrationStatusSchema),
-  asyncHandler(updateRegistrationStatus)
+  asyncHandler(updateRegistrationStatus),
 );
 
 router.get(
   "/my",
   authenticate,
-  allowRoles("agent"),
-  asyncHandler(listMyRegistrations)
+  allowRoles("agent", "individual"),
+  asyncHandler(listMyRegistrations),
 );
 
 module.exports = router;

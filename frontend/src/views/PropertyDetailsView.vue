@@ -5,6 +5,7 @@ import { ElMessage } from "element-plus";
 import { limits } from "@/utils/constraints";
 import { apiClient, useAuthStore } from "@/stores/auth";
 import { humanizeApiError } from "@/utils/errors";
+import { normalizeRuPhone } from "@/utils/phone";
 
 const auth = useAuthStore();
 const route = useRoute();
@@ -72,7 +73,7 @@ async function suggestCities(queryString, cb) {
           resolve(
             await fetchSuggestions("city", queryString, {
               region: editForm.value.region || undefined,
-            })
+            }),
           );
         } catch {
           resolve([]);
@@ -96,7 +97,7 @@ async function suggestStreets(queryString, cb) {
             await fetchSuggestions("street", queryString, {
               region: editForm.value.region || undefined,
               city: editForm.value.city || undefined,
-            })
+            }),
           );
         } catch {
           resolve([]);
@@ -131,11 +132,14 @@ const editForm = ref({
 
 const saving = ref(false);
 
-const isAgent = computed(() => auth.user?.role === "agent");
+const isAgent = computed(() =>
+  ["agent", "individual"].includes(auth.user?.role),
+);
+const isIndividual = computed(() => auth.user?.role === "individual");
 const isManager = computed(
   () =>
     (auth.user?.role === "developer" && auth.user?.developerApproved) ||
-    auth.user?.role === "admin"
+    auth.user?.role === "admin",
 );
 
 const statusOptions = [
@@ -318,15 +322,38 @@ function goBack() {
 
 async function applyToProperty() {
   if (!property.value?.id) return;
-  const fio = String(clientFullName.value || "").trim();
-  const phone = String(clientPhone.value || "").trim();
+  const profileFio = [
+    auth.user?.lastName,
+    auth.user?.firstName,
+    auth.user?.middleName,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  const fio = isIndividual.value
+    ? profileFio ||
+      String(auth.user?.fullName || "").trim() ||
+      String(auth.user?.email || "").trim()
+    : String(clientFullName.value || "").trim();
+  const phone = isIndividual.value
+    ? normalizeRuPhone(auth.user?.phone)
+    : normalizeRuPhone(clientPhone.value);
   if (!fio) {
-    ElMessage.error("Укажите ФИО клиента");
+    ElMessage.error(
+      isIndividual.value ? "Заполните ФИО в профиле" : "Укажите ФИО клиента",
+    );
     return;
   }
   if (!phone) {
-    ElMessage.error("Укажите телефон клиента");
+    ElMessage.error(
+      isIndividual.value
+        ? "Заполните телефон в профиле"
+        : "Укажите корректный телефон клиента (пример: +7 900 100-00-11)",
+    );
     return;
+  }
+  if (!isIndividual.value) {
+    clientPhone.value = phone;
   }
   try {
     await apiClient.post("/applications", {
@@ -341,6 +368,13 @@ async function applyToProperty() {
     applicationComment.value = "";
   } catch (err) {
     ElMessage.error(humanizeApiError(err, "Не удалось отправить заявку"));
+  }
+}
+
+function normalizeDetailClientPhone() {
+  const normalized = normalizeRuPhone(clientPhone.value);
+  if (normalized) {
+    clientPhone.value = normalized;
   }
 }
 
@@ -822,16 +856,19 @@ async function saveEdits() {
         >
           <div class="muted" style="margin-bottom: 8px">Заявка</div>
           <el-input
+            v-if="!isIndividual"
             v-model="clientFullName"
             placeholder="ФИО клиента"
             :maxlength="limits.application.clientFullName"
             style="margin-bottom: 8px"
           />
           <el-input
+            v-if="!isIndividual"
             v-model="clientPhone"
             placeholder="Телефон клиента"
             :maxlength="limits.application.clientPhone"
             style="margin-bottom: 8px"
+            @blur="normalizeDetailClientPhone"
           />
           <el-input
             v-model="applicationComment"

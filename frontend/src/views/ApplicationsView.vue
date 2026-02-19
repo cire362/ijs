@@ -42,7 +42,9 @@ onBeforeUnmount(() => {
 const q = ref("");
 const selectedStatus = ref("");
 
-const isAgent = computed(() => auth.user?.role === "agent");
+const isAgent = computed(() =>
+  ["agent", "individual"].includes(auth.user?.role),
+);
 const columns = [
   { prop: "date", label: "Дата", minWidth: 120 },
   { prop: "number", label: "№", width: 80 },
