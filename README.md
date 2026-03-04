@@ -10,12 +10,12 @@
 
 ## Деплой на VPS (Docker, prod)
 
-Ниже схема: один домен, Nginx раздаёт фронт и проксирует API/Socket.IO в контейнер `api`.
+Ниже схема: один домен, Caddy раздаёт фронт и проксирует API/Socket.IO в контейнер `api`.
 
 ### 1) Подготовка сервера
 
 1. Создайте VPS (Ubuntu/Debian), привяжите домен (A-запись на IP сервера).
-2. Откройте порты: `22`, `80` (и `443`, если будете включать HTTPS).
+2. Откройте порты: `22`, `80`, `443`.
 3. Установите Docker:
 
 ```bash
@@ -42,6 +42,7 @@ cp .env.example .env
 - `JWT_SECRET`
 - `CORS_ALLOWED_ORIGINS` (например: `https://example.com,https://www.example.com`)
 - `APP_ORIGIN` (например: `https://example.com`)
+- `DOMAIN` (например: `example.com`, используется Caddy для auto HTTPS)
 
 ### 4) Запуск
 
@@ -58,17 +59,27 @@ docker compose -f docker-compose.prod.yml -f docker-compose.http.yml up -d --bui
 
 Проверка:
 
-- сайт: `http://<ваш-домен>/`
-- API health: `http://<ваш-домен>/api/health`
+- сайт: `https://<ваш-домен>/`
+- API health: `https://<ваш-домен>/api/health`
 
-### 4.1) HTTPS (рекомендуется для production)
+Быстрый smoke-check после деплоя:
 
-В репозитории есть шаблон `nginx/default.https.conf.example`.
-Для включения TLS:
+```bash
+DOMAIN=<ваш-домен> sh scripts/smoke-check.sh
+```
 
-1. Подготовьте сертификаты (`fullchain.pem`, `privkey.pem`) и смонтируйте их в контейнер nginx.
-2. Замените `nginx/default.conf` на конфиг из шаблона (подставьте ваш домен и пути к сертификатам).
-3. Откройте порт `443` на сервере.
+### 4.1) HTTPS (автоматически через Caddy)
+
+В production используется Caddy: он автоматически выпускает и продлевает TLS-сертификаты (Let's Encrypt).
+
+Условия для авто HTTPS:
+
+1. `DOMAIN` указывает на ваш сервер (A/AAAA запись настроена).
+2. Открыты порты `80` и `443`.
+3. Запуск выполнен через `docker compose -f docker-compose.prod.yml up -d --build`.
+
+Сертификаты сохраняются в volumes `caddy_data`/`caddy_config` и переживают перезапуск контейнеров.
+Также в `docker-compose.prod.yml` добавлены healthcheck для `db`, `api`, `web`.
 
 ### 5) (Опционально) сиды
 

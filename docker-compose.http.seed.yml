@@ -17,6 +17,11 @@ services:
       NODE_ENV: development
       COOKIE_SECURE: "false"
 
+  web:
+    environment:
+      # Run Caddy in plain HTTP mode (no certificates) for this override.
+      DOMAIN: ${DOMAIN:-:80}
+
   seed:
     build: ./backend
     env_file:

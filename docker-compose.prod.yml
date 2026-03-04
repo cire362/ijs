@@ -9,6 +9,13 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-ijshub}
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-ijshub}
+      interval: 10s
+      timeout: 5s
+      retries: 10
     volumes:
       - pgdata:/var/lib/postgresql/data
     restart: unless-stopped
@@ -24,7 +31,16 @@ services:
       JWT_SECRET: ${JWT_SECRET?JWT_SECRET is required}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS?CORS_ALLOWED_ORIGINS is required}
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -qO- http://127.0.0.1:4000/health >/dev/null || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     volumes:
       - uploads:/app/uploads
     restart: unless-stopped
@@ -32,13 +48,30 @@ services:
   web:
     build:
       context: .
-      dockerfile: ./nginx/Dockerfile
+      dockerfile: ./caddy/Dockerfile
+    environment:
+      DOMAIN: ${DOMAIN?DOMAIN is required}
     ports:
       - "80:80"
+      - "443:443"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -qO- http://127.0.0.1/ >/dev/null || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
     restart: unless-stopped
 
 volumes:
   pgdata:
   uploads:
+  caddy_data:
+  caddy_config:

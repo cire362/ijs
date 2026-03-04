@@ -7,3 +7,8 @@ services:
     environment:
       # Force cookies without Secure flag (needed for HTTP).
       COOKIE_SECURE: "false"
+
+  web:
+    environment:
+      # Run Caddy in plain HTTP mode (no certificates) for this override.
+      DOMAIN: ${DOMAIN:-:80}

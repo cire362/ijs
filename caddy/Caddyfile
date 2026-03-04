@@ -1,0 +1,32 @@
+{$DOMAIN} {
+  encode gzip zstd
+
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    X-Content-Type-Options "nosniff"
+    X-Frame-Options "SAMEORIGIN"
+    Referrer-Policy "strict-origin-when-cross-origin"
+    Permissions-Policy "geolocation=(), microphone=(), camera=()"
+  }
+
+  @api path /api/*
+  handle_path @api {
+    reverse_proxy api:4000
+  }
+
+  @socket path /socket.io/*
+  handle @socket {
+    reverse_proxy api:4000
+  }
+
+  @uploads path /uploads/*
+  handle @uploads {
+    reverse_proxy api:4000
+  }
+
+  handle {
+    root * /srv
+    try_files {path} /index.html
+    file_server
+  }
+}
