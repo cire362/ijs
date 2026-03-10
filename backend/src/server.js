@@ -14,9 +14,13 @@ const {
 const { Server } = require("socket.io");
 const { expireSentApplications } = require("./jobs/applicationExpiry");
 const { sendEventReminders } = require("./jobs/eventReminders");
+const { startScheduledJobs } = require("./jobs/scheduler");
 const { setIO } = require("./socket");
+const { runPendingMigrations } = require("./db/migrator");
 const { getJwtSecret } = require("./utils/secrets");
 const { getSocketCorsOptions } = require("./utils/cors");
+const { verifyGuestSupportSession } = require("./utils/guestSupportSession");
+const logger = require("./utils/logger");
 
 const jwtSecret = getJwtSecret();
 
@@ -35,6 +39,9 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: getSocketCorsOptions() });
 setIO(io);
 
+let stopScheduledJobs = () => {};
+let shuttingDown = false;
+
 async function getUserFromToken(token) {
   if (!token) return null;
   try {
@@ -52,8 +59,9 @@ async function canAccessApplicationChat(appEntity, user) {
   if (
     ["agent", "individual"].includes(user.role) &&
     appEntity.agentId === user.id
-  )
+  ) {
     return true;
+  }
   return false;
 }
 
@@ -62,10 +70,20 @@ function parseSocketPayload(payload) {
   return { roomId: payload };
 }
 
-function canJoinGuestSupportRoom(roomId) {
-  return (
-    /^guest:[a-z0-9_-]{6,}$/i.test(roomId) || /^socket:[\w-]+$/.test(roomId)
-  );
+function resolveSupportRoomId({ requestedRoomId, guestToken, user }) {
+  if (user) {
+    return `user:${user.id}`;
+  }
+
+  const guestSession = verifyGuestSupportSession(guestToken);
+  if (!guestSession) return null;
+
+  const normalized = String(requestedRoomId || "").trim();
+  if (normalized && normalized !== guestSession.roomId) {
+    return null;
+  }
+
+  return guestSession.roomId;
 }
 
 io.on("connection", (socket) => {
@@ -97,16 +115,26 @@ io.on("connection", (socket) => {
       socket.join("application_admins");
       socket.emit("application_admin_subscribed", { ok: true });
     } catch (e) {
-      console.error("application_admin_subscribe error", e);
+      logger.error("application_admin_subscribe_failed", e);
     }
   });
 
   socket.on("chat_message", async (msg) => {
+    const tokenUser = await getUserFromToken(msg?.token);
     const incomingEmail = msg?.senderEmail || msg?.email || null;
-    let roomId = incomingEmail
-      ? `email:${incomingEmail}`
-      : `socket:${socket.id}`;
-    if (msg?.roomId) roomId = msg.roomId;
+    const roomId = resolveSupportRoomId({
+      requestedRoomId: msg?.roomId,
+      guestToken: msg?.guestToken,
+      user: tokenUser,
+    });
+
+    if (!roomId) {
+      socket.emit("support_auth_error", {
+        code: "invalid_guest_session",
+        message: "Недействительная guest-сессия поддержки",
+      });
+      return;
+    }
 
     let senderName = msg?.senderName || msg?.name || null;
     let senderEmail = incomingEmail;
@@ -116,7 +144,7 @@ io.on("connection", (socket) => {
       const userId = parseInt(roomId.split(":")[1], 10);
       if (!Number.isFinite(userId)) return;
 
-      const user = await getUserFromToken(msg?.token);
+      const user = tokenUser;
       if (!user) return;
       if (user.role !== "admin" && user.id !== userId) return;
 
@@ -143,7 +171,7 @@ io.on("connection", (socket) => {
         );
         movedToNew = affected > 0;
       } catch (e) {
-        console.error("SupportChat update error", e);
+        logger.error("support_chat_update_failed", e);
       }
 
       // Notify admins
@@ -160,7 +188,7 @@ io.on("connection", (socket) => {
       // Confirm to user
       socket.emit("message_sent", { status: "ok" });
     } catch (e) {
-      console.error("Chat error", e);
+      logger.error("chat_message_failed", e);
     }
   });
 
@@ -182,7 +210,7 @@ io.on("connection", (socket) => {
         timestamp: new Date(),
       });
     } catch (e) {
-      console.error("Admin reply error", e);
+      logger.error("admin_reply_failed", e);
     }
   });
 
@@ -207,9 +235,16 @@ io.on("connection", (socket) => {
       return;
     }
 
-    if (canJoinGuestSupportRoom(roomId)) {
+    const guestSession = verifyGuestSupportSession(data?.guestToken);
+    if (guestSession && guestSession.roomId === roomId) {
       socket.join(roomId);
+      return;
     }
+
+    socket.emit("support_auth_error", {
+      code: "invalid_guest_session",
+      message: "Недействительная guest-сессия поддержки",
+    });
   });
 
   // Application chat rooms (1 application = 1 chat)
@@ -230,7 +265,7 @@ io.on("connection", (socket) => {
       socket.join(`application:${applicationId}`);
       socket.emit("application_chat_joined", { applicationId });
     } catch (e) {
-      console.error("application_chat_join error", e);
+      logger.error("application_chat_join_failed", e);
     }
   });
 
@@ -260,31 +295,85 @@ Notification.addHook("afterBulkCreate", (notifications) => {
 async function bootstrap() {
   try {
     await sequelize.authenticate();
-    await sequelize.sync({ alter: process.env.NODE_ENV !== "production" });
+    const appliedMigrations = await runPendingMigrations();
 
-    console.log(`DB connected: ${dbInfo()}`);
+    logger.info("db_connected", { database: dbInfo() });
+    if (appliedMigrations.length > 0) {
+      logger.info("migrations_applied", { appliedMigrations });
+    }
 
-    // Background: expire applications stuck at initial stage
-    setInterval(() => {
-      expireSentApplications().catch((err) =>
-        console.error("Failed to expire applications", err),
-      );
-    }, 60 * 1000);
-
-    // Background: event reminders (best-effort)
-    setInterval(() => {
-      sendEventReminders().catch((err) =>
-        console.error("Failed to send event reminders", err),
-      );
-    }, 60 * 1000);
+    stopScheduledJobs = startScheduledJobs(
+      [
+        {
+          name: "expire-sent-applications",
+          intervalMs: 60 * 1000,
+          job: expireSentApplications,
+        },
+        {
+          name: "send-event-reminders",
+          intervalMs: 60 * 1000,
+          job: sendEventReminders,
+        },
+      ],
+      logger,
+    );
 
     server.listen(port, () => {
-      console.log(`API listening on port ${port}`);
+      logger.info("api_listening", { port: Number(port) });
     });
   } catch (err) {
-    console.error("Failed to start server", err);
+    logger.error("server_start_failed", err);
     process.exit(1);
   }
 }
+
+async function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+
+  logger.info("shutdown_started", { signal });
+  stopScheduledJobs();
+
+  const forceExitTimer = setTimeout(() => {
+    logger.error("shutdown_timed_out");
+    process.exit(1);
+  }, 10000);
+  forceExitTimer.unref?.();
+
+  try {
+    await new Promise((resolve) => {
+      io.close(() => resolve());
+    });
+
+    await new Promise((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve();
+      });
+    });
+
+    await sequelize.close();
+    clearTimeout(forceExitTimer);
+    process.exit(0);
+  } catch (error) {
+    logger.error("shutdown_failed", error);
+    process.exit(1);
+  }
+}
+
+process.on("SIGTERM", () => {
+  shutdown("SIGTERM").catch((error) => {
+    logger.error("shutdown_signal_failed", { signal: "SIGTERM", error });
+  });
+});
+
+process.on("SIGINT", () => {
+  shutdown("SIGINT").catch((error) => {
+    logger.error("shutdown_signal_failed", { signal: "SIGINT", error });
+  });
+});
 
 bootstrap();

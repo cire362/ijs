@@ -1,20 +1,21 @@
 import { createRouter, createWebHistory } from "vue-router";
-import PropertiesView from "../views/PropertiesView.vue";
-import PropertyDetailsView from "../views/PropertyDetailsView.vue";
-import ApplicationsView from "../views/ApplicationsView.vue";
-import LoginView from "../views/LoginView.vue";
-import IncomingView from "../views/IncomingView.vue";
-import NotificationsView from "../views/NotificationsView.vue";
-import ProfileView from "../views/ProfileView.vue";
-import ApplicationChatsView from "../views/ApplicationChatsView.vue";
-import NewsView from "../views/NewsView.vue";
-import NewsDetailsView from "../views/NewsDetailsView.vue";
-import EventsView from "../views/EventsView.vue";
-import ShowcaseView from "../views/ShowcaseView.vue";
-import LegalDocumentsView from "../views/LegalDocumentsView.vue";
-import AdminChatView from "../views/AdminChatView.vue";
-import TariffsView from "../views/TariffsView.vue";
 import { useAuthStore } from "../stores/auth";
+
+const ShowcaseView = () => import("../views/ShowcaseView.vue");
+const LegalDocumentsView = () => import("../views/LegalDocumentsView.vue");
+const PropertiesView = () => import("../views/PropertiesView.vue");
+const PropertyDetailsView = () => import("../views/PropertyDetailsView.vue");
+const NewsView = () => import("../views/NewsView.vue");
+const NewsDetailsView = () => import("../views/NewsDetailsView.vue");
+const EventsView = () => import("../views/EventsView.vue");
+const ApplicationsView = () => import("../views/ApplicationsView.vue");
+const ApplicationChatsView = () => import("../views/ApplicationChatsView.vue");
+const IncomingView = () => import("../views/IncomingView.vue");
+const AdminChatView = () => import("../views/AdminChatView.vue");
+const TariffsView = () => import("../views/TariffsView.vue");
+const NotificationsView = () => import("../views/NotificationsView.vue");
+const ProfileView = () => import("../views/ProfileView.vue");
+const LoginView = () => import("../views/LoginView.vue");
 
 const routes = [
   {

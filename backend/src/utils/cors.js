@@ -3,6 +3,14 @@ function normalizeOrigin(value) {
   return value.trim().replace(/\/$/, "");
 }
 
+function parseBool(value, fallback) {
+  if (value == null) return fallback;
+  const normalized = String(value).trim().toLowerCase();
+  if (["1", "true", "yes", "y", "on"].includes(normalized)) return true;
+  if (["0", "false", "no", "n", "off"].includes(normalized)) return false;
+  return fallback;
+}
+
 function splitOrigins(raw) {
   if (!raw || typeof raw !== "string") return [];
   return raw
@@ -55,19 +63,21 @@ function createOriginValidator(allowedOrigins) {
 
 function getHttpCorsOptions() {
   const allowedOrigins = getAllowedOrigins();
+  const credentials = parseBool(process.env.CORS_ALLOW_CREDENTIALS, false);
 
   return {
     origin: createOriginValidator(allowedOrigins),
-    credentials: false,
+    credentials,
   };
 }
 
 function getSocketCorsOptions() {
   const allowedOrigins = getAllowedOrigins();
+  const credentials = parseBool(process.env.CORS_ALLOW_CREDENTIALS, false);
 
   return {
     origin: createOriginValidator(allowedOrigins),
-    credentials: false,
+    credentials,
   };
 }
 

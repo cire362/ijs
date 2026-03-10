@@ -1,16 +1,16 @@
-const express = require("express");
-const router = express.Router();
-const asyncHandler = require("../utils/asyncHandler");
-const validate = require("../middleware/validate");
+const express = require('express')
+const router = express.Router()
+const asyncHandler = require('../utils/asyncHandler')
+const validate = require('../middleware/validate')
 const {
   createEventSchema,
-  updateRegistrationStatusSchema,
-} = require("../validation/events");
+  updateRegistrationStatusSchema
+} = require('../validation/events')
 const {
   authenticate,
   optionalAuthenticate,
-  allowRoles,
-} = require("../middleware/auth");
+  allowRoles
+} = require('../middleware/auth')
 const {
   listEvents,
   createEvent,
@@ -18,57 +18,57 @@ const {
   registerForEvent,
   listRegistrations,
   listMyRegistrations,
-  updateRegistrationStatus,
-} = require("../controllers/eventsController");
+  updateRegistrationStatus
+} = require('../controllers/eventsController')
 
-const { uploadEventCoverImage } = require("../utils/upload");
+const { uploadEventCoverImage } = require('../utils/upload')
 
-router.get("/", optionalAuthenticate, asyncHandler(listEvents));
+router.get('/', optionalAuthenticate, asyncHandler(listEvents))
 
 router.post(
-  "/",
+  '/',
   authenticate,
-  allowRoles("admin"),
+  allowRoles('admin'),
   validate(createEventSchema),
-  asyncHandler(createEvent),
-);
+  asyncHandler(createEvent)
+)
 
 router.post(
-  "/:id/image",
+  '/:id/image',
   authenticate,
-  allowRoles("admin"),
+  allowRoles('admin'),
   (req, res, next) =>
     uploadEventCoverImage(req, res, (err) => (err ? next(err) : next())),
-  asyncHandler(uploadEventCover),
-);
+  asyncHandler(uploadEventCover)
+)
 
 router.post(
-  "/:id/register",
+  '/:id/register',
   authenticate,
-  allowRoles("agent", "individual"),
-  asyncHandler(registerForEvent),
-);
+  allowRoles('agent', 'individual'),
+  asyncHandler(registerForEvent)
+)
 
 router.get(
-  "/registrations",
+  '/registrations',
   authenticate,
-  allowRoles("admin"),
-  asyncHandler(listRegistrations),
-);
+  allowRoles('admin'),
+  asyncHandler(listRegistrations)
+)
 
 router.patch(
-  "/registrations/:id",
+  '/registrations/:id',
   authenticate,
-  allowRoles("admin"),
+  allowRoles('admin'),
   validate(updateRegistrationStatusSchema),
-  asyncHandler(updateRegistrationStatus),
-);
+  asyncHandler(updateRegistrationStatus)
+)
 
 router.get(
-  "/my",
+  '/my',
   authenticate,
-  allowRoles("agent", "individual"),
-  asyncHandler(listMyRegistrations),
-);
+  allowRoles('agent', 'individual'),
+  asyncHandler(listMyRegistrations)
+)
 
-module.exports = router;
+module.exports = router

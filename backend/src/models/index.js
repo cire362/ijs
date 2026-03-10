@@ -1,3 +1,4 @@
+const { sequelize } = require("../db");
 const User = require("./user");
 const Property = require("./property");
 const Application = require("./application");
@@ -10,11 +11,14 @@ const Event = require("./event");
 const EventRegistration = require("./eventRegistration");
 const AddressSuggestion = require("./addressSuggestion");
 const AuthSession = require("./authSession");
-const SupportRequest = require("./supportRequest");
+const SupportRequest = require("./supportRequest")(sequelize);
 const ChatMessage = require("./chatMessage");
 const SupportChat = require("./supportChat");
 const PropertyDocument = require("./propertyDocument");
 const ApplicationChatMessage = require("./applicationChatMessage");
+const TariffCounterparty = require("./tariffCounterparty");
+const TariffComplex = require("./tariffComplex");
+const TariffRate = require("./tariffRate");
 const TariffPropertyRate = require("./tariffPropertyRate");
 
 User.hasMany(Property, { foreignKey: "developerId", as: "properties" });
@@ -92,6 +96,33 @@ EventRegistration.belongsTo(User, { foreignKey: "agentId", as: "agent" });
 User.hasMany(AuthSession, { foreignKey: "userId" });
 AuthSession.belongsTo(User, { foreignKey: "userId" });
 
+User.hasMany(TariffCounterparty, {
+  foreignKey: "userId",
+  as: "tariffCounterparties",
+});
+TariffCounterparty.belongsTo(User, {
+  foreignKey: "userId",
+  as: "user",
+});
+
+TariffCounterparty.hasMany(TariffComplex, {
+  foreignKey: "counterpartyId",
+  as: "complexes",
+});
+TariffComplex.belongsTo(TariffCounterparty, {
+  foreignKey: "counterpartyId",
+  as: "counterparty",
+});
+
+TariffComplex.hasMany(TariffRate, {
+  foreignKey: "complexId",
+  as: "rates",
+});
+TariffRate.belongsTo(TariffComplex, {
+  foreignKey: "complexId",
+  as: "complex",
+});
+
 module.exports = {
   User,
   Property,
@@ -110,5 +141,8 @@ module.exports = {
   SupportChat,
   PropertyDocument,
   ApplicationChatMessage,
+  TariffCounterparty,
+  TariffComplex,
+  TariffRate,
   TariffPropertyRate,
 };

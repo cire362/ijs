@@ -81,11 +81,14 @@ DOMAIN=<ваш-домен> sh scripts/smoke-check.sh
 Сертификаты сохраняются в volumes `caddy_data`/`caddy_config` и переживают перезапуск контейнеров.
 Также в `docker-compose.prod.yml` добавлены healthcheck для `db`, `api`, `web`.
 
-### 5) (Опционально) сиды
+### 5) (Опционально) сиды для dev/staging
 
 ```bash
-docker compose -f docker-compose.prod.yml exec api npm run seed
+ALLOW_SEED=1 SEED_DEFAULT_PASSWORD=password docker compose -f docker-compose.prod.yml -f docker-compose.http.seed.yml run --rm seed
 ```
+
+Сиды намеренно заблокированы без `ALLOW_SEED=1` и не предназначены для боевой базы.
+Demo-аккаунты с фиксированными паролями создаются только при `SEED_DEMO_USERS=1`.
 
 Тесты (бек):
 

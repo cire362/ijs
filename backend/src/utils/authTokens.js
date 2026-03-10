@@ -52,9 +52,15 @@ function cookieCommonOptions(req) {
   const isProd = process.env.NODE_ENV === "production";
   const forced = parseBool(process.env.COOKIE_SECURE);
   const secure = forced != null ? forced : isProd && isHttpsRequest(req);
+  const sameSite = String(process.env.COOKIE_SAME_SITE || "lax")
+    .trim()
+    .toLowerCase();
+  const domain = String(process.env.COOKIE_DOMAIN || "").trim() || undefined;
+
   return {
     secure,
-    sameSite: "lax",
+    sameSite,
+    domain,
     path: "/",
   };
 }

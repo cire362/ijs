@@ -1,0 +1,5 @@
+node_modules;
+npm - debug.log;
+coverage;
+uploads;
+tests.env.DS_Store;

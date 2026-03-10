@@ -1,4 +1,4 @@
-const Joi = require("joi");
+const logger = require("../utils/logger");
 
 const validate = (schema, property = "body") => {
   return (req, res, next) => {
@@ -12,7 +12,11 @@ const validate = (schema, property = "body") => {
         message: detail.message,
         path: detail.path,
       }));
-      console.log("Validation Error:", JSON.stringify(details, null, 2));
+      logger.warn("validation_failed", {
+        path: req.originalUrl,
+        property,
+        details,
+      });
       return res.status(400).json({ error: "Ошибка валидации", details });
     }
 

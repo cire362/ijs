@@ -1,48 +1,48 @@
-const express = require("express");
-const router = express.Router();
-const asyncHandler = require("../utils/asyncHandler");
-const validate = require("../middleware/validate");
-const { createNewsSchema, updateNewsSchema } = require("../validation/news");
+const express = require('express')
+const router = express.Router()
+const asyncHandler = require('../utils/asyncHandler')
+const validate = require('../middleware/validate')
+const { createNewsSchema, updateNewsSchema } = require('../validation/news')
 const {
   authenticate,
   optionalAuthenticate,
-  allowRoles,
-} = require("../middleware/auth");
+  allowRoles
+} = require('../middleware/auth')
 const {
   listNews,
   getNewsById,
   createNews,
   updateNews,
-  addNewsImages,
-} = require("../controllers/newsController");
+  addNewsImages
+} = require('../controllers/newsController')
 
-const { uploadNewsImages } = require("../utils/upload");
+const { uploadNewsImages } = require('../utils/upload')
 
-router.get("/", optionalAuthenticate, asyncHandler(listNews));
-router.get("/:id", optionalAuthenticate, asyncHandler(getNewsById));
+router.get('/', optionalAuthenticate, asyncHandler(listNews))
+router.get('/:id', optionalAuthenticate, asyncHandler(getNewsById))
 
 router.post(
-  "/",
+  '/',
   authenticate,
-  allowRoles("admin"),
+  allowRoles('admin'),
   validate(createNewsSchema),
   asyncHandler(createNews)
-);
+)
 router.patch(
-  "/:id",
+  '/:id',
   authenticate,
-  allowRoles("admin"),
+  allowRoles('admin'),
   validate(updateNewsSchema),
   asyncHandler(updateNews)
-);
+)
 
 router.post(
-  "/:id/images",
+  '/:id/images',
   authenticate,
-  allowRoles("admin"),
+  allowRoles('admin'),
   (req, res, next) =>
     uploadNewsImages(req, res, (err) => (err ? next(err) : next())),
   asyncHandler(addNewsImages)
-);
+)
 
-module.exports = router;
+module.exports = router

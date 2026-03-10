@@ -22,6 +22,35 @@ const applicationDocsDir = path.join(
 const newsDir = path.join(__dirname, "..", "..", "uploads", "news");
 const eventsDir = path.join(__dirname, "..", "..", "uploads", "events");
 
+const IMAGE_MIME_EXTENSIONS = {
+  "image/jpeg": [".jpg", ".jpeg"],
+  "image/png": [".png"],
+  "image/webp": [".webp"],
+};
+
+const DOCUMENT_MIME_EXTENSIONS = {
+  "application/pdf": [".pdf"],
+  "application/msword": [".doc"],
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [
+    ".docx",
+  ],
+  "application/vnd.ms-excel": [".xls"],
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [
+    ".xlsx",
+  ],
+  "text/plain": [".txt"],
+  "image/jpeg": [".jpg", ".jpeg"],
+  "image/png": [".png"],
+};
+
+const APPLICATION_DOCUMENT_MIME_EXTENSIONS = {
+  "application/pdf": [".pdf"],
+  "application/msword": [".doc"],
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [
+    ".docx",
+  ],
+};
+
 fs.mkdirSync(avatarsDir, { recursive: true });
 fs.mkdirSync(propertiesDir, { recursive: true });
 fs.mkdirSync(propertyDocsDir, { recursive: true });
@@ -55,13 +84,35 @@ function safeRouteId(v) {
   return id == null ? "0" : String(id);
 }
 
+function fileExtensionFromMime(file, allowedMap) {
+  const allowedExtensions = allowedMap[file.mimetype];
+  if (!Array.isArray(allowedExtensions) || allowedExtensions.length === 0) {
+    return null;
+  }
+  return allowedExtensions[0];
+}
+
+function validateFileAgainstMime(file, allowedMap, errorMessage) {
+  file.originalname = fixUtf8(file.originalname);
+  const safeName = safeFileBaseName(file.originalname);
+  const extension = path.extname(safeName).toLowerCase();
+  const allowedExtensions = allowedMap[file.mimetype];
+
+  if (!Array.isArray(allowedExtensions) || allowedExtensions.length === 0) {
+    return errorMessage;
+  }
+
+  if (!allowedExtensions.includes(extension)) {
+    return "Расширение файла не соответствует заявленному MIME-типу";
+  }
+
+  return null;
+}
+
 const avatarStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, avatarsDir),
   filename: (req, file, cb) => {
-    // Fix encoding in place for Controller access later
-    file.originalname = fixUtf8(file.originalname);
-    const safe = safeFileBaseName(file.originalname);
-    const ext = path.extname(safe).toLowerCase();
+    const ext = fileExtensionFromMime(file, IMAGE_MIME_EXTENSIONS) || ".bin";
     cb(null, `u${req.user.id}-${Date.now()}${ext}`);
   },
 });
@@ -69,10 +120,8 @@ const avatarStorage = multer.diskStorage({
 const propertyImagesStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, propertiesDir),
   filename: (req, file, cb) => {
-    file.originalname = fixUtf8(file.originalname);
     const id = safeRouteId(req.params.id);
-    const safe = safeFileBaseName(file.originalname);
-    const ext = path.extname(safe).toLowerCase();
+    const ext = fileExtensionFromMime(file, IMAGE_MIME_EXTENSIONS) || ".bin";
     cb(null, `p${id}-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
   },
 });
@@ -80,10 +129,8 @@ const propertyImagesStorage = multer.diskStorage({
 const newsImagesStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, newsDir),
   filename: (req, file, cb) => {
-    file.originalname = fixUtf8(file.originalname);
     const id = safeRouteId(req.params.id);
-    const safe = safeFileBaseName(file.originalname);
-    const ext = path.extname(safe).toLowerCase();
+    const ext = fileExtensionFromMime(file, IMAGE_MIME_EXTENSIONS) || ".bin";
     cb(null, `n${id}-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
   },
 });
@@ -91,10 +138,8 @@ const newsImagesStorage = multer.diskStorage({
 const eventCoverStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, eventsDir),
   filename: (req, file, cb) => {
-    file.originalname = fixUtf8(file.originalname);
     const id = safeRouteId(req.params.id);
-    const safe = safeFileBaseName(file.originalname);
-    const ext = path.extname(safe).toLowerCase();
+    const ext = fileExtensionFromMime(file, IMAGE_MIME_EXTENSIONS) || ".bin";
     cb(null, `e${id}-${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
   },
 });
@@ -102,10 +147,11 @@ const eventCoverStorage = multer.diskStorage({
 const propertyDocStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, propertyDocsDir),
   filename: (req, file, cb) => {
-    file.originalname = fixUtf8(file.originalname);
     const id = safeRouteId(req.params.id);
     const safe = safeFileBaseName(file.originalname);
-    const finalName = `doc-${id}-${Date.now()}-${safe}`;
+    const baseName = path.basename(safe, path.extname(safe));
+    const ext = fileExtensionFromMime(file, DOCUMENT_MIME_EXTENSIONS) || ".bin";
+    const finalName = `doc-${id}-${Date.now()}-${baseName}${ext}`;
     cb(null, finalName);
   },
 });
@@ -113,50 +159,42 @@ const propertyDocStorage = multer.diskStorage({
 const applicationDocStorage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, applicationDocsDir),
   filename: (req, file, cb) => {
-    file.originalname = fixUtf8(file.originalname);
     const id = safeRouteId(req.params.id);
     const safe = safeFileBaseName(file.originalname);
-    const finalName = `appdoc-${id}-${Date.now()}-${safe}`;
+    const baseName = path.basename(safe, path.extname(safe));
+    const ext =
+      fileExtensionFromMime(file, APPLICATION_DOCUMENT_MIME_EXTENSIONS) ||
+      ".bin";
+    const finalName = `appdoc-${id}-${Date.now()}-${baseName}${ext}`;
     cb(null, finalName);
   },
 });
 
 const fileFilter = (req, file, cb) => {
-  const ok = ["image/jpeg", "image/png", "image/webp"].includes(file.mimetype);
-  cb(ok ? null : new Error("Invalid file type"), ok);
+  const validationError = validateFileAgainstMime(
+    file,
+    IMAGE_MIME_EXTENSIONS,
+    "Invalid file type",
+  );
+  cb(validationError ? new Error(validationError) : null, !validationError);
 };
 
 const docFilter = (req, file, cb) => {
-  // Allow PDF, DOC, DOCX, XLS, XLSX, TXT, Images
-  const allowed = [
-    "application/pdf",
-    "application/msword",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "application/vnd.ms-excel",
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    "text/plain",
-    "image/jpeg",
-    "image/png",
-  ];
-  if (allowed.includes(file.mimetype)) {
-    cb(null, true);
-  } else {
-    cb(new Error("File type not allowed"), false);
-  }
+  const validationError = validateFileAgainstMime(
+    file,
+    DOCUMENT_MIME_EXTENSIONS,
+    "File type not allowed",
+  );
+  cb(validationError ? new Error(validationError) : null, !validationError);
 };
 
 const applicationDocFilter = (req, file, cb) => {
-  // Strict: PDF, DOC, DOCX for payout docs
-  const allowed = [
-    "application/pdf",
-    "application/msword",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  ];
-  if (allowed.includes(file.mimetype)) {
-    cb(null, true);
-  } else {
-    cb(new Error("File type not allowed"), false);
-  }
+  const validationError = validateFileAgainstMime(
+    file,
+    APPLICATION_DOCUMENT_MIME_EXTENSIONS,
+    "File type not allowed",
+  );
+  cb(validationError ? new Error(validationError) : null, !validationError);
 };
 
 const uploadPropertyDoc = multer({

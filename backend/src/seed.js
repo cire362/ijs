@@ -1,6 +1,7 @@
 require("dotenv").config();
 
 const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const { sequelize } = require("./db");
@@ -23,15 +24,6 @@ async function findOrCreateUserByEmail(payload) {
   // Ensure updates if it already exists
   await user.update(payload);
   return user;
-}
-
-async function findOrCreateProperty(payload) {
-  const [prop] = await Property.findOrCreate({
-    where: { title: payload.title, developerId: payload.developerId },
-    defaults: payload,
-  });
-  await prop.update(payload);
-  return prop;
 }
 
 async function upsertImage(propertyId, url, caption) {
@@ -157,10 +149,30 @@ function calcCommission(price) {
   return Math.round(n * 0.03 * 100) / 100;
 }
 
+function requireSeedOptIn() {
+  if (process.env.ALLOW_SEED !== "1") {
+    throw new Error("Refusing to seed without ALLOW_SEED=1");
+  }
+}
+
+function getRequiredSeedPassword(envName) {
+  const value = String(process.env[envName] || "").trim();
+  if (!value) {
+    throw new Error(`${envName} must be set for seeding`);
+  }
+  return value;
+}
+
+function generateRandomPassword() {
+  return crypto.randomBytes(24).toString("base64url");
+}
+
 async function seed() {
   if (process.env.NODE_ENV === "production") {
     throw new Error("Refusing to seed in production");
   }
+
+  requireSeedOptIn();
 
   const force = process.env.SEED_FORCE === "1";
   const seedValue = Number(process.env.SEED_RANDOM_SEED || 42);
@@ -169,8 +181,15 @@ async function seed() {
   await sequelize.authenticate();
   await sequelize.sync({ force });
 
-  const passwordHash = await bcrypt.hash("password", 10);
-  const password12345Hash = await bcrypt.hash("12345", 10);
+  const seedPassword =
+    String(process.env.SEED_DEFAULT_PASSWORD || "").trim() ||
+    generateRandomPassword();
+  const passwordHash = await bcrypt.hash(seedPassword, 10);
+
+  const demoUsersEnabled = process.env.SEED_DEMO_USERS === "1";
+  const demoPasswordHash = demoUsersEnabled
+    ? await bcrypt.hash(getRequiredSeedPassword("SEED_DEMO_PASSWORD"), 10)
+    : null;
 
   const lastNames = [
     "Иванов",
@@ -350,25 +369,26 @@ async function seed() {
     });
   }
 
-  // Fixed credentials for quick manual testing
-  await findOrCreateUserByEmail({
-    ...agents[0],
-    email: "agent@test.com",
-    passwordHash: password12345Hash,
-    name: `${agents[0].lastName} ${agents[0].firstName} ${agents[0].middleName}`.trim(),
-  });
+  if (demoUsersEnabled) {
+    await findOrCreateUserByEmail({
+      ...agents[0],
+      email: "agent@test.com",
+      passwordHash: demoPasswordHash,
+      name: `${agents[0].lastName} ${agents[0].firstName} ${agents[0].middleName}`.trim(),
+    });
 
-  await findOrCreateUserByEmail({
-    ...fixedDeveloper,
-    passwordHash: password12345Hash,
-    name: `${fixedDeveloper.lastName} ${fixedDeveloper.firstName} ${fixedDeveloper.middleName}`.trim(),
-  });
+    await findOrCreateUserByEmail({
+      ...fixedDeveloper,
+      passwordHash: demoPasswordHash,
+      name: `${fixedDeveloper.lastName} ${fixedDeveloper.firstName} ${fixedDeveloper.middleName}`.trim(),
+    });
 
-  await findOrCreateUserByEmail({
-    ...admin,
-    passwordHash: password12345Hash,
-    name: `${admin.lastName} ${admin.firstName} ${admin.middleName}`.trim(),
-  });
+    await findOrCreateUserByEmail({
+      ...admin,
+      passwordHash: demoPasswordHash,
+      name: `${admin.lastName} ${admin.firstName} ${admin.middleName}`.trim(),
+    });
+  }
 
   const createdAgents = await User.findAll({ where: { role: "agent" } });
 
@@ -483,7 +503,6 @@ async function seed() {
     "awaiting_payment",
     "commission_available",
   ];
-  const finalStatuses = ["done", "rejected", "expired"];
   const statusWeights = [
     { status: "sent", w: 30 },
     { status: "confirmed", w: 18 },
@@ -509,7 +528,7 @@ async function seed() {
   for (let i = 0; i < applicationsCount; i++) {
     const property = randomChoice(rng, createdProperties);
     const agent = randomChoice(rng, createdAgents);
-    let status = weightedStatus();
+    const status = weightedStatus();
 
     const clientFullName = `${randomChoice(rng, lastNames)} ${randomChoice(
       rng,

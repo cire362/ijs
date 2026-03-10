@@ -3,7 +3,10 @@ import axios from "axios";
 import { humanizeApiError } from "@/utils/errors";
 import { getSocket } from "@/utils/socket";
 
-const api = axios.create({ baseURL: import.meta.env.VITE_API_URL || "/api" });
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || "/api",
+  withCredentials: true,
+});
 
 function getCookie(name) {
   const parts = String(document.cookie || "")
@@ -37,6 +40,7 @@ function clearLocalStorageOnLogout() {
   // Keep non-auth UX prefs (e.g. cookie consent). Remove keys that can leak user context.
   try {
     localStorage.removeItem("chat_guest_room");
+    localStorage.removeItem("chat_guest_session");
   } catch {
     // Ignore (private mode / disabled storage)
   }

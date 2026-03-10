@@ -1,10 +1,10 @@
 const express = require("express");
-const morgan = require("morgan");
 const cors = require("cors");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const cookieParser = require("cookie-parser");
 const path = require("path");
+const crypto = require("crypto");
 const authRoutes = require("./routes/auth");
 const propertyRoutes = require("./routes/properties");
 const applicationRoutes = require("./routes/applications");
@@ -16,6 +16,7 @@ const addressRoutes = require("./routes/address");
 const supportRoutes = require("./routes/support");
 const tariffRoutes = require("./routes/tariffs");
 const { getHttpCorsOptions } = require("./utils/cors");
+const logger = require("./utils/logger");
 
 const app = express();
 
@@ -53,7 +54,27 @@ const authLimiter = rateLimit({
 app.use(apiLimiter);
 app.use(cookieParser());
 app.use(express.json({ limit: "1mb" }));
-app.use(morgan("dev"));
+
+app.use((req, res, next) => {
+  req.requestId = crypto.randomUUID();
+  res.setHeader("x-request-id", req.requestId);
+
+  const startedAt = process.hrtime.bigint();
+  res.on("finish", () => {
+    const elapsedMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
+    logger.info("http_request", {
+      requestId: req.requestId,
+      method: req.method,
+      path: req.originalUrl,
+      statusCode: res.statusCode,
+      durationMs: Math.round(elapsedMs * 100) / 100,
+      ip: req.ip,
+      userAgent: req.get("user-agent") || null,
+    });
+  });
+
+  next();
+});
 
 app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
 
@@ -70,7 +91,16 @@ app.use("/support", supportRoutes);
 app.use("/tariffs", tariffRoutes);
 
 app.use((err, req, res, next) => {
-  console.error(err);
+  logger.error("request_failed", {
+    requestId: req.requestId,
+    method: req.method,
+    path: req.originalUrl,
+    error: {
+      name: err?.name,
+      message: err?.message,
+      stack: err?.stack,
+    },
+  });
 
   if (err.status) {
     return res.status(err.status).json({ error: err.message });

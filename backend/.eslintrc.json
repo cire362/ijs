@@ -5,6 +5,21 @@
     "es2021": true
   },
   "rules": {
-    "no-console": "off"
-  }
+    "no-console": "off",
+    "no-throw-literal": "off"
+  },
+  "overrides": [
+    {
+      "files": ["tests/**/*.js"],
+      "env": {
+        "jest": true
+      }
+    },
+    {
+      "files": ["src/utils/validation.js"],
+      "rules": {
+        "no-control-regex": "off"
+      }
+    }
+  ]
 }

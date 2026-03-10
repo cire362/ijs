@@ -1,5 +1,6 @@
 const { Op } = require("sequelize");
 const { Event, EventRegistration, User, Notification } = require("../models");
+const { sequelize } = require("../db");
 
 function normalizeText(v) {
   return String(v || "")
@@ -136,38 +137,46 @@ class EventsService {
       throw { status: 403, message: "Доступ запрещён" };
     }
 
-    const [reg, created] = await EventRegistration.findOrCreate({
-      where: { eventId: event.id, agentId: user.id },
-      defaults: { eventId: event.id, agentId: user.id, status: "new" },
+    return sequelize.transaction(async (transaction) => {
+      const [reg, created] = await EventRegistration.findOrCreate({
+        where: { eventId: event.id, agentId: user.id },
+        defaults: { eventId: event.id, agentId: user.id, status: "new" },
+        transaction,
+      });
+
+      if (!created) {
+        throw { status: 400, message: "Вы уже записаны на это мероприятие" };
+      }
+
+      const admins = await User.findAll({
+        where: { role: "admin" },
+        transaction,
+      });
+      const agentName =
+        user.fullName ||
+        [user.lastName, user.firstName, user.middleName]
+          .filter(Boolean)
+          .join(" ") ||
+        user.email;
+
+      if (admins.length) {
+        await Notification.bulkCreate(
+          admins.map((a) => ({
+            userId: a.id,
+            type: "event_registration",
+            text: `Запись на мероприятие: ${agentName} → «${event.title}»`,
+            meta: {
+              eventId: event.id,
+              registrationId: reg.id,
+              agentId: user.id,
+            },
+          })),
+          { transaction },
+        );
+      }
+
+      return reg;
     });
-
-    if (!created) {
-      throw { status: 400, message: "Вы уже записаны на это мероприятие" };
-    }
-
-    // Notify all admins
-    const admins = await User.findAll({ where: { role: "admin" } });
-    const agentName =
-      user.fullName ||
-      [user.lastName, user.firstName, user.middleName]
-        .filter(Boolean)
-        .join(" ") ||
-      user.email;
-
-    await Notification.bulkCreate(
-      admins.map((a) => ({
-        userId: a.id,
-        type: "event_registration",
-        text: `Запись на мероприятие: ${agentName} → «${event.title}»`,
-        meta: {
-          eventId: event.id,
-          registrationId: reg.id,
-          agentId: user.id,
-        },
-      })),
-    );
-
-    return reg;
   }
 
   async listRegistrations(query) {
@@ -251,31 +260,37 @@ class EventsService {
     });
     if (!reg) throw { status: 404, message: "Не найдено" };
 
-    await reg.update({ status });
+    return sequelize.transaction(async (transaction) => {
+      await reg.update({ status }, { transaction });
 
-    const eventTitle = reg.event?.title || "мероприятие";
-    const verb = status === "approved" ? "подтверждена" : "отклонена";
+      const eventTitle = reg.event?.title || "мероприятие";
+      const verb = status === "approved" ? "подтверждена" : "отклонена";
 
-    await Notification.create({
-      userId: reg.agentId,
-      type: "event_registration_status",
-      text: `Ваша заявка на мероприятие «${eventTitle}» ${verb}.`,
-      meta: {
-        eventId: reg.eventId,
-        registrationId: reg.id,
-        status,
-      },
-    });
-
-    return EventRegistration.findByPk(reg.id, {
-      include: [
-        { model: Event, as: "event" },
+      await Notification.create(
         {
-          model: User,
-          as: "agent",
-          attributes: ["id", "firstName", "lastName", "middleName", "email"],
+          userId: reg.agentId,
+          type: "event_registration_status",
+          text: `Ваша заявка на мероприятие «${eventTitle}» ${verb}.`,
+          meta: {
+            eventId: reg.eventId,
+            registrationId: reg.id,
+            status,
+          },
         },
-      ],
+        { transaction },
+      );
+
+      return EventRegistration.findByPk(reg.id, {
+        include: [
+          { model: Event, as: "event" },
+          {
+            model: User,
+            as: "agent",
+            attributes: ["id", "firstName", "lastName", "middleName", "email"],
+          },
+        ],
+        transaction,
+      });
     });
   }
 }

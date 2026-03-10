@@ -1,5 +1,5 @@
-const { DataTypes, Model } = require("sequelize");
-const { sequelize } = require("../db");
+const { DataTypes, Model } = require('sequelize')
+const { sequelize } = require('../db')
 
 class User extends Model {}
 
@@ -16,25 +16,25 @@ User.init(
     // Computed full name for UI
     fullName: {
       type: DataTypes.VIRTUAL,
-      get() {
+      get () {
         const parts = [this.lastName, this.firstName, this.middleName]
-          .map((v) => (typeof v === "string" ? v.trim() : ""))
-          .filter(Boolean);
-        if (parts.length) return parts.join(" ");
-        return this.name || "";
-      },
+          .map((v) => (typeof v === 'string' ? v.trim() : ''))
+          .filter(Boolean)
+        if (parts.length) return parts.join(' ')
+        return this.name || ''
+      }
     },
     email: {
       type: DataTypes.STRING,
       allowNull: false,
       unique: true,
-      validate: { isEmail: true },
+      validate: { isEmail: true }
     },
     phone: { type: DataTypes.STRING },
     passwordHash: { type: DataTypes.STRING, allowNull: false },
     role: {
-      type: DataTypes.ENUM("agent", "individual", "developer", "admin"),
-      allowNull: false,
+      type: DataTypes.ENUM('agent', 'individual', 'developer', 'admin'),
+      allowNull: false
     },
     // For developers: access is blocked until admin approval
     developerApproved: { type: DataTypes.BOOLEAN, defaultValue: false },
@@ -46,42 +46,42 @@ User.init(
     legalConsentAcceptedAt: {
       type: DataTypes.DATE,
       allowNull: true,
-      field: "legal_consent_accepted_at",
+      field: 'legal_consent_accepted_at'
     },
     legalConsentVersion: {
       type: DataTypes.STRING,
       allowNull: true,
-      field: "legal_consent_version",
+      field: 'legal_consent_version'
     },
     legalConsentMeta: {
       type: DataTypes.JSON,
       allowNull: true,
-      field: "legal_consent_meta",
+      field: 'legal_consent_meta'
     },
 
     marketingConsentGiven: {
       type: DataTypes.BOOLEAN,
       allowNull: false,
       defaultValue: false,
-      field: "marketing_consent_given",
+      field: 'marketing_consent_given'
     },
     marketingConsentAcceptedAt: {
       type: DataTypes.DATE,
       allowNull: true,
-      field: "marketing_consent_accepted_at",
+      field: 'marketing_consent_accepted_at'
     },
     marketingConsentWithdrawnAt: {
       type: DataTypes.DATE,
       allowNull: true,
-      field: "marketing_consent_withdrawn_at",
+      field: 'marketing_consent_withdrawn_at'
     },
     marketingConsentVersion: {
       type: DataTypes.STRING,
       allowNull: true,
-      field: "marketing_consent_version",
-    },
+      field: 'marketing_consent_version'
+    }
   },
-  { sequelize, modelName: "user" },
-);
+  { sequelize, modelName: 'user' }
+)
 
-module.exports = User;
+module.exports = User

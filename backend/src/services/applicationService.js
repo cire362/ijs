@@ -7,6 +7,7 @@ const {
   User,
   TariffPropertyRate,
 } = require("../models");
+const { sequelize } = require("../db");
 const { formatRuPhone } = require("../utils/phone");
 
 const RESERVING_STATUSES = new Set([
@@ -267,56 +268,69 @@ class ApplicationService {
       };
     }
 
-    const app = await Application.create({
-      propertyId,
-      agentId: user.id,
-      status: "sent",
-      expiresAt,
-      commissionAmount: computedCommission,
-      comment: comment || null,
-      clientFullName: resolvedClientFullName,
-      clientPhone: normalizedClientPhone,
-    });
-
-    await StatusHistory.create({
-      applicationId: app.id,
-      status: "sent",
-      changedBy: user.id,
-      comment: "Заявка отправлена",
-    });
-
-    // Notify developer
-    if (property.developerId) {
-      await Notification.create({
-        userId: property.developerId,
-        type: "application_new",
-        text: `Новая заявка №${app.id} по объекту «${property.title}»`,
-        meta: {
-          applicationId: app.id,
-          propertyId: property.id,
+    return sequelize.transaction(async (transaction) => {
+      const app = await Application.create(
+        {
+          propertyId,
           agentId: user.id,
+          status: "sent",
+          expiresAt,
+          commissionAmount: computedCommission,
+          comment: comment || null,
+          clientFullName: resolvedClientFullName,
+          clientPhone: normalizedClientPhone,
         },
-      });
-    }
-
-    // Notify admins
-    const admins = await User.findAll({ where: { role: "admin" } });
-    if (admins.length) {
-      await Notification.bulkCreate(
-        admins.map((a) => ({
-          userId: a.id,
-          type: "application_new",
-          text: `Новая заявка №${app.id} по объекту «${property.title}»`,
-          meta: {
-            applicationId: app.id,
-            propertyId: property.id,
-            agentId: user.id,
-          },
-        })),
+        { transaction },
       );
-    }
 
-    return app;
+      await StatusHistory.create(
+        {
+          applicationId: app.id,
+          status: "sent",
+          changedBy: user.id,
+          comment: "Заявка отправлена",
+        },
+        { transaction },
+      );
+
+      if (property.developerId) {
+        await Notification.create(
+          {
+            userId: property.developerId,
+            type: "application_new",
+            text: `Новая заявка №${app.id} по объекту «${property.title}»`,
+            meta: {
+              applicationId: app.id,
+              propertyId: property.id,
+              agentId: user.id,
+            },
+          },
+          { transaction },
+        );
+      }
+
+      const admins = await User.findAll({
+        where: { role: "admin" },
+        transaction,
+      });
+      if (admins.length) {
+        await Notification.bulkCreate(
+          admins.map((a) => ({
+            userId: a.id,
+            type: "application_new",
+            text: `Новая заявка №${app.id} по объекту «${property.title}»`,
+            meta: {
+              applicationId: app.id,
+              propertyId: property.id,
+              agentId: user.id,
+            },
+          })),
+          { transaction },
+        );
+      }
+
+      return app;
+    });
   }
 
   async updateStatus(id, data, user) {
@@ -340,57 +354,72 @@ class ApplicationService {
     }
 
     // Logic: Status transitions affecting Property saleStatus
-    if (status === "done") {
-      if (app.property?.saleStatus === "sold" && app.status !== "done") {
-        throw { status: 400, message: "Объект уже продан" };
-      }
-      if (app.property && app.property.saleStatus !== "sold") {
-        await app.property.update({ saleStatus: "sold" });
-      }
-    } else if (RESERVING_STATUSES.has(status)) {
-      if (app.property && app.property.saleStatus !== "sold") {
-        await app.property.update({ saleStatus: "reserved" });
-      }
-    } else if (status === "rejected") {
-      if (app.property && app.property.saleStatus !== "sold") {
-        const activeCount = await Application.count({
-          where: {
-            propertyId: app.propertyId,
-            id: { [Op.ne]: app.id },
-            status: { [Op.in]: Array.from(RESERVING_STATUSES) },
-          },
-        });
-        if (activeCount === 0) {
-          await app.property.update({ saleStatus: "available" });
+    return sequelize.transaction(async (transaction) => {
+      if (status === "done") {
+        if (app.property?.saleStatus === "sold" && app.status !== "done") {
+          throw { status: 400, message: "Объект уже продан" };
+        }
+        if (app.property && app.property.saleStatus !== "sold") {
+          await app.property.update({ saleStatus: "sold" }, { transaction });
+        }
+      } else if (RESERVING_STATUSES.has(status)) {
+        if (app.property && app.property.saleStatus !== "sold") {
+          await app.property.update(
+            { saleStatus: "reserved" },
+            { transaction },
+          );
+        }
+      } else if (status === "rejected") {
+        if (app.property && app.property.saleStatus !== "sold") {
+          const activeCount = await Application.count({
+            where: {
+              propertyId: app.propertyId,
+              id: { [Op.ne]: app.id },
+              status: { [Op.in]: Array.from(RESERVING_STATUSES) },
+            },
+            transaction,
+          });
+          if (activeCount === 0) {
+            await app.property.update(
+              { saleStatus: "available" },
+              { transaction },
+            );
+          }
         }
       }
-    }
 
-    const updates = { status };
-    if (status !== "sent") {
-      updates.expiresAt = null;
-    }
-    await app.update(updates);
+      const updates = { status };
+      if (status !== "sent") {
+        updates.expiresAt = null;
+      }
+      await app.update(updates, { transaction });
 
-    const effectiveComment = comment ? comment : statusLabelRu(status);
+      const effectiveComment = comment || statusLabelRu(status);
 
-    await StatusHistory.create({
-      applicationId: app.id,
-      status,
-      changedBy: user.id,
-      comment: effectiveComment,
+      await StatusHistory.create(
+        {
+          applicationId: app.id,
+          status,
+          changedBy: user.id,
+          comment: effectiveComment,
+        },
+        { transaction },
+      );
+
+      if (app.agentId) {
+        await Notification.create(
+          {
+            userId: app.agentId,
+            type: "application_status",
+            text: `Заявка №${app.id} обновилась: ${statusLabelRu(status)}`,
+            meta: { applicationId: app.id, status },
+          },
+          { transaction },
+        );
+      }
+
+      return app;
     });
-
-    if (app.agentId) {
-      await Notification.create({
-        userId: app.agentId,
-        type: "application_status",
-        text: `Заявка №${app.id} обновилась: ${statusLabelRu(status)}`,
-        meta: { applicationId: app.id, status },
-      });
-    }
-
-    return app;
   }
 
   // Helper for internal use or controller

@@ -253,7 +253,7 @@ function toSuggestion(item, kind) {
     const region = normalizeSpace(
       toSafeText(address.state || address.region || address.state_district, {
         maxLen: 200,
-      })
+      }),
     );
     return { label, region: region || null };
   }
@@ -267,7 +267,7 @@ function toSuggestion(item, kind) {
     const region = normalizeSpace(
       toSafeText(address.state || address.region || address.state_district, {
         maxLen: 200,
-      })
+      }),
     );
 
     const city = normalizeSpace(
@@ -277,8 +277,8 @@ function toSuggestion(item, kind) {
           address.village ||
           address.hamlet ||
           address.municipality,
-        { maxLen: 200 }
-      )
+        { maxLen: 200 },
+      ),
     );
 
     return { label, region: region || null, city: city || null };
@@ -292,7 +292,7 @@ async function fetchWithHardTimeout(url, options, timeoutMs) {
   const ac = new AbortController();
   const fetchPromise = fetch(url, { ...options, signal: ac.signal });
 
-  const timeoutPromise = new Promise((_, reject) => {
+  const timeoutPromise = new Promise((_resolve, reject) => {
     const t = setTimeout(() => {
       try {
         ac.abort();
@@ -393,13 +393,13 @@ router.get("/suggest", async (req, res) => {
     const resp = await fetchWithHardTimeout(
       url,
       {
-      method: "GET",
-      headers: {
-        // Nominatim usage policy expects a User-Agent identifying the app.
-        "User-Agent": "ijshub/0.1 (address autocomplete)",
+        method: "GET",
+        headers: {
+          // Nominatim usage policy expects a User-Agent identifying the app.
+          "User-Agent": "ijshub/0.1 (address autocomplete)",
+        },
       },
-      },
-      3500
+      3500,
     );
 
     if (!resp.ok) {

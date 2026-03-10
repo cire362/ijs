@@ -1,29 +1,29 @@
-const { DataTypes } = require("sequelize");
-const { sequelize } = require("../db");
+const { DataTypes } = require('sequelize')
+const { sequelize } = require('../db')
 
-const SupportChat = sequelize.define("SupportChat", {
+const SupportChat = sequelize.define('SupportChat', {
   id: {
     type: DataTypes.INTEGER,
     autoIncrement: true,
-    primaryKey: true,
+    primaryKey: true
   },
   roomId: {
     type: DataTypes.STRING,
     allowNull: false,
-    unique: true,
+    unique: true
   },
   isResolved: {
     type: DataTypes.BOOLEAN,
-    defaultValue: false,
+    defaultValue: false
   },
   resolvedAt: {
     type: DataTypes.DATE,
-    allowNull: true,
+    allowNull: true
   },
   resolvedBy: {
     type: DataTypes.INTEGER,
-    allowNull: true,
-  },
-});
+    allowNull: true
+  }
+})
 
-module.exports = SupportChat;
+module.exports = SupportChat

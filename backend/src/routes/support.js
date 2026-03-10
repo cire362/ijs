@@ -3,6 +3,40 @@ const router = express.Router();
 const asyncHandler = require("../utils/asyncHandler");
 const { SupportRequest, ChatMessage, SupportChat } = require("../models");
 const { optionalAuthenticate, authenticate } = require("../middleware/auth");
+const {
+  issueGuestSupportSession,
+  verifyGuestSupportSession,
+} = require("../utils/guestSupportSession");
+
+function readGuestSupportSession(req) {
+  const headerToken = req.headers["x-support-guest-token"];
+  const bodyToken = req.body?.guestToken;
+  const queryToken = req.query?.guestToken;
+  const guestToken = headerToken || bodyToken || queryToken;
+  return verifyGuestSupportSession(guestToken);
+}
+
+router.post(
+  "/guest-session",
+  optionalAuthenticate,
+  asyncHandler(async (req, res) => {
+    if (req.user) {
+      return res.json({ roomId: `user:${req.user.id}`, guestToken: null });
+    }
+
+    const requestedRoomId = req.body?.roomId;
+    const existingSession = readGuestSupportSession(req);
+
+    if (
+      existingSession &&
+      (!requestedRoomId || requestedRoomId === existingSession.roomId)
+    ) {
+      return res.json(existingSession);
+    }
+
+    return res.status(201).json(issueGuestSupportSession());
+  }),
+);
 
 // GET /api/support/chats - Get list of unique chats (Admin only)
 router.get(
@@ -100,21 +134,17 @@ router.get(
     const { roomId } = req.query;
     if (!roomId) return res.status(400).json({ error: "No roomId" });
 
-    // Access control:
-    // 1. Admin can access any room
-    // 2. Auth user can access only "user:{myId}"
-    // 3. Guest (no user) can access "guest:{uuid}" or "socket:..."
-
-    // Check if user is trying to access another user's room
-    if (roomId.startsWith("user:")) {
-      const userId = parseInt(roomId.split(":")[1]);
-      if (!req.user || (req.user.role !== "admin" && req.user.id !== userId)) {
+    if (!req.user) {
+      const guestSession = readGuestSupportSession(req);
+      if (!guestSession || guestSession.roomId !== roomId) {
+        return res.status(403).json({ error: "Недействительная guest-сессия" });
+      }
+    } else if (req.user.role !== "admin") {
+      const expectedRoomId = `user:${req.user.id}`;
+      if (roomId !== expectedRoomId) {
         return res.sendStatus(403);
       }
     }
-
-    // Note: guest rooms (socket:*, guest:*) are open if you know the ID.
-    // This is acceptable for this level of security (UUID is the secret).
 
     const messages = await ChatMessage.findAll({
       where: { roomId },

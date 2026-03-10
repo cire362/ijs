@@ -1,28 +1,28 @@
-const { DataTypes } = require("sequelize");
+const { DataTypes } = require('sequelize')
 
 module.exports = (sequelize) => {
-  const SupportRequest = sequelize.define("SupportRequest", {
+  const SupportRequest = sequelize.define('SupportRequest', {
     name: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: false
     },
     email: {
       type: DataTypes.STRING,
-      allowNull: true,
+      allowNull: true
     },
     message: {
       type: DataTypes.TEXT,
-      allowNull: false,
+      allowNull: false
     },
     ip: {
       type: DataTypes.STRING,
-      allowNull: true,
+      allowNull: true
     },
     status: {
-      type: DataTypes.ENUM("new", "read", "replied"),
-      defaultValue: "new",
-    },
-  });
+      type: DataTypes.ENUM('new', 'read', 'replied'),
+      defaultValue: 'new'
+    }
+  })
 
-  return SupportRequest;
-};
+  return SupportRequest
+}

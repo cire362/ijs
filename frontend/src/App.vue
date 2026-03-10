@@ -1,25 +1,28 @@
 <template>
-  <div
-    class="app-shell min-h-screen flex flex-col"
-    style="min-height: 100vh; display: flex; flex-direction: column"
-  >
-    <header v-if="!isLanding">
-      <AppHeader />
-    </header>
-    <main :class="['flex-1', { 'page-shell': !isLanding }]" style="flex: 1">
-      <RouterView />
-    </main>
-    <footer>
-      <AppFooter />
-    </footer>
-    <CookieBanner />
-    <SupportWidget v-if="!isAdmin" />
-  </div>
+  <el-config-provider :locale="ruLocale">
+    <div
+      class="app-shell min-h-screen flex flex-col"
+      style="min-height: 100vh; display: flex; flex-direction: column"
+    >
+      <header v-if="!isLanding">
+        <AppHeader />
+      </header>
+      <main :class="['flex-1', { 'page-shell': !isLanding }]" style="flex: 1">
+        <RouterView />
+      </main>
+      <footer>
+        <AppFooter />
+      </footer>
+      <CookieBanner />
+      <SupportWidget v-if="!isAdmin" />
+    </div>
+  </el-config-provider>
 </template>
 
 <script setup>
 import { computed } from "vue";
 import { useRoute } from "vue-router";
+import ruLocale from "element-plus/es/locale/lang/ru";
 import { useAuthStore } from "@/stores/auth";
 import AppHeader from "@/components/ui/AppHeader.vue";
 import AppFooter from "@/components/ui/AppFooter.vue";

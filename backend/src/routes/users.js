@@ -1,8 +1,8 @@
-const express = require("express");
-const router = express.Router();
-const asyncHandler = require("../utils/asyncHandler");
-const { authenticate, allowRoles } = require("../middleware/auth");
-const { uploadAvatar } = require("../utils/upload");
+const express = require('express')
+const router = express.Router()
+const asyncHandler = require('../utils/asyncHandler')
+const { authenticate, allowRoles } = require('../middleware/auth')
+const { uploadAvatar } = require('../utils/upload')
 const {
   getMe,
   updateMe,
@@ -13,58 +13,58 @@ const {
   approveDeveloper,
   rejectDeveloper,
   deleteDeveloperRequest,
-  createDeveloperByAdmin,
-} = require("../controllers/userController");
+  createDeveloperByAdmin
+} = require('../controllers/userController')
 
-router.get("/me", authenticate, asyncHandler(getMe));
-router.patch("/me", authenticate, asyncHandler(updateMe));
-router.patch("/me/password", authenticate, asyncHandler(changeMyPassword));
+router.get('/me', authenticate, asyncHandler(getMe))
+router.patch('/me', authenticate, asyncHandler(updateMe))
+router.patch('/me/password', authenticate, asyncHandler(changeMyPassword))
 router.patch(
-  "/me/consents/marketing",
+  '/me/consents/marketing',
   authenticate,
-  asyncHandler(setMyMarketingConsent),
-);
+  asyncHandler(setMyMarketingConsent)
+)
 router.post(
-  "/me/avatar",
+  '/me/avatar',
   authenticate,
   (req, res, next) =>
     uploadAvatar(req, res, (err) => (err ? next(err) : next())),
-  asyncHandler(uploadMyAvatar),
-);
+  asyncHandler(uploadMyAvatar)
+)
 
 router.get(
-  "/developers",
+  '/developers',
   authenticate,
-  allowRoles("admin"),
-  asyncHandler(listDevelopers),
-);
+  allowRoles('admin'),
+  asyncHandler(listDevelopers)
+)
 
 router.patch(
-  "/developers/:id/approve",
+  '/developers/:id/approve',
   authenticate,
-  allowRoles("admin"),
-  asyncHandler(approveDeveloper),
-);
+  allowRoles('admin'),
+  asyncHandler(approveDeveloper)
+)
 
 router.patch(
-  "/developers/:id/reject",
+  '/developers/:id/reject',
   authenticate,
-  allowRoles("admin"),
-  asyncHandler(rejectDeveloper),
-);
+  allowRoles('admin'),
+  asyncHandler(rejectDeveloper)
+)
 
 router.delete(
-  "/developers/:id",
+  '/developers/:id',
   authenticate,
-  allowRoles("admin"),
-  asyncHandler(deleteDeveloperRequest),
-);
+  allowRoles('admin'),
+  asyncHandler(deleteDeveloperRequest)
+)
 
 router.post(
-  "/developers",
+  '/developers',
   authenticate,
-  allowRoles("admin"),
-  asyncHandler(createDeveloperByAdmin),
-);
+  allowRoles('admin'),
+  asyncHandler(createDeveloperByAdmin)
+)
 
-module.exports = router;
+module.exports = router

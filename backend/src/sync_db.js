@@ -1,6 +1,6 @@
 // Script to verify DB sync and force it safely
 const { sequelize } = require("./db");
-const { ChatMessage, User } = require("./models");
+const { User } = require("./models");
 
 async function checkAndSync() {
   try {
@@ -13,7 +13,7 @@ async function checkAndSync() {
     const admin = await User.findOne({ where: { role: "admin" } });
     if (!admin) {
       console.log(
-        "No admin user found. Creating one: admin@ijshub.com / password"
+        "No admin user found. Creating one: admin@ijshub.com / password",
       );
       const bcrypt = require("bcryptjs");
       const hashedPassword = await bcrypt.hash("password", 10);

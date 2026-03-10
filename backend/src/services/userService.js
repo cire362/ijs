@@ -1,6 +1,7 @@
 const { Op } = require("sequelize");
 const bcrypt = require("bcryptjs");
 const { Property, User, Notification } = require("../models");
+const { sequelize } = require("../db");
 
 function normalizeSpace(s) {
   if (!s) return s;
@@ -58,8 +59,9 @@ class UserService {
 
     if (updates.email) {
       const emailNorm = updates.email.toLowerCase();
-      if (!emailNorm)
+      if (!emailNorm) {
         throw { status: 400, message: "Email не может быть пустым" };
+      }
       updates.email = emailNorm;
 
       const exists = await User.findOne({ where: { email: updates.email } });
@@ -179,55 +181,77 @@ class UserService {
   async approveDeveloper(id) {
     const user = await User.findByPk(id);
     if (!user) throw { status: 404, message: "Не найдено" };
-    if (user.role !== "developer")
+    if (user.role !== "developer") {
       throw { status: 400, message: "Пользователь не является застройщиком" };
+    }
 
-    await user.update({ developerApproved: true, developerRejected: false });
+    return sequelize.transaction(async (transaction) => {
+      await user.update(
+        { developerApproved: true, developerRejected: false },
+        { transaction },
+      );
 
-    await Notification.create({
-      userId: user.id,
-      type: "developer_status",
-      text: "Ваша регистрация застройщика подтверждена администратором.",
-      meta: { developerId: user.id, status: "approved" },
+      await Notification.create(
+        {
+          userId: user.id,
+          type: "developer_status",
+          text: "Ваша регистрация застройщика подтверждена администратором.",
+          meta: { developerId: user.id, status: "approved" },
+        },
+        { transaction },
+      );
+      return toPublicUser(user);
     });
-    return toPublicUser(user);
   }
 
   async rejectDeveloper(id) {
     const user = await User.findByPk(id);
     if (!user) throw { status: 404, message: "Не найдено" };
-    if (user.role !== "developer")
+    if (user.role !== "developer") {
       throw { status: 400, message: "Пользователь не является застройщиком" };
-    if (user.developerApproved)
+    }
+    if (user.developerApproved) {
       throw { status: 400, message: "Застройщик уже подтверждён" };
+    }
 
-    await user.update({ developerApproved: false, developerRejected: true });
+    return sequelize.transaction(async (transaction) => {
+      await user.update(
+        { developerApproved: false, developerRejected: true },
+        { transaction },
+      );
 
-    await Notification.create({
-      userId: user.id,
-      type: "developer_status",
-      text: "Ваша регистрация застройщика отклонена администратором.",
-      meta: { developerId: user.id, status: "rejected" },
+      await Notification.create(
+        {
+          userId: user.id,
+          type: "developer_status",
+          text: "Ваша регистрация застройщика отклонена администратором.",
+          meta: { developerId: user.id, status: "rejected" },
+        },
+        { transaction },
+      );
+      return toPublicUser(user);
     });
-    return toPublicUser(user);
   }
 
   async deleteDeveloperRequest(id) {
     const user = await User.findByPk(id);
     if (!user) throw { status: 404, message: "Не найдено" };
-    if (user.role !== "developer")
+    if (user.role !== "developer") {
       throw { status: 400, message: "Пользователь не является застройщиком" };
-    if (user.developerApproved)
+    }
+    if (user.developerApproved) {
       throw {
         status: 400,
         message: "Нельзя удалить подтверждённого застройщика",
       };
+    }
 
     const propsCount = await Property.count({
       where: { developerId: user.id },
     });
-    if (propsCount > 0)
+    if (propsCount > 0) {
       throw { status: 400, message: "Нельзя удалить застройщика с объектами" };
+    }
 
     await user.destroy();
   }
@@ -245,8 +269,9 @@ class UserService {
     } = data;
 
     const emailNorm = normalizeSpace(email || "").toLowerCase();
-    if (!emailNorm || !password)
+    if (!emailNorm || !password) {
       throw { status: 400, message: "Email и пароль обязательны" };
+    }
     if (!phone) throw { status: 400, message: "Телефон обязателен" };
 
     const exists = await User.findOne({ where: { email: emailNorm } });

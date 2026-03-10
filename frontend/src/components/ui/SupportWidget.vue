@@ -10,6 +10,8 @@ import {
   ChatDotRound,
 } from "@element-plus/icons-vue";
 
+const GUEST_SESSION_STORAGE_KEY = "chat_guest_session";
+
 const socket = getSocket();
 const supportStore = useSupportStore();
 
@@ -23,6 +25,7 @@ const messagesRef = ref(null);
 const loading = ref(false);
 const messageInput = ref("");
 const roomId = ref(null);
+const guestSession = ref(null);
 const unreadCount = ref(0); // Local unread count for user
 
 const userDisplayName = computed(() => {
@@ -62,22 +65,69 @@ const resetChatUiState = () => {
 };
 
 const ensureGuestRoom = () => {
-  if (roomId.value) return roomId.value;
-  if (!socket) return null;
-  // Create a stable guest room only when needed (first send)
-  const randomId = Math.random().toString(36).substring(2, 15);
-  roomId.value = `guest:${randomId}`;
+  if (roomId.value && guestSession.value?.guestToken) return roomId.value;
+  return null;
+};
+
+function saveGuestSession(session) {
+  guestSession.value = session;
+  roomId.value = session?.roomId || null;
+
   try {
-    localStorage.setItem("chat_guest_room", roomId.value);
+    if (session) {
+      localStorage.setItem(GUEST_SESSION_STORAGE_KEY, JSON.stringify(session));
+    } else {
+      localStorage.removeItem(GUEST_SESSION_STORAGE_KEY);
+    }
   } catch {
     // Ignore
   }
+}
+
+function restoreGuestSession() {
+  try {
+    const raw = localStorage.getItem(GUEST_SESSION_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (
+      parsed &&
+      typeof parsed.roomId === "string" &&
+      typeof parsed.guestToken === "string"
+    ) {
+      return parsed;
+    }
+  } catch {
+    // Ignore
+  }
+
+  return null;
+}
+
+async function ensureGuestSession() {
+  if (auth.user) return null;
+
+  const current = guestSession.value || restoreGuestSession();
+  const { data } = await apiClient.post("/support/guest-session", {
+    roomId: current?.roomId || null,
+    guestToken: current?.guestToken || null,
+  });
+
+  if (data?.roomId && data?.guestToken) {
+    saveGuestSession({ roomId: data.roomId, guestToken: data.guestToken });
+    return guestSession.value;
+  }
+
+  throw new Error("Guest support session was not issued");
+}
+
+function joinCurrentSupportRoom() {
+  if (!socket || !roomId.value) return;
   socket.emit("join_room", {
     roomId: roomId.value,
     token: auth.token,
+    guestToken: guestSession.value?.guestToken || null,
   });
-  return roomId.value;
-};
+}
 
 // Guest data if not logged in
 const guestData = ref({
@@ -87,7 +137,12 @@ const guestData = ref({
 
 const loadHistory = async (id) => {
   try {
-    const { data } = await apiClient.get(`/support/history?roomId=${id}`);
+    const headers = guestSession.value?.guestToken
+      ? { "x-support-guest-token": guestSession.value.guestToken }
+      : undefined;
+    const { data } = await apiClient.get(`/support/history?roomId=${id}`, {
+      headers,
+    });
     // Merge history, keeping the welcome message if empty?
     if (data && data.length > 0) {
       messages.value = [
@@ -102,7 +157,9 @@ const loadHistory = async (id) => {
       scrollToBottom();
     }
   } catch (e) {
-    // Silent fail or default msg
+    if (!auth.user) {
+      saveGuestSession(null);
+    }
     console.warn("Failed to load chat history", e);
   }
 };
@@ -112,19 +169,17 @@ onMounted(() => {
   if (auth.user) {
     roomId.value = `user:${auth.user.id}`;
   } else {
-    const storedGuestRoom = localStorage.getItem("chat_guest_room");
-    if (storedGuestRoom) roomId.value = storedGuestRoom;
+    const storedGuestSession = restoreGuestSession();
+    if (storedGuestSession) {
+      guestSession.value = storedGuestSession;
+      roomId.value = storedGuestSession.roomId;
+    }
   }
 
   if (socket) {
     const setupRoom = () => {
-      // Join only if we already know roomId.
-      // For guests, we create a room lazily on first send.
       if (roomId.value) {
-        socket.emit("join_room", {
-          roomId: roomId.value,
-          token: auth.token,
-        });
+        joinCurrentSupportRoom();
       }
     };
 
@@ -145,33 +200,35 @@ onMounted(() => {
         unreadCount.value++;
       }
     });
+
+    socket.on("support_auth_error", async (payload) => {
+      if (payload?.code !== "invalid_guest_session" || auth.user) return;
+      saveGuestSession(null);
+      roomId.value = null;
+    });
+  }
+
+  if (roomId.value) {
+    void loadHistory(roomId.value);
   }
 });
 
 watch(
   () => auth.user?.id,
-  async (id) => {
+  async (id, previousId) => {
     if (id) {
       guestData.value.name = userDisplayName.value;
       guestData.value.email = auth.user?.email || "";
+      saveGuestSession(null);
       roomId.value = `user:${id}`;
 
-      if (socket) {
-        socket.emit("join_room", {
-          roomId: roomId.value,
-          token: auth.token,
-        });
-      }
+      joinCurrentSupportRoom();
       await loadHistory(roomId.value);
-    } else {
+    } else if (previousId) {
       // Logged out: clear UI and drop any previous room bindings.
       resetChatUiState();
       roomId.value = null;
-      try {
-        localStorage.removeItem("chat_guest_room");
-      } catch {
-        // Ignore
-      }
+      saveGuestSession(null);
 
       // Important: socket.io rooms are server-side; easiest way to leave old rooms
       // is to reconnect.
@@ -292,12 +349,10 @@ const processSubmission = async (text) => {
     const senderEmail = auth.user?.email || guestData.value.email;
 
     if (!auth.user) {
-      ensureGuestRoom();
+      await ensureGuestSession();
+      joinCurrentSupportRoom();
     } else if (roomId.value && socket) {
-      socket.emit("join_room", {
-        roomId: roomId.value,
-        token: auth.token,
-      });
+      joinCurrentSupportRoom();
     }
 
     // Send via Socket
@@ -307,6 +362,7 @@ const processSubmission = async (text) => {
       senderName,
       senderEmail,
       token: auth.token,
+      guestToken: guestSession.value?.guestToken || null,
       // legacy keys (backward compatibility)
       name: senderName,
       email: senderEmail,

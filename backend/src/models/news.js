@@ -1,6 +1,6 @@
-const { DataTypes, Model } = require("sequelize");
-const { sequelize } = require("../db");
-const User = require("./user");
+const { DataTypes, Model } = require('sequelize')
+const { sequelize } = require('../db')
+const User = require('./user')
 
 class News extends Model {}
 
@@ -15,10 +15,10 @@ News.init(
     authorId: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      references: { model: User, key: "id" },
-    },
+      references: { model: User, key: 'id' }
+    }
   },
-  { sequelize, modelName: "news" }
-);
+  { sequelize, modelName: 'news' }
+)
 
-module.exports = News;
+module.exports = News

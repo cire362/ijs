@@ -1,6 +1,6 @@
-const { DataTypes, Model } = require("sequelize");
-const { sequelize } = require("../db");
-const User = require("./user");
+const { DataTypes, Model } = require('sequelize')
+const { sequelize } = require('../db')
+const User = require('./user')
 
 class Property extends Model {}
 
@@ -10,7 +10,7 @@ Property.init(
     developerId: {
       type: DataTypes.INTEGER,
       allowNull: false,
-      references: { model: User, key: "id" },
+      references: { model: User, key: 'id' }
     },
     region: { type: DataTypes.STRING, allowNull: false },
     city: { type: DataTypes.STRING, allowNull: false },
@@ -26,14 +26,14 @@ Property.init(
     readinessType: { type: DataTypes.STRING },
     registration: { type: DataTypes.STRING },
     saleStatus: {
-      type: DataTypes.ENUM("available", "reserved", "sold"),
-      defaultValue: "available",
+      type: DataTypes.ENUM('available', 'reserved', 'sold'),
+      defaultValue: 'available'
     },
     buildStage: { type: DataTypes.STRING },
     price: { type: DataTypes.DECIMAL(14, 2) },
-    description: { type: DataTypes.TEXT },
+    description: { type: DataTypes.TEXT }
   },
-  { sequelize, modelName: "property" }
-);
+  { sequelize, modelName: 'property' }
+)
 
-module.exports = Property;
+module.exports = Property

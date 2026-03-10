@@ -1,104 +1,104 @@
-const express = require("express");
-const router = express.Router();
-const asyncHandler = require("../utils/asyncHandler");
-const validate = require("../middleware/validate");
+const express = require('express')
+const router = express.Router()
+const asyncHandler = require('../utils/asyncHandler')
+const validate = require('../middleware/validate')
 const {
   createApplicationSchema,
   updateClientInfoSchema,
   updateStatusSchema,
-  extendDeadlineSchema,
-} = require("../validation/applications");
-const { authenticate, allowRoles } = require("../middleware/auth");
+  extendDeadlineSchema
+} = require('../validation/applications')
+const { authenticate, allowRoles } = require('../middleware/auth')
 const {
   listMine,
   listIncoming,
   createApplication,
   updateClientInfo,
   updateStatus,
-  extendInitialDeadline,
-} = require("../controllers/applicationController");
+  extendInitialDeadline
+} = require('../controllers/applicationController')
 
 const {
   listChats,
   listMessages,
-  createMessage,
-} = require("../controllers/applicationChatController");
+  createMessage
+} = require('../controllers/applicationChatController')
 
-const { uploadApplicationDoc } = require("../utils/upload");
+const { uploadApplicationDoc } = require('../utils/upload')
 
-function maybeUploadApplicationDoc(req, res, next) {
+function maybeUploadApplicationDoc (req, res, next) {
   // Multer should run only for multipart requests.
-  if (req.is && req.is("multipart/form-data")) {
-    return uploadApplicationDoc(req, res, (err) => (err ? next(err) : next()));
+  if (req.is && req.is('multipart/form-data')) {
+    return uploadApplicationDoc(req, res, (err) => (err ? next(err) : next()))
   }
-  return next();
+  return next()
 }
 
 router.get(
-  "/mine",
+  '/mine',
   authenticate,
-  allowRoles("agent", "individual"),
-  asyncHandler(listMine),
-);
+  allowRoles('agent', 'individual'),
+  asyncHandler(listMine)
+)
 router.get(
-  "/incoming",
+  '/incoming',
   authenticate,
-  allowRoles("developer", "admin"),
-  asyncHandler(listIncoming),
-);
+  allowRoles('developer', 'admin'),
+  asyncHandler(listIncoming)
+)
 
 // Application chats list (1 application = 1 chat)
 router.get(
-  "/chat/chats",
+  '/chat/chats',
   authenticate,
-  allowRoles("agent", "individual", "admin"),
-  asyncHandler(listChats),
-);
+  allowRoles('agent', 'individual', 'admin'),
+  asyncHandler(listChats)
+)
 router.post(
-  "/",
+  '/',
   authenticate,
-  allowRoles("agent", "individual"),
+  allowRoles('agent', 'individual'),
   validate(createApplicationSchema),
-  asyncHandler(createApplication),
-);
+  asyncHandler(createApplication)
+)
 
 router.patch(
-  "/:id/client",
+  '/:id/client',
   authenticate,
-  allowRoles("agent", "individual"),
+  allowRoles('agent', 'individual'),
   validate(updateClientInfoSchema),
-  asyncHandler(updateClientInfo),
-);
+  asyncHandler(updateClientInfo)
+)
 router.patch(
-  "/:id/status",
+  '/:id/status',
   authenticate,
-  allowRoles("developer", "admin"),
+  allowRoles('developer', 'admin'),
   validate(updateStatusSchema),
-  asyncHandler(updateStatus),
-);
+  asyncHandler(updateStatus)
+)
 
 router.patch(
-  "/:id/extend",
+  '/:id/extend',
   authenticate,
-  allowRoles("developer", "admin"),
+  allowRoles('developer', 'admin'),
   validate(extendDeadlineSchema),
-  asyncHandler(extendInitialDeadline),
-);
+  asyncHandler(extendInitialDeadline)
+)
 
 // Chat per application (1 application = 1 chat)
 router.get(
-  "/:id/chat/messages",
+  '/:id/chat/messages',
   authenticate,
-  allowRoles("agent", "individual", "admin"),
-  asyncHandler(listMessages),
-);
+  allowRoles('agent', 'individual', 'admin'),
+  asyncHandler(listMessages)
+)
 
 router.post(
-  "/:id/chat/messages",
+  '/:id/chat/messages',
   authenticate,
-  allowRoles("agent", "individual", "admin"),
+  allowRoles('agent', 'individual', 'admin'),
   maybeUploadApplicationDoc,
-  asyncHandler(createMessage),
-);
+  asyncHandler(createMessage)
+)
 
-module.exports = router;
+module.exports = router

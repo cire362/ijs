@@ -11,6 +11,7 @@ const {
   setAuthCookies,
   clearAuthCookies,
 } = require("../utils/authTokens");
+const { sequelize } = require("../db");
 const { getJwtSecret } = require("../utils/secrets");
 
 const jwtSecret = getJwtSecret();
@@ -117,61 +118,66 @@ class AuthService {
         : new Date()
       : null;
 
-    const user = await User.create({
-      name: name || null,
-      firstName: derivedFirstName || null,
-      lastName: derivedLastName || null,
-      middleName: derivedMiddleName || null,
-      email: emailNorm,
-      phone: phoneNorm,
-      passwordHash,
-      role,
-      companyName:
-        role === "individual"
-          ? null
-          : normalizedCompanyName
-            ? normalizedCompanyName
-            : null,
-      developerApproved: role === "developer" ? false : true,
+    return sequelize.transaction(async (transaction) => {
+      const user = await User.create(
+        {
+          name: name || null,
+          firstName: derivedFirstName || null,
+          lastName: derivedLastName || null,
+          middleName: derivedMiddleName || null,
+          email: emailNorm,
+          phone: phoneNorm,
+          passwordHash,
+          role,
+          companyName:
+            role === "individual" ? null : normalizedCompanyName || null,
+          developerApproved: role !== "developer",
 
-      legalConsentAcceptedAt,
-      legalConsentVersion: consent?.legal?.documentVersion || null,
-      legalConsentMeta: {
-        termsPath: consent?.legal?.termsPath || null,
-        privacyPath: consent?.legal?.privacyPath || null,
-      },
+          legalConsentAcceptedAt,
+          legalConsentVersion: consent?.legal?.documentVersion || null,
+          legalConsentMeta: {
+            termsPath: consent?.legal?.termsPath || null,
+            privacyPath: consent?.legal?.privacyPath || null,
+          },
 
-      marketingConsentGiven: marketingAccepted,
-      marketingConsentAcceptedAt,
-      marketingConsentWithdrawnAt: marketingAccepted ? null : new Date(),
-      marketingConsentVersion: consent?.marketing?.documentVersion || null,
-    });
+          marketingConsentGiven: marketingAccepted,
+          marketingConsentAcceptedAt,
+          marketingConsentWithdrawnAt: marketingAccepted ? null : new Date(),
+          marketingConsentVersion: consent?.marketing?.documentVersion || null,
+        },
+        { transaction },
+      );
 
-    if (role === "developer") {
-      const admins = await User.findAll({ where: { role: "admin" } });
-      if (admins.length) {
-        const display =
-          user.companyName ||
-          [user.lastName, user.firstName, user.middleName]
-            .filter(Boolean)
-            .join(" ") ||
-          user.email;
-        await Notification.bulkCreate(
-          admins.map((a) => ({
-            userId: a.id,
-            type: "developer_registration",
-            text: `Новая регистрация застройщика: ${display}`,
-            meta: {
-              developerId: user.id,
-              email: user.email,
-              companyName: user.companyName,
-            },
-          })),
-        );
+      if (role === "developer") {
+        const admins = await User.findAll({
+          where: { role: "admin" },
+          transaction,
+        });
+        if (admins.length) {
+          const display =
+            user.companyName ||
+            [user.lastName, user.firstName, user.middleName]
+              .filter(Boolean)
+              .join(" ") ||
+            user.email;
+          await Notification.bulkCreate(
+            admins.map((a) => ({
+              userId: a.id,
+              type: "developer_registration",
+              text: `Новая регистрация застройщика: ${display}`,
+              meta: {
+                developerId: user.id,
+                email: user.email,
+                companyName: user.companyName,
+              },
+            })),
+            { transaction },
+          );
+        }
       }
-    }
 
-    return { id: user.id, email: user.email, role: user.role };
+      return { id: user.id, email: user.email, role: user.role };
+    });
   }
 
   async login(email, password, { req, res }) {
@@ -214,54 +220,68 @@ class AuthService {
     }
 
     const hashed = hashToken(refreshToken);
-    const session = await AuthSession.findOne({
-      where: { refreshTokenHash: hashed },
-      include: [{ model: User }],
-    });
 
-    if (!session) {
+    try {
+      const result = await sequelize.transaction(async (transaction) => {
+        const session = await AuthSession.findOne({
+          where: { refreshTokenHash: hashed },
+          transaction,
+          lock: transaction.LOCK.UPDATE,
+        });
+
+        if (!session) {
+          throw { status: 401, message: "Session not found" };
+        }
+
+        const user = await User.findByPk(session.userId, { transaction });
+        if (!user) {
+          await session.destroy({ transaction });
+          throw { status: 401, message: "User not found" };
+        }
+
+        if (session.expiresAt < new Date()) {
+          await session.destroy({ transaction });
+          throw { status: 401, message: "Session expired" };
+        }
+
+        const token = issueAccessToken(user);
+        const newRefreshToken = randomToken(48);
+        const newExpiresAt = new Date(Date.now() + refreshTtlMs());
+
+        await session.destroy({ transaction });
+        await AuthSession.create(
+          {
+            userId: session.userId,
+            refreshTokenHash: hashToken(newRefreshToken),
+            expiresAt: newExpiresAt,
+            ip: req.ip || session.ip,
+            userAgent: req.get("user-agent") || session.userAgent,
+          },
+          { transaction },
+        );
+
+        return {
+          token,
+          user: toUserPayload(user),
+          refreshToken: newRefreshToken,
+        };
+      });
+
+      const newCsrfToken = randomToken(24);
+      setAuthCookies(
+        res,
+        {
+          refreshToken: result.refreshToken,
+          csrfToken: newCsrfToken,
+        },
+        req,
+      );
+
+      return { token: result.token, user: result.user };
+    } catch (error) {
       clearAuthCookies(res, req);
-      throw { status: 401, message: "Session not found" };
+      throw error;
     }
-
-    if (session.expiresAt < new Date()) {
-      await session.destroy();
-      clearAuthCookies(res, req);
-      throw { status: 401, message: "Session expired" };
-    }
-
-    const token = issueAccessToken(session.user);
-
-    // Rotate refresh token
-    await session.destroy();
-
-    // Create new session
-    const newRefreshToken = randomToken(48);
-    // Reuse original IP/UserAgent if not present in request context? Or use current.
-    // We have { req } passed.
-    const newExpiresAt = new Date(Date.now() + refreshTtlMs());
-
-    await AuthSession.create({
-      userId: session.userId,
-      refreshTokenHash: hashToken(newRefreshToken),
-      expiresAt: newExpiresAt,
-      ip: req.ip || session.ip,
-      userAgent: req.get("user-agent") || session.userAgent,
-    });
-
-    // Set new cookies
-    // Need csrfToken. Rotate csrf too? Yes usually.
-    const newCsrfToken = randomToken(24);
-    setAuthCookies(
-      res,
-      {
-        refreshToken: newRefreshToken,
-        csrfToken: newCsrfToken,
-      },
-      req,
-    );
-
-    return { token, user: toUserPayload(session.user) };
   }
 
   async logout(cookies, { req, res }) {

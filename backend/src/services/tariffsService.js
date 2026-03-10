@@ -1,69 +1,69 @@
-const { User, Property, TariffPropertyRate } = require("../models");
+const { User, Property, TariffPropertyRate } = require('../models')
 
-const CATEGORIES = ["apartments", "commercial", "parking", "storage"];
+const CATEGORIES = ['apartments', 'commercial', 'parking', 'storage']
 
-function ensureIn(value, allowed, fallback) {
-  if (allowed.includes(value)) return value;
-  return fallback;
+function ensureIn (value, allowed, fallback) {
+  if (allowed.includes(value)) return value
+  return fallback
 }
 
-async function getTariffView({
+async function getTariffView ({
   category,
   includeInactive = false,
-  includeUnapprovedDevelopers = false,
+  includeUnapprovedDevelopers = false
 }) {
   const normalizedCategory = ensureIn(
-    String(category || ""),
+    String(category || ''),
     CATEGORIES,
-    "apartments",
-  );
+    'apartments'
+  )
 
-  const userWhere = { role: "developer" };
-  if (!includeUnapprovedDevelopers) userWhere.developerApproved = true;
+  const userWhere = { role: 'developer' }
+  if (!includeUnapprovedDevelopers) userWhere.developerApproved = true
 
-  const rateWhere = { category: normalizedCategory };
-  if (!includeInactive) rateWhere.isActive = true;
+  const rateWhere = { category: normalizedCategory }
+  if (!includeInactive) rateWhere.isActive = true
 
   const developers = await User.findAll({
     where: userWhere,
     order: [
-      ["companyName", "ASC"],
-      ["lastName", "ASC"],
-      ["firstName", "ASC"],
-      ["id", "ASC"],
+      ['companyName', 'ASC'],
+      ['lastName', 'ASC'],
+      ['firstName', 'ASC'],
+      ['id', 'ASC']
     ],
     include: [
       {
         model: Property,
-        as: "properties",
+        as: 'properties',
         required: false,
         include: [
           {
             model: TariffPropertyRate,
-            as: "tariffRates",
+            as: 'tariffRates',
             required: false,
-            where: rateWhere,
-          },
-        ],
-      },
-    ],
-  });
+            where: rateWhere
+          }
+        ]
+      }
+    ]
+  })
 
   const payload = developers.map((dev) => {
-    const properties = Array.isArray(dev.properties) ? dev.properties : [];
+    const properties = Array.isArray(dev.properties) ? dev.properties : []
     const displayName = String(
-      dev.companyName || dev.fullName || dev.name || dev.email || "",
-    ).trim();
+      dev.companyName || dev.fullName || dev.name || dev.email || ''
+    ).trim()
     return {
       id: dev.id,
-      type: "developer",
+      type: 'developer',
       name: displayName,
       isActive: true,
       complexes: properties
         .sort((a, b) => String(a.title).localeCompare(String(b.title)))
         .map((p) => {
-          const rates = Array.isArray(p.tariffRates) ? p.tariffRates : [];
-          const rate = rates[0] || null;
+          const rates = Array.isArray(p.tariffRates) ? p.tariffRates : []
+          const rate = rates[0] || null
           return {
             id: p.id,
             name: p.title,
@@ -75,32 +75,32 @@ async function getTariffView({
                   commissionFrom: rate.commissionFrom,
                   commissionTo: rate.commissionTo,
                   notes: rate.notes,
-                  isActive: rate.isActive,
+                  isActive: rate.isActive
                 }
-              : null,
-          };
-        }),
-    };
-  });
+              : null
+          }
+        })
+    }
+  })
 
   return {
-    type: "developer",
+    type: 'developer',
     category: normalizedCategory,
-    counterparties: payload,
-  };
+    counterparties: payload
+  }
 }
 
 module.exports = {
   CATEGORIES,
   ensureIn,
   getTariffView,
-  async upsertRate({
+  async upsertRate ({
     propertyId,
     category,
     commissionFrom,
     commissionTo,
     notes,
-    isActive,
+    isActive
   }) {
     const [rate, created] = await TariffPropertyRate.findOrCreate({
       where: { propertyId, category },
@@ -110,18 +110,18 @@ module.exports = {
         commissionFrom,
         commissionTo,
         notes: notes != null ? String(notes) : null,
-        isActive: isActive == null ? true : Boolean(isActive),
-      },
-    });
+        isActive: isActive == null ? true : Boolean(isActive)
+      }
+    })
 
     if (!created) {
-      rate.commissionFrom = commissionFrom;
-      rate.commissionTo = commissionTo;
-      rate.notes = notes != null ? String(notes) : null;
-      if (isActive != null) rate.isActive = Boolean(isActive);
-      await rate.save();
+      rate.commissionFrom = commissionFrom
+      rate.commissionTo = commissionTo
+      rate.notes = notes != null ? String(notes) : null
+      if (isActive != null) rate.isActive = Boolean(isActive)
+      await rate.save()
     }
 
-    return rate;
-  },
-};
+    return rate
+  }
+}
