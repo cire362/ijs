@@ -1,0 +1,82 @@
+// Russian defaults for Joi errors; messages declared on a schema take precedence.
+const MESSAGES = {
+  'any.required': 'Поле {{#label}} обязательно',
+  'any.only': 'Поле {{#label}} содержит недопустимое значение',
+  'any.invalid': 'Поле {{#label}} содержит недопустимое значение',
+  'any.unknown': 'Поле {{#label}} не поддерживается',
+  'string.base': 'Поле {{#label}} должно быть строкой',
+  'string.empty': 'Поле {{#label}} не может быть пустым',
+  'string.min': 'Поле {{#label}} должно содержать не менее {{#limit}} символов',
+  'string.max': 'Поле {{#label}} должно содержать не более {{#limit}} символов',
+  'string.email': 'Укажите корректный email',
+  'string.pattern.base': 'Поле {{#label}} имеет неверный формат',
+  'number.base': 'Поле {{#label}} должно быть числом',
+  'number.integer': 'Поле {{#label}} должно быть целым числом',
+  'number.min': 'Поле {{#label}} должно быть не меньше {{#limit}}',
+  'number.max': 'Поле {{#label}} должно быть не больше {{#limit}}',
+  'number.greater': 'Поле {{#label}} должно быть больше {{#limit}}',
+  'number.precision': 'Поле {{#label}} содержит слишком много знаков после запятой',
+  'number.unsafe': 'Поле {{#label}} содержит слишком большое число',
+  'boolean.base': 'Поле {{#label}} должно быть true или false',
+  'date.base': 'Поле {{#label}} должно быть датой',
+  'date.greater': 'Поле {{#label}} должно быть позже {{#limit}}',
+  'date.format': 'Поле {{#label}} должно быть датой в формате ISO',
+  'object.base': 'Ожидается объект',
+  'object.unknown': 'Поле {{#label}} не поддерживается',
+  'object.min': 'Нет данных для изменения',
+  'object.and': 'Параметры {{#presentWithLabels}} требуют также {{#missingWithLabels}}',
+  'object.with': 'Параметр {{#mainWithLabel}} требует {{#peerWithLabel}}',
+  'object.oxor': 'Нельзя одновременно указывать {{#peersWithLabels}}',
+  'array.base': 'Поле {{#label}} должно быть списком'
+}
+
+const LABELS = {
+  email: 'Email',
+  password: 'Пароль',
+  currentPassword: 'Текущий пароль',
+  newPassword: 'Новый пароль',
+  phone: 'Телефон',
+  firstName: 'Имя',
+  lastName: 'Фамилия',
+  middleName: 'Отчество',
+  name: 'ФИО',
+  companyName: 'Компания',
+  role: 'Роль',
+  title: 'Название',
+  description: 'Описание',
+  region: 'Регион',
+  city: 'Город',
+  street: 'Улица',
+  price: 'Цена',
+  rooms: 'Комнаты',
+  floors: 'Этажность',
+  landArea: 'Площадь участка',
+  houseArea: 'Площадь дома',
+  saleStatus: 'Статус продажи',
+  developerId: 'Застройщик',
+  propertyId: 'Объект',
+  clientFullName: 'ФИО клиента',
+  clientPhone: 'Телефон клиента',
+  comment: 'Комментарий',
+  status: 'Статус',
+  days: 'Количество дней',
+  startAt: 'Дата начала',
+  endAt: 'Дата окончания',
+  capacity: 'Количество мест',
+  location: 'Место',
+  content: 'Текст',
+  text: 'Сообщение',
+  message: 'Сообщение',
+  roomId: 'Чат',
+  page: 'Страница',
+  limit: 'Размер страницы',
+  commissionFrom: 'Комиссия от',
+  commissionTo: 'Комиссия до'
+}
+
+// Joi wraps labels in double quotes; show them as Russian names in guillemets.
+function localize (message) {
+  return message.replace(/"([^"]+)"/g, (match, key) => `«${LABELS[key] || key}»`)
+}
+
+module.exports = { MESSAGES, LABELS, localize }

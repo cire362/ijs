@@ -18,6 +18,8 @@ Event.init(
     endAt: { type: DataTypes.DATE },
     isTraining: { type: DataTypes.BOOLEAN, defaultValue: false },
     capacity: { type: DataTypes.INTEGER },
+    cancelledAt: { type: DataTypes.DATE, allowNull: true },
+    cancelReason: { type: DataTypes.TEXT, allowNull: true },
     createdBy: {
       type: DataTypes.INTEGER,
       allowNull: false,

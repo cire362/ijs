@@ -26,12 +26,16 @@ Application.init(
         'commission_available',
         'done',
         'rejected',
-        'expired'
+        'expired',
+        'cancelled'
       ),
       defaultValue: 'sent'
     },
     expiresAt: { type: DataTypes.DATE },
     commissionAmount: { type: DataTypes.DECIMAL(14, 2) },
+    commissionRateId: { type: DataTypes.INTEGER },
+    commissionRatePercent: { type: DataTypes.DECIMAL(6, 3) },
+    commissionBasePrice: { type: DataTypes.DECIMAL(14, 2) },
     comment: { type: DataTypes.TEXT },
 
     clientFullName: { type: DataTypes.STRING },

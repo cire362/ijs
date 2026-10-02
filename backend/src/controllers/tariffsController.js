@@ -1,5 +1,4 @@
 const tariffsService = require('../services/tariffsService')
-const { Property } = require('../models')
 
 async function getTariffView (req, res) {
   const result = await tariffsService.getTariffView({
@@ -20,25 +19,15 @@ async function getTariffAdminView (req, res) {
   res.json(result)
 }
 async function putRate (req, res) {
-  const propertyId = parseInt(req.params.propertyId, 10)
-  const category = req.params.category
-
-  if (!Number.isFinite(propertyId)) { return res.status(400).json({ error: 'Некорректный ID' }) }
-  if (!tariffsService.CATEGORIES.includes(category)) {
-    return res.status(400).json({ error: 'Некорректная категория' })
-  }
-
-  const prop = await Property.findByPk(propertyId)
-  if (!prop) return res.sendStatus(404)
-
+  // Params are validated by the route schema; the service returns 404 for a missing property.
   const rate = await tariffsService.upsertRate({
-    propertyId,
-    category,
+    propertyId: req.params.propertyId,
+    category: req.params.category,
     commissionFrom: req.body.commissionFrom,
     commissionTo: req.body.commissionTo,
     notes: req.body.notes,
     isActive: req.body.isActive
-  })
+  }, req.user.id)
 
   res.json(rate)
 }

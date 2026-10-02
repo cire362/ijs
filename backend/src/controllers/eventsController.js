@@ -42,7 +42,23 @@ const updateRegistrationStatus = asyncHandler(async (req, res) => {
   res.json(updated)
 })
 
+const updateEvent = asyncHandler(async (req, res) => {
+  res.json(await eventsService.updateEvent(req.params.id, req.body))
+})
+
+const cancelEvent = asyncHandler(async (req, res) => {
+  res.json(await eventsService.cancelEvent(req.params.id, req.body))
+})
+
+const cancelMyRegistration = asyncHandler(async (req, res) => {
+  await eventsService.cancelMyRegistration(req.params.id, req.user)
+  res.json({ success: true })
+})
+
 module.exports = {
+  updateEvent,
+  cancelEvent,
+  cancelMyRegistration,
   listEvents,
   createEvent,
   uploadEventCover,

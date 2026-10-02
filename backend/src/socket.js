@@ -8,4 +8,9 @@ function getIO () {
   return io
 }
 
-module.exports = { setIO, getIO }
+function disconnectSessions (ids) {
+  if (!io) return
+  for (const id of ids) io.in(`session:${id}`).disconnectSockets(true)
+}
+
+module.exports = { setIO, getIO, disconnectSessions }

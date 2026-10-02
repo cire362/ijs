@@ -1,5 +1,10 @@
-node_modules;
-npm - debug.log;
-coverage;
-uploads;
-tests.env.DS_Store;
+node_modules
+npm-debug.log*
+coverage
+uploads
+.env
+.env.*
+!.env.example
+.DS_Store
+tests
+.git

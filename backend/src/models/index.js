@@ -1,127 +1,134 @@
-const { sequelize } = require("../db");
-const User = require("./user");
-const Property = require("./property");
-const Application = require("./application");
-const Notification = require("./notification");
-const PropertyImage = require("./propertyImage");
-const StatusHistory = require("./statusHistory");
-const News = require("./news");
-const NewsImage = require("./newsImage");
-const Event = require("./event");
-const EventRegistration = require("./eventRegistration");
-const AddressSuggestion = require("./addressSuggestion");
-const AuthSession = require("./authSession");
-const SupportRequest = require("./supportRequest")(sequelize);
-const ChatMessage = require("./chatMessage");
-const SupportChat = require("./supportChat");
-const PropertyDocument = require("./propertyDocument");
-const ApplicationChatMessage = require("./applicationChatMessage");
-const TariffCounterparty = require("./tariffCounterparty");
-const TariffComplex = require("./tariffComplex");
-const TariffRate = require("./tariffRate");
-const TariffPropertyRate = require("./tariffPropertyRate");
+const { sequelize } = require('../db')
+const User = require('./user')
+const Property = require('./property')
+const Application = require('./application')
+const Notification = require('./notification')
+const PropertyImage = require('./propertyImage')
+const StatusHistory = require('./statusHistory')
+const News = require('./news')
+const NewsImage = require('./newsImage')
+const Event = require('./event')
+const EventRegistration = require('./eventRegistration')
+const AddressSuggestion = require('./addressSuggestion')
+const AuthSession = require('./authSession')
+const SupportRequest = require('./supportRequest')(sequelize)
+const ChatMessage = require('./chatMessage')
+const SupportChat = require('./supportChat')
+const PropertyDocument = require('./propertyDocument')
+const ApplicationChatMessage = require('./applicationChatMessage')
+const TariffCounterparty = require('./tariffCounterparty')
+const TariffComplex = require('./tariffComplex')
+const TariffRate = require('./tariffRate')
+const TariffPropertyRate = require('./tariffPropertyRate')
+const FileDeletion = require('./fileDeletion')
+const EventReminder = require('./eventReminder')
+const AuditLog = require('./auditLog')
+const PasswordResetToken = require('./passwordResetToken')
 
-User.hasMany(Property, { foreignKey: "developerId", as: "properties" });
-Property.belongsTo(User, { foreignKey: "developerId", as: "developer" });
+User.hasMany(Property, { foreignKey: 'developerId', as: 'properties' })
+Property.belongsTo(User, { foreignKey: 'developerId', as: 'developer' })
 
-Property.hasMany(PropertyImage, { foreignKey: "propertyId", as: "images" });
-PropertyImage.belongsTo(Property, { foreignKey: "propertyId" });
+Property.hasMany(PropertyImage, { foreignKey: 'propertyId', as: 'images' })
+PropertyImage.belongsTo(Property, { foreignKey: 'propertyId' })
 
 Property.hasMany(PropertyDocument, {
-  foreignKey: "propertyId",
-  as: "documents",
-});
-PropertyDocument.belongsTo(Property, { foreignKey: "propertyId" });
+  foreignKey: 'propertyId',
+  as: 'documents'
+})
+PropertyDocument.belongsTo(Property, { foreignKey: 'propertyId' })
 
 Property.hasMany(TariffPropertyRate, {
-  foreignKey: "propertyId",
-  as: "tariffRates",
-});
+  foreignKey: 'propertyId',
+  as: 'tariffRates'
+})
 TariffPropertyRate.belongsTo(Property, {
-  foreignKey: "propertyId",
-  as: "property",
-});
+  foreignKey: 'propertyId',
+  as: 'property'
+})
 
-Property.hasMany(Application, { foreignKey: "propertyId", as: "applications" });
-Application.belongsTo(Property, { foreignKey: "propertyId" });
+Property.hasMany(Application, { foreignKey: 'propertyId', as: 'applications' })
+Application.belongsTo(Property, { foreignKey: 'propertyId' })
 
-User.hasMany(Application, { foreignKey: "agentId", as: "agentApplications" });
-Application.belongsTo(User, { foreignKey: "agentId", as: "agent" });
+User.hasMany(Application, { foreignKey: 'agentId', as: 'agentApplications' })
+Application.belongsTo(User, { foreignKey: 'agentId', as: 'agent' })
 
 Application.hasMany(StatusHistory, {
-  foreignKey: "applicationId",
-  as: "history",
-});
-StatusHistory.belongsTo(Application, { foreignKey: "applicationId" });
-StatusHistory.belongsTo(User, { foreignKey: "changedBy", as: "actor" });
+  foreignKey: 'applicationId',
+  as: 'history'
+})
+StatusHistory.belongsTo(Application, { foreignKey: 'applicationId' })
+StatusHistory.belongsTo(User, { foreignKey: 'changedBy', as: 'actor' })
 
 Application.hasMany(ApplicationChatMessage, {
-  foreignKey: "applicationId",
-  as: "chatMessages",
-});
-ApplicationChatMessage.belongsTo(Application, { foreignKey: "applicationId" });
+  foreignKey: 'applicationId',
+  as: 'chatMessages'
+})
+ApplicationChatMessage.belongsTo(Application, { foreignKey: 'applicationId' })
 User.hasMany(ApplicationChatMessage, {
-  foreignKey: "senderId",
-  as: "applicationChatMessages",
-});
+  foreignKey: 'senderId',
+  as: 'applicationChatMessages'
+})
 ApplicationChatMessage.belongsTo(User, {
-  foreignKey: "senderId",
-  as: "sender",
-});
+  foreignKey: 'senderId',
+  as: 'sender'
+})
 
-User.hasMany(Notification, { foreignKey: "userId", as: "notifications" });
-Notification.belongsTo(User, { foreignKey: "userId" });
+User.hasMany(Notification, { foreignKey: 'userId', as: 'notifications' })
+Notification.belongsTo(User, { foreignKey: 'userId' })
 
-User.hasMany(News, { foreignKey: "authorId", as: "news" });
-News.belongsTo(User, { foreignKey: "authorId", as: "author" });
+User.hasMany(News, { foreignKey: 'authorId', as: 'news' })
+News.belongsTo(User, { foreignKey: 'authorId', as: 'author' })
 
-News.hasMany(NewsImage, { foreignKey: "newsId", as: "images" });
-NewsImage.belongsTo(News, { foreignKey: "newsId" });
+News.hasMany(NewsImage, { foreignKey: 'newsId', as: 'images' })
+NewsImage.belongsTo(News, { foreignKey: 'newsId' })
 
-User.hasMany(Event, { foreignKey: "createdBy", as: "createdEvents" });
-Event.belongsTo(User, { foreignKey: "createdBy", as: "creator" });
+User.hasMany(Event, { foreignKey: 'createdBy', as: 'createdEvents' })
+Event.belongsTo(User, { foreignKey: 'createdBy', as: 'creator' })
 
 Event.hasMany(EventRegistration, {
-  foreignKey: "eventId",
-  as: "registrations",
-});
-EventRegistration.belongsTo(Event, { foreignKey: "eventId", as: "event" });
+  foreignKey: 'eventId',
+  as: 'registrations'
+})
+EventRegistration.belongsTo(Event, { foreignKey: 'eventId', as: 'event' })
 
 User.hasMany(EventRegistration, {
-  foreignKey: "agentId",
-  as: "eventRegistrations",
-});
-EventRegistration.belongsTo(User, { foreignKey: "agentId", as: "agent" });
+  foreignKey: 'agentId',
+  as: 'eventRegistrations'
+})
+EventRegistration.belongsTo(User, { foreignKey: 'agentId', as: 'agent' })
 
-User.hasMany(AuthSession, { foreignKey: "userId" });
-AuthSession.belongsTo(User, { foreignKey: "userId" });
+User.hasMany(PasswordResetToken, { foreignKey: 'userId' })
+PasswordResetToken.belongsTo(User, { foreignKey: 'userId' })
+
+User.hasMany(AuthSession, { foreignKey: 'userId' })
+AuthSession.belongsTo(User, { foreignKey: 'userId' })
 
 User.hasMany(TariffCounterparty, {
-  foreignKey: "userId",
-  as: "tariffCounterparties",
-});
+  foreignKey: 'userId',
+  as: 'tariffCounterparties'
+})
 TariffCounterparty.belongsTo(User, {
-  foreignKey: "userId",
-  as: "user",
-});
+  foreignKey: 'userId',
+  as: 'user'
+})
 
 TariffCounterparty.hasMany(TariffComplex, {
-  foreignKey: "counterpartyId",
-  as: "complexes",
-});
+  foreignKey: 'counterpartyId',
+  as: 'complexes'
+})
 TariffComplex.belongsTo(TariffCounterparty, {
-  foreignKey: "counterpartyId",
-  as: "counterparty",
-});
+  foreignKey: 'counterpartyId',
+  as: 'counterparty'
+})
 
 TariffComplex.hasMany(TariffRate, {
-  foreignKey: "complexId",
-  as: "rates",
-});
+  foreignKey: 'complexId',
+  as: 'rates'
+})
 TariffRate.belongsTo(TariffComplex, {
-  foreignKey: "complexId",
-  as: "complex",
-});
+  foreignKey: 'complexId',
+  as: 'complex'
+})
 
 module.exports = {
   User,
@@ -145,4 +152,8 @@ module.exports = {
   TariffComplex,
   TariffRate,
   TariffPropertyRate,
-};
+  FileDeletion,
+  EventReminder,
+  AuditLog,
+  PasswordResetToken
+}

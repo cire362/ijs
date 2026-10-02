@@ -3,14 +3,14 @@ const asyncHandler = require('../utils/asyncHandler')
 const { getIO } = require('../socket')
 
 const listChats = asyncHandler(async (req, res) => {
-  const chats = await applicationChatService.listChats(req.user)
+  const chats = await applicationChatService.listChats(req.user, req.query)
   res.json(chats)
 })
 
 const listMessages = asyncHandler(async (req, res) => {
   const messages = await applicationChatService.listMessages(
     req.params.id,
-    req.user
+    req.user, req.query
   )
   res.json(messages)
 })

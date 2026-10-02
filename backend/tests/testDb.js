@@ -51,7 +51,7 @@ async function syncAndTruncateExcept (
 ) {
   ensureSafeTestDatabase(sequelize)
 
-  await sequelize.sync({ alter: true })
+  await require('../src/db/migrator').runPendingMigrations()
 
   const qi = sequelize.getQueryInterface()
   const tables = await qi.showAllTables()

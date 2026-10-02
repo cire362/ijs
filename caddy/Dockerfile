@@ -1,5 +1,5 @@
 # Build frontend
-FROM node:18-bookworm-slim AS build
+FROM node:22-bookworm-slim AS build
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm ci
@@ -9,6 +9,6 @@ ENV VITE_API_URL=$VITE_API_URL
 RUN npm run build
 
 # Serve via Caddy + automatic HTTPS certificates
-FROM caddy:2.8-alpine
+FROM caddy:2-alpine
 COPY caddy/Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /app/frontend/dist /srv

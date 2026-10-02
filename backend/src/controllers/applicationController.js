@@ -2,7 +2,7 @@ const applicationService = require('../services/applicationService')
 const asyncHandler = require('../utils/asyncHandler')
 
 const listMine = asyncHandler(async (req, res) => {
-  const apps = await applicationService.listMine(req.user)
+  const apps = await applicationService.listMine(req.user, req.query)
   res.json(apps)
 })
 
@@ -34,10 +34,26 @@ const updateClientInfo = asyncHandler(async (req, res) => {
   res.json(app)
 })
 
+const extendInitialDeadline = asyncHandler(async (req, res) => {
+  const app = await applicationService.extendInitialDeadline(
+    req.params.id,
+    req.user,
+    req.body.days
+  )
+  res.json(app)
+})
+
+const cancelApplication = asyncHandler(async (req, res) => {
+  const app = await applicationService.cancelApplication(req.params.id, req.user, req.body)
+  res.json(app)
+})
+
 module.exports = {
   listMine,
   listIncoming,
   createApplication,
   updateStatus,
-  updateClientInfo
+  updateClientInfo,
+  extendInitialDeadline,
+  cancelApplication
 }

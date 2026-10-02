@@ -1,6 +1,6 @@
 # ИЖС Hub (demo, JS)
 
-Минимальный стенд: Express + Sequelize/PostgreSQL + JWT + Socket.io, фронт на Vue 3 (Vite).
+Платформа объектов ИЖС и заявок: Express + Sequelize/PostgreSQL + JWT + Socket.IO, фронт на Vue 3 (Vite). Инструкция по backend, бизнес-правилам и проверкам: [backend/README.md](backend/README.md).
 
 ## Запуск (Docker)
 
@@ -8,96 +8,33 @@
 2. `docker-compose up --build` — поднимет `db` (Postgres) и `api` на 4000.
 3. API хелсчек: `GET http://localhost:4000/health`.
 
-## Деплой на VPS (Docker, prod)
+## Production
 
-Ниже схема: один домен, Caddy раздаёт фронт и проксирует API/Socket.IO в контейнер `api`.
+Инструкция по запуску, миграциям, резервным копиям, восстановлению и мониторингу: [backend/PRODUCTION.md](backend/PRODUCTION.md).
 
-### 1) Подготовка сервера
+Production-конфигурация рассчитана на один процесс API за Caddy с HTTPS, PostgreSQL 15, отдельную роль базы без административных прав, постоянное хранилище загрузок, зашифрованные копии базы вместе с файлами и независимое хранилище копий. Небезопасные секреты и настройки останавливают запуск.
 
-1. Создайте VPS (Ubuntu/Debian), привяжите домен (A-запись на IP сервера).
-2. Откройте порты: `22`, `80`, `443`.
-3. Установите Docker:
+Создайте конфигурацию со случайными независимыми секретами; команда не перезаписывает существующий файл:
 
-```bash
-curl -fsSL https://get.docker.com | sudo sh
-sudo usermod -aG docker $USER
-exit
-```
-
-Зайдите по SSH снова.
-
-### 2) Заливка проекта
-
-Скопируйте проект на сервер (git clone или scp/zip) и перейдите в корень, где лежит `docker-compose.prod.yml`.
-
-### 3) Настройка переменных окружения
-
-```bash
-cp .env.example .env
-```
-
-Обязательно замените как минимум:
-
-- `POSTGRES_PASSWORD`
-- `JWT_SECRET`
-- `CORS_ALLOWED_ORIGINS` (например: `https://example.com,https://www.example.com`)
-- `APP_ORIGIN` (например: `https://example.com`)
-- `DOMAIN` (например: `example.com`, используется Caddy для auto HTTPS)
-
-### 4) Запуск
-
-```bash
-docker compose -f docker-compose.prod.yml up -d --build
-```
-
-Если вы запускаете проект на обычном HTTP (без HTTPS) и у вас не сохраняются auth-cookie,
-используйте override:
-
-```bash
-docker compose -f docker-compose.prod.yml -f docker-compose.http.yml up -d --build
-```
-
-Проверка:
-
-- сайт: `https://<ваш-домен>/`
-- API health: `https://<ваш-домен>/api/health`
-
-Быстрый smoke-check после деплоя:
-
-```bash
-DOMAIN=<ваш-домен> sh scripts/smoke-check.sh
-```
-
-### 4.1) HTTPS (автоматически через Caddy)
-
-В production используется Caddy: он автоматически выпускает и продлевает TLS-сертификаты (Let's Encrypt).
-
-Условия для авто HTTPS:
-
-1. `DOMAIN` указывает на ваш сервер (A/AAAA запись настроена).
-2. Открыты порты `80` и `443`.
-3. Запуск выполнен через `docker compose -f docker-compose.prod.yml up -d --build`.
-
-Сертификаты сохраняются в volumes `caddy_data`/`caddy_config` и переживают перезапуск контейнеров.
-Также в `docker-compose.prod.yml` добавлены healthcheck для `db`, `api`, `web`.
-
-### 5) (Опционально) сиды для dev/staging
-
-```bash
-ALLOW_SEED=1 SEED_DEFAULT_PASSWORD=password docker compose -f docker-compose.prod.yml -f docker-compose.http.seed.yml run --rm seed
-```
-
-Сиды намеренно заблокированы без `ALLOW_SEED=1` и не предназначены для боевой базы.
-Demo-аккаунты с фиксированными паролями создаются только при `SEED_DEMO_USERS=1`.
-
-Тесты (бек):
-
-```bash
+```sh
 cd backend
-npm test
+npm ci
+npm run ops:configure -- <ваш-домен> /mnt/ijshub-backups
+cd ..
+docker compose --env-file .env.production -f docker-compose.prod.yml config --quiet
+docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build --wait
 ```
 
-В тестах используется SQLite in-memory (NODE_ENV=test).
+До запуска подготовьте DNS, порты 80/443, подключённое независимое хранилище `/mnt/ijshub-backups` с правами UID 1000 и доставку уведомлений мониторинга. Подробности и команды проверки приведены в инструкции. Для существующей базы сначала выполните обновление на её копии по инструкции; скрипт создания роли работает только при первом запуске пустого volume PostgreSQL.
+
+Проверка изолированного production-стенда:
+
+```sh
+cd backend
+npm run ops:rehearse
+```
+
+Проверка создаёт собственные контейнеры и базы, проверяет нагрузку, восстановление, миграции, недоступность базы и завершение API, затем удаляет только созданный стенд. HTTP overrides предназначены для локальной разработки и переводят API в development; публичный production требует HTTPS. Demo-сиды в production запрещены.
 
 ## Локальный запуск без Docker
 
@@ -125,12 +62,12 @@ npm run dev
 
 ## Минимальные эндпоинты
 
-- `POST /auth/register` — создание пользователя (roles: agent/developer/admin).
+- `POST /auth/register` — создание пользователя (roles: agent/individual/developer).
 - `POST /auth/login` — JWT.
 - `GET /properties` — каталог.
 - `POST /properties` — создать объект (developer/admin, JWT).
 - `PATCH /properties/:id` — правка (developer владеющий или admin).
-- `POST /applications` — создать заявку (agent).
+- `POST /applications` — создать заявку (agent/individual).
 - `GET /applications/mine` — заявки агента.
 - `PATCH /applications/:id/status` — смена статуса (developer/admin, уведомление агенту).
 - `GET /notifications` — уведомления пользователя, `POST /notifications/:id/read` — прочитать.
@@ -139,12 +76,6 @@ npm run dev
 
 - backend: Express, Sequelize модели (`users`, `properties`, `applications`, `notifications`, `property_images`, `status_history`), JWT middleware, Socket.io пуши уведомлений.
 - frontend: Vue 3 + Router + Pinia + Axios; простые представления каталог/заявки/логин.
-
-## Дальшие шаги
-
-- Добавить валидацию (zod/celebrate), пагинацию, фильтры по каталогу.
-- Расширить роли (админ-панель), e2e тесты, сборку фронта в контейнер.
-- Включить миграции/seed через Sequelize CLI.
 
 ## Тесты (API)
 

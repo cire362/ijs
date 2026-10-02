@@ -1,0 +1,29 @@
+# Run only against a newly created empty database and an empty uploads volume.
+services:
+  restore:
+    profiles: [restore]
+    build:
+      context: ./backend
+      dockerfile: ops/Dockerfile
+    command: [ops/restore.js, "/backups/${RESTORE_BACKUP_FILE:?Choose the encrypted backup filename}"]
+    environment:
+      RESTORE_DATABASE_URL: ${RESTORE_DATABASE_URL:?Set a NEW empty database URL}
+      RESTORE_DATABASE_NAME: ${RESTORE_DATABASE_NAME:?Set the exact NEW database name}
+      ALLOW_DB_RESTORE: "1"
+      BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY:?Set the original encryption key}
+      OPS_TEMP_DIR: /work
+    volumes:
+      - ${BACKUP_MIRROR_PATH:?Set the backup destination}:/backups:ro
+      - restored_uploads:/restore-uploads
+      - restore_work:/work
+    networks: [backend]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 384m
+    restart: "no"
+
+volumes:
+  restored_uploads:
+  restore_work:

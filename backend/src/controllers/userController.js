@@ -1,5 +1,6 @@
 const userService = require('../services/userService')
 const asyncHandler = require('../utils/asyncHandler')
+const { clearAuthCookies } = require('../utils/authTokens')
 
 const getMe = asyncHandler(async (req, res) => {
   const user = await userService.getMe(req.user)
@@ -18,7 +19,7 @@ const uploadMyAvatar = asyncHandler(async (req, res) => {
 
 const changeMyPassword = asyncHandler(async (req, res) => {
   const { currentPassword, newPassword } = req.body
-  await userService.changeMyPassword(req.user, currentPassword, newPassword)
+  await userService.changeMyPassword(req.user, currentPassword, newPassword, req.authSessionId)
   res.json({ success: true })
 })
 
@@ -60,9 +61,16 @@ const createDeveloperByAdmin = asyncHandler(async (req, res) => {
   res.status(201).json(user)
 })
 
+const deleteMe = asyncHandler(async (req, res) => {
+  await userService.deleteMe(req.user, req.body.password)
+  clearAuthCookies(res, req)
+  res.json({ success: true })
+})
+
 module.exports = {
   getMe,
   updateMe,
+  deleteMe,
   uploadMyAvatar,
   changeMyPassword,
   setMyMarketingConsent,

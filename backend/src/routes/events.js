@@ -1,9 +1,12 @@
 const express = require('express')
 const router = express.Router()
+router.param('id', require('../middleware/idParam'))
 const asyncHandler = require('../utils/asyncHandler')
 const validate = require('../middleware/validate')
 const {
   createEventSchema,
+  updateEventSchema,
+  cancelEventSchema,
   updateRegistrationStatusSchema
 } = require('../validation/events')
 const {
@@ -14,6 +17,9 @@ const {
 const {
   listEvents,
   createEvent,
+  updateEvent,
+  cancelEvent,
+  cancelMyRegistration,
   uploadEventCover,
   registerForEvent,
   listRegistrations,
@@ -23,7 +29,7 @@ const {
 
 const { uploadEventCoverImage } = require('../utils/upload')
 
-router.get('/', optionalAuthenticate, asyncHandler(listEvents))
+router.get('/', optionalAuthenticate, validate(require('../validation/query').eventsQuery, 'query'), asyncHandler(listEvents))
 
 router.post(
   '/',
@@ -42,6 +48,29 @@ router.post(
   asyncHandler(uploadEventCover)
 )
 
+router.patch(
+  '/:id',
+  authenticate,
+  allowRoles('admin'),
+  validate(updateEventSchema),
+  asyncHandler(updateEvent)
+)
+
+router.post(
+  '/:id/cancel',
+  authenticate,
+  allowRoles('admin'),
+  validate(cancelEventSchema),
+  asyncHandler(cancelEvent)
+)
+
+router.delete(
+  '/:id/register',
+  authenticate,
+  allowRoles('agent', 'individual'),
+  asyncHandler(cancelMyRegistration)
+)
+
 router.post(
   '/:id/register',
   authenticate,
@@ -53,6 +82,7 @@ router.get(
   '/registrations',
   authenticate,
   allowRoles('admin'),
+  validate(require('../validation/query').registrationsQuery, 'query'),
   asyncHandler(listRegistrations)
 )
 
@@ -68,6 +98,7 @@ router.get(
   '/my',
   authenticate,
   allowRoles('agent', 'individual'),
+  validate(require('../validation/query').paginationQuery, 'query'),
   asyncHandler(listMyRegistrations)
 )
 

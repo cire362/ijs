@@ -1,9 +1,14 @@
+const { Op, QueryTypes } = require('sequelize')
+const { sequelize } = require('../db')
+const { messageOptions } = require('../utils/chatPagination')
 const {
   Application,
   Property,
   ApplicationChatMessage,
+  Notification,
   User
 } = require('../models')
+const { adminIds } = require('./applicationLifecycle')
 
 function canAccessApplicationChat (app, user) {
   if (!user) return false
@@ -15,13 +20,37 @@ function canAccessApplicationChat (app, user) {
   return false
 }
 
+// One unread notification per chat and recipient is enough to bring them back to it.
+async function notifyChatRecipients (app, recipients, message, transaction) {
+  if (!recipients.length) return
+  const unread = await Notification.findAll({
+    where: {
+      userId: recipients,
+      type: 'application_chat_message',
+      isRead: false,
+      [Op.and]: [sequelize.where(sequelize.literal("(meta->>'applicationId')"), String(app.id))]
+    },
+    attributes: ['userId'],
+    transaction
+  })
+  const notified = new Set(unread.map((note) => note.userId))
+  const pending = recipients.filter((id) => !notified.has(id))
+  if (!pending.length) return
+  await Notification.bulkCreate(pending.map((userId) => ({
+    userId,
+    type: 'application_chat_message',
+    text: `Новое сообщение в чате заявки №${app.id}${app.property?.title ? ` («${app.property.title}»)` : ''}`,
+    meta: { applicationId: app.id, propertyId: app.propertyId, messageId: message.id }
+  })), { transaction })
+}
+
 function normalizeText (v) {
   const s = String(v ?? '').trim()
   return s.length ? s : ''
 }
 
 class ApplicationChatService {
-  async listChats (user) {
+  async listChats (user, query = {}) {
     if (!user) {
       const err = new Error('Токен отсутствует')
       err.status = 401
@@ -48,23 +77,19 @@ class ApplicationChatService {
           attributes: ['id', 'firstName', 'lastName', 'middleName', 'email']
         }
       ],
-      order: [['createdAt', 'DESC']]
+      order: [['createdAt', 'DESC'], ['id', 'DESC']],
+      limit: query.limit,
+      offset: query.limit ? ((query.page || 1) - 1) * query.limit : undefined
     })
 
     if (!apps.length) return []
 
     const appIds = apps.map((a) => a.id)
 
-    const messages = await ApplicationChatMessage.findAll({
-      where: { applicationId: appIds },
-      attributes: [
-        'applicationId',
-        'text',
-        'createdAt',
-        'attachmentOriginalName'
-      ],
-      order: [['createdAt', 'DESC']]
-    })
+    const messages = await sequelize.query(`SELECT DISTINCT ON (application_id)
+      application_id AS "applicationId", text, created_at AS "createdAt", attachment_original_name AS "attachmentOriginalName"
+      FROM application_chat_messages WHERE application_id IN (:appIds)
+      ORDER BY application_id, created_at DESC, id DESC`, { replacements: { appIds }, type: QueryTypes.SELECT })
 
     const lastByAppId = new Map()
     for (const m of messages) {
@@ -99,7 +124,7 @@ class ApplicationChatService {
     return app
   }
 
-  async listMessages (applicationId, user) {
+  async listMessages (applicationId, user, query = {}) {
     const app = await this._getAppForChat(applicationId)
     if (!app) {
       const err = new Error('Заявка не найдена')
@@ -112,8 +137,9 @@ class ApplicationChatService {
       throw err
     }
 
+    const { options, reverse } = await messageOptions(ApplicationChatMessage, { applicationId: app.id }, query)
     const messages = await ApplicationChatMessage.findAll({
-      where: { applicationId: app.id },
+      ...options,
       include: [
         {
           model: User,
@@ -127,11 +153,10 @@ class ApplicationChatService {
             'email'
           ]
         }
-      ],
-      order: [['createdAt', 'ASC']]
+      ]
     })
 
-    return messages
+    return reverse ? messages.reverse() : messages
   }
 
   async createMessage (applicationId, { text }, file, user) {
@@ -147,6 +172,9 @@ class ApplicationChatService {
       throw err
     }
 
+    if (text != null && (typeof text !== 'string' || text.trim().length > 5000)) {
+      throw { status: 400, message: 'Сообщение должно быть текстом длиной не более 5000 символов' }
+    }
     const cleanText = normalizeText(text)
     if (!cleanText && !file) {
       const err = new Error('Сообщение не может быть пустым')
@@ -172,7 +200,14 @@ class ApplicationChatService {
       payload.attachmentSize = file.size
     }
 
-    const created = await ApplicationChatMessage.create(payload)
+    const created = await sequelize.transaction(async (transaction) => {
+      const message = await ApplicationChatMessage.create(payload, { transaction })
+      // The author is notified about support replies; administrators about author messages.
+      const recipients = user.role === 'admin' ? [app.agentId] : await adminIds(transaction)
+      await notifyChatRecipients(app, recipients.filter((id) => id !== user.id), message, transaction)
+      return message
+    })
+    if (file) file.persisted = true
     const withSender = await ApplicationChatMessage.findByPk(created.id, {
       include: [
         {
@@ -195,3 +230,4 @@ class ApplicationChatService {
 }
 
 module.exports = new ApplicationChatService()
+module.exports.canAccessApplicationChat = canAccessApplicationChat

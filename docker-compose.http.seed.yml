@@ -1,4 +1,4 @@
-# HTTP + seed override for production stack.
+# Local development HTTP + seed override; never use on a public production server.
 # Usage:
 #   docker compose -f docker-compose.prod.yml -f docker-compose.http.seed.yml up -d --build
 
@@ -20,20 +20,18 @@ services:
   web:
     environment:
       # Run Caddy in plain HTTP mode (no certificates) for this override.
-      DOMAIN: ${DOMAIN:-:80}
+      DOMAIN: ${HTTP_DOMAIN:-:80}
 
   seed:
     build: ./backend
-    env_file:
-      - ./.env
     environment:
       NODE_ENV: development
       ALLOW_SEED: "1"
-      DATABASE_URL: ${DATABASE_URL:-postgres://postgres:postgres@db:5432/ijshub}
+      DATABASE_URL: ${DATABASE_URL:?Set the local database URL}
       SEED_FORCE: ${SEED_FORCE:-0}
-      SEED_DEFAULT_PASSWORD: ${SEED_DEFAULT_PASSWORD:-password}
-      SEED_DEMO_USERS: ${SEED_DEMO_USERS:-1}
-      SEED_DEMO_PASSWORD: ${SEED_DEMO_PASSWORD:-12345}
+      SEED_DEFAULT_PASSWORD: ${SEED_DEFAULT_PASSWORD:?Set an explicit local seed password}
+      SEED_DEMO_USERS: ${SEED_DEMO_USERS:-0}
+      SEED_DEMO_PASSWORD: ${SEED_DEMO_PASSWORD:-}
     command: npm run seed
     depends_on:
       db:

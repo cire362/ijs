@@ -1,151 +1,151 @@
-const express = require("express");
-const { Op } = require("sequelize");
-const { toSafeText, normalizeSpace } = require("../utils/validation");
-const { AddressSuggestion } = require("../models");
+const express = require('express')
+const { Op } = require('sequelize')
+const { toSafeText, normalizeSpace } = require('../utils/validation')
+const { AddressSuggestion } = require('../models')
 
-const router = express.Router();
+const router = express.Router()
 
 // Very small in-memory cache to reduce load on upstream.
 // Key: string, Value: { expiresAt: number, data: any }
-const cache = new Map();
-const CACHE_TTL_MS = 5 * 60 * 1000;
-const CACHE_MAX = 1000;
+const cache = new Map()
+const CACHE_TTL_MS = 5 * 60 * 1000
+const CACHE_MAX = 1000
 
-function cacheGet(key) {
-  const hit = cache.get(key);
-  if (!hit) return null;
+function cacheGet (key) {
+  const hit = cache.get(key)
+  if (!hit) return null
   if (Date.now() > hit.expiresAt) {
-    cache.delete(key);
-    return null;
+    cache.delete(key)
+    return null
   }
-  return hit.data;
+  return hit.data
 }
 
-function cacheSet(key, data) {
+function cacheSet (key, data) {
   if (cache.size >= CACHE_MAX) {
     // delete first inserted key (simple FIFO)
-    const firstKey = cache.keys().next().value;
-    if (firstKey) cache.delete(firstKey);
+    const firstKey = cache.keys().next().value
+    if (firstKey) cache.delete(firstKey)
   }
-  cache.set(key, { expiresAt: Date.now() + CACHE_TTL_MS, data });
+  cache.set(key, { expiresAt: Date.now() + CACHE_TTL_MS, data })
 }
 
-function asArray(v) {
-  return Array.isArray(v) ? v : [];
+function asArray (v) {
+  return Array.isArray(v) ? v : []
 }
 
-function normalizeQ(q) {
-  return normalizeSpace(toSafeText(q, { maxLen: 200 }));
+function normalizeQ (q) {
+  return normalizeSpace(toSafeText(q, { maxLen: 200 }))
 }
 
-function normalizeOptional(v, maxLen) {
-  const s = normalizeSpace(toSafeText(v, { maxLen }));
-  return s || null;
+function normalizeOptional (v, maxLen) {
+  const s = normalizeSpace(toSafeText(v, { maxLen }))
+  return s || null
 }
 
-function toLowerOrNull(v) {
-  if (!v) return null;
-  const s = String(v).trim();
-  return s ? s.toLowerCase() : null;
+function toLowerOrNull (v) {
+  if (!v) return null
+  const s = String(v).trim()
+  return s ? s.toLowerCase() : null
 }
 
-function toLowerOrNullNormalized(v) {
-  if (!v) return null;
-  const s = normalizeSpace(String(v));
-  return s ? s.toLowerCase() : null;
+function toLowerOrNullNormalized (v) {
+  if (!v) return null
+  const s = normalizeSpace(String(v))
+  return s ? s.toLowerCase() : null
 }
 
-function sortSuggestions(qLower, items) {
-  const uniq = Array.isArray(items) ? items : [];
+function sortSuggestions (qLower, items) {
+  const uniq = Array.isArray(items) ? items : []
   return uniq.slice().sort((a, b) => {
-    const al = String(a?.label || "").toLowerCase();
-    const bl = String(b?.label || "").toLowerCase();
+    const al = String(a?.label || '').toLowerCase()
+    const bl = String(b?.label || '').toLowerCase()
 
-    const aStarts = al.startsWith(qLower);
-    const bStarts = bl.startsWith(qLower);
-    if (aStarts !== bStarts) return aStarts ? -1 : 1;
+    const aStarts = al.startsWith(qLower)
+    const bStarts = bl.startsWith(qLower)
+    if (aStarts !== bStarts) return aStarts ? -1 : 1
 
-    if (al.length !== bl.length) return al.length - bl.length;
-    return al.localeCompare(bl, "ru");
-  });
+    if (al.length !== bl.length) return al.length - bl.length
+    return al.localeCompare(bl, 'ru')
+  })
 }
 
-async function searchLocal({
+async function searchLocal ({
   kind,
   qLower,
   regionLower,
   cityLower,
-  limit = 10,
+  limit = 10
 }) {
-  const and = [{ kind }, { labelLower: { [Op.like]: `%${qLower}%` } }];
+  const and = [{ kind }, { labelLower: { [Op.like]: `%${qLower}%` } }]
 
-  if (kind === "city" && regionLower) {
-    and.push({ [Op.or]: [{ regionLower }, { regionLower: null }] });
+  if (kind === 'city' && regionLower) {
+    and.push({ [Op.or]: [{ regionLower }, { regionLower: null }] })
   }
 
-  if (kind === "street") {
+  if (kind === 'street') {
     if (regionLower) {
-      and.push({ [Op.or]: [{ regionLower }, { regionLower: null }] });
+      and.push({ [Op.or]: [{ regionLower }, { regionLower: null }] })
     }
     if (cityLower) {
-      and.push({ [Op.or]: [{ cityLower }, { cityLower: null }] });
+      and.push({ [Op.or]: [{ cityLower }, { cityLower: null }] })
     }
   }
 
   const rows = await AddressSuggestion.findAll({
     where: { [Op.and]: and },
-    limit: Math.max(limit * 3, 30),
-  });
+    limit: Math.max(limit * 3, 30)
+  })
 
-  const mapped = rows.map((r) => ({ label: r.label }));
-  const sorted = sortSuggestions(qLower, mapped);
+  const mapped = rows.map((r) => ({ label: r.label }))
+  const sorted = sortSuggestions(qLower, mapped)
 
   // De-dup by label again (just in case)
-  const seen = new Set();
-  const unique = [];
+  const seen = new Set()
+  const unique = []
   for (const it of sorted) {
-    if (!it?.label) continue;
-    if (seen.has(it.label)) continue;
-    seen.add(it.label);
-    unique.push(it);
-    if (unique.length >= limit) break;
+    if (!it?.label) continue
+    if (seen.has(it.label)) continue
+    seen.add(it.label)
+    unique.push(it)
+    if (unique.length >= limit) break
   }
 
-  return unique;
+  return unique
 }
 
-async function storeUpstreamResults({ kind, region, city, suggestions }) {
+async function storeUpstreamResults ({ kind, region, city, suggestions }) {
   const rows = (Array.isArray(suggestions) ? suggestions : [])
     .map((s) => ({
       label: s?.label,
       // Prefer upstream-derived context (more trustworthy than request params)
       region: s?.region ?? null,
-      city: s?.city ?? null,
+      city: s?.city ?? null
     }))
-    .filter((s) => s.label);
+    .filter((s) => s.label)
 
-  if (!rows.length) return;
+  if (!rows.length) return
 
-  const now = new Date();
+  const now = new Date()
 
   // De-dup by the same key as the unique index: (kind, label_lower, region_lower, city_lower)
-  const seen = new Set();
-  const payload = [];
+  const seen = new Set()
+  const payload = []
   for (const r of rows) {
-    const label = normalizeSpace(String(r.label));
-    if (!label) continue;
+    const label = normalizeSpace(String(r.label))
+    if (!label) continue
 
-    const labelLower = toLowerOrNullNormalized(label);
+    const labelLower = toLowerOrNullNormalized(label)
 
     // Fall back to request context only if upstream didn't provide it.
-    const regionNorm = normalizeSpace(String(r.region ?? region ?? "")) || null;
-    const cityNorm = normalizeSpace(String(r.city ?? city ?? "")) || null;
-    const regionLower = toLowerOrNullNormalized(regionNorm);
-    const cityLower = toLowerOrNullNormalized(cityNorm);
+    const regionNorm = normalizeSpace(String(r.region ?? region ?? '')) || null
+    const cityNorm = normalizeSpace(String(r.city ?? city ?? '')) || null
+    const regionLower = toLowerOrNullNormalized(regionNorm)
+    const cityLower = toLowerOrNullNormalized(cityNorm)
 
-    const key = JSON.stringify({ kind, labelLower, regionLower, cityLower });
-    if (seen.has(key)) continue;
-    seen.add(key);
+    const key = JSON.stringify({ kind, labelLower, regionLower, cityLower })
+    if (seen.has(key)) continue
+    seen.add(key)
 
     payload.push({
       kind,
@@ -155,12 +155,12 @@ async function storeUpstreamResults({ kind, region, city, suggestions }) {
       regionLower,
       city: cityNorm,
       cityLower,
-      source: "nominatim",
-      lastSeenAt: now,
-    });
+      source: 'nominatim',
+      lastSeenAt: now
+    })
   }
 
-  if (!payload.length) return;
+  if (!payload.length) return
 
   // Best-effort persistence.
   // Do NOT rely solely on a DB unique index: it might not exist yet (or might have failed
@@ -172,9 +172,9 @@ async function storeUpstreamResults({ kind, region, city, suggestions }) {
           kind: row.kind,
           labelLower: row.labelLower,
           regionLower: row.regionLower,
-          cityLower: row.cityLower,
-        },
-      });
+          cityLower: row.cityLower
+        }
+      })
 
       if (existing) {
         await existing.update({
@@ -182,10 +182,10 @@ async function storeUpstreamResults({ kind, region, city, suggestions }) {
           region: row.region,
           city: row.city,
           source: row.source,
-          lastSeenAt: row.lastSeenAt,
-        });
+          lastSeenAt: row.lastSeenAt
+        })
       } else {
-        await AddressSuggestion.create(row);
+        await AddressSuggestion.create(row)
       }
     }
   } catch {
@@ -193,51 +193,51 @@ async function storeUpstreamResults({ kind, region, city, suggestions }) {
   }
 }
 
-function buildNominatimUrl({ kind, q, region, city }) {
-  const url = new URL("https://nominatim.openstreetmap.org/search");
+function buildNominatimUrl ({ kind, q, region, city }) {
+  const url = new URL('https://nominatim.openstreetmap.org/search')
 
   // Limit to Russia
-  url.searchParams.set("countrycodes", "ru");
-  url.searchParams.set("format", "jsonv2");
-  url.searchParams.set("addressdetails", "1");
-  url.searchParams.set("limit", "10");
-  url.searchParams.set("accept-language", "ru");
+  url.searchParams.set('countrycodes', 'ru')
+  url.searchParams.set('format', 'jsonv2')
+  url.searchParams.set('addressdetails', '1')
+  url.searchParams.set('limit', '10')
+  url.searchParams.set('accept-language', 'ru')
 
-  if (kind === "region") {
+  if (kind === 'region') {
     // Best-effort: search for region/state
-    url.searchParams.set("q", `${q}, Россия`);
-  } else if (kind === "city") {
+    url.searchParams.set('q', `${q}, Россия`)
+  } else if (kind === 'city') {
     // Use free-text query (less strict than structured city/state params)
     // to avoid over-constraining results when the client passes a wrong region.
-    url.searchParams.set("q", `${q}, Россия`);
-  } else if (kind === "street") {
-    url.searchParams.set("street", q);
-    if (city) url.searchParams.set("city", city);
-    if (region) url.searchParams.set("state", region);
-    url.searchParams.set("country", "Россия");
+    url.searchParams.set('q', `${q}, Россия`)
+  } else if (kind === 'street') {
+    url.searchParams.set('street', q)
+    if (city) url.searchParams.set('city', city)
+    if (region) url.searchParams.set('state', region)
+    url.searchParams.set('country', 'Россия')
   } else {
-    url.searchParams.set("q", `${q}, Россия`);
+    url.searchParams.set('q', `${q}, Россия`)
   }
 
-  return url.toString();
+  return url.toString()
 }
 
-function toSuggestion(item, kind) {
-  const address = item?.address || {};
+function toSuggestion (item, kind) {
+  const address = item?.address || {}
 
-  if (kind === "region") {
+  if (kind === 'region') {
     const name =
       address.state ||
       address.region ||
       address.state_district ||
-      item?.display_name;
-    if (!name) return null;
-    const label = normalizeSpace(toSafeText(name, { maxLen: 200 }));
-    if (!label) return null;
-    return { label };
+      item?.display_name
+    if (!name) return null
+    const label = normalizeSpace(toSafeText(name, { maxLen: 200 }))
+    if (!label) return null
+    return { label }
   }
 
-  if (kind === "city") {
+  if (kind === 'city') {
     const name =
       address.city ||
       address.town ||
@@ -246,29 +246,29 @@ function toSuggestion(item, kind) {
       address.municipality ||
       address.county ||
       item?.name ||
-      item?.display_name;
-    if (!name) return null;
-    const label = normalizeSpace(toSafeText(name, { maxLen: 200 }));
-    if (!label) return null;
+      item?.display_name
+    if (!name) return null
+    const label = normalizeSpace(toSafeText(name, { maxLen: 200 }))
+    if (!label) return null
     const region = normalizeSpace(
       toSafeText(address.state || address.region || address.state_district, {
-        maxLen: 200,
-      }),
-    );
-    return { label, region: region || null };
+        maxLen: 200
+      })
+    )
+    return { label, region: region || null }
   }
 
-  if (kind === "street") {
+  if (kind === 'street') {
     const name =
-      address.road || address.pedestrian || address.footway || item?.name;
-    if (!name) return null;
-    const label = normalizeSpace(toSafeText(name, { maxLen: 200 }));
-    if (!label) return null;
+      address.road || address.pedestrian || address.footway || item?.name
+    if (!name) return null
+    const label = normalizeSpace(toSafeText(name, { maxLen: 200 }))
+    if (!label) return null
     const region = normalizeSpace(
       toSafeText(address.state || address.region || address.state_district, {
-        maxLen: 200,
-      }),
-    );
+        maxLen: 200
+      })
+    )
 
     const city = normalizeSpace(
       toSafeText(
@@ -277,105 +277,105 @@ function toSuggestion(item, kind) {
           address.village ||
           address.hamlet ||
           address.municipality,
-        { maxLen: 200 },
-      ),
-    );
+        { maxLen: 200 }
+      )
+    )
 
-    return { label, region: region || null, city: city || null };
+    return { label, region: region || null, city: city || null }
   }
 
-  const label = normalizeSpace(toSafeText(item?.display_name, { maxLen: 200 }));
-  return label ? { label } : null;
+  const label = normalizeSpace(toSafeText(item?.display_name, { maxLen: 200 }))
+  return label ? { label } : null
 }
 
-async function fetchWithHardTimeout(url, options, timeoutMs) {
-  const ac = new AbortController();
-  const fetchPromise = fetch(url, { ...options, signal: ac.signal });
+async function fetchWithHardTimeout (url, options, timeoutMs) {
+  const ac = new AbortController()
+  const fetchPromise = fetch(url, { ...options, signal: ac.signal })
 
   const timeoutPromise = new Promise((_resolve, reject) => {
     const t = setTimeout(() => {
       try {
-        ac.abort();
+        ac.abort()
       } catch {
         // ignore
       }
-      reject(new Error("timeout"));
-    }, timeoutMs);
+      reject(new Error('timeout'))
+    }, timeoutMs)
 
     // avoid keeping event loop alive just for timer
-    if (typeof t?.unref === "function") t.unref();
-  });
+    if (typeof t?.unref === 'function') t.unref()
+  })
 
   try {
-    return await Promise.race([fetchPromise, timeoutPromise]);
+    return await Promise.race([fetchPromise, timeoutPromise])
   } catch (err) {
     // Ensure no unhandled rejections if fetch eventually fails after timeout.
-    fetchPromise.catch(() => {});
-    throw err;
+    fetchPromise.catch(() => {})
+    throw err
   }
 }
 
-router.get("/suggest", async (req, res) => {
-  const kindRaw = String(req.query?.kind || "")
+router.get('/suggest', async (req, res) => {
+  const kindRaw = String(req.query?.kind || '')
     .trim()
-    .toLowerCase();
-  const kind = ["region", "city", "street"].includes(kindRaw)
+    .toLowerCase()
+  const kind = ['region', 'city', 'street'].includes(kindRaw)
     ? kindRaw
-    : "city";
+    : 'city'
 
-  const q = normalizeQ(req.query?.q);
-  if (!q || q.length < 2) return res.json([]);
+  const q = normalizeQ(req.query?.q)
+  if (!q || q.length < 2) return res.json([])
 
-  const region = normalizeOptional(req.query?.region, 200);
-  const city = normalizeOptional(req.query?.city, 200);
-  const regionLower = toLowerOrNull(region);
-  const cityLower = toLowerOrNull(city);
+  const region = normalizeOptional(req.query?.region, 200)
+  const city = normalizeOptional(req.query?.city, 200)
+  const regionLower = toLowerOrNull(region)
+  const cityLower = toLowerOrNull(city)
 
   // For city suggestions we don't want to over-constrain by region;
   // treat region as a soft hint only.
-  const effectiveRegion = kind === "city" ? null : region;
-  const effectiveCity = kind === "city" ? null : city;
-  const effectiveRegionLower = kind === "city" ? null : regionLower;
-  const effectiveCityLower = kind === "city" ? null : cityLower;
+  const effectiveRegion = kind === 'city' ? null : region
+  const effectiveCity = kind === 'city' ? null : city
+  const effectiveRegionLower = kind === 'city' ? null : regionLower
+  const effectiveCityLower = kind === 'city' ? null : cityLower
 
   const key = JSON.stringify({
     kind,
     q,
     region: effectiveRegion,
-    city: effectiveCity,
-  });
-  const cached = cacheGet(key);
-  if (cached) return res.json(cached);
+    city: effectiveCity
+  })
+  const cached = cacheGet(key)
+  if (cached) return res.json(cached)
 
   // Prefer local DB suggestions to reduce dependency on upstream.
   try {
-    const qLower = q.toLowerCase();
+    const qLower = q.toLowerCase()
 
     const local = await searchLocal({
       kind,
       qLower,
       regionLower: effectiveRegionLower,
       cityLower: effectiveCityLower,
-      limit: 10,
-    });
+      limit: 10
+    })
     if (local.length) {
-      cacheSet(key, local);
-      return res.json(local);
+      cacheSet(key, local)
+      return res.json(local)
     }
 
     // If the client passes a wrong region, city suggestions shouldn't appear broken.
     // Retry local search without region filter.
-    if (kind === "city" && regionLower) {
+    if (kind === 'city' && regionLower) {
       const relaxed = await searchLocal({
         kind,
         qLower,
         regionLower: null,
         cityLower: null,
-        limit: 10,
-      });
+        limit: 10
+      })
       if (relaxed.length) {
-        cacheSet(key, relaxed);
-        return res.json(relaxed);
+        cacheSet(key, relaxed)
+        return res.json(relaxed)
       }
     }
   } catch {
@@ -386,71 +386,71 @@ router.get("/suggest", async (req, res) => {
     kind,
     q,
     region: effectiveRegion,
-    city: effectiveCity,
-  });
+    city: effectiveCity
+  })
 
   try {
     const resp = await fetchWithHardTimeout(
       url,
       {
-        method: "GET",
+        method: 'GET',
         headers: {
           // Nominatim usage policy expects a User-Agent identifying the app.
-          "User-Agent": "ijshub/0.1 (address autocomplete)",
-        },
+          'User-Agent': 'ijshub/0.1 (address autocomplete)'
+        }
       },
-      3500,
-    );
+      3500
+    )
 
     if (!resp.ok) {
-      if (process.env.NODE_ENV !== "test") {
-        console.warn("address suggest upstream not ok", {
+      if (process.env.NODE_ENV !== 'test') {
+        console.warn('address suggest upstream not ok', {
           kind,
           q,
-          status: resp?.status ?? null,
-        });
+          status: resp?.status ?? null
+        })
       }
-      return res.json([]);
+      return res.json([])
     }
 
-    const data = await resp.json();
+    const data = await resp.json()
     const items = asArray(data)
       .map((it) => toSuggestion(it, kind))
-      .filter(Boolean);
+      .filter(Boolean)
 
     // De-dup by label
-    const seen = new Set();
-    const unique = [];
+    const seen = new Set()
+    const unique = []
     for (const it of items) {
-      if (seen.has(it.label)) continue;
-      seen.add(it.label);
-      unique.push(it);
+      if (seen.has(it.label)) continue
+      seen.add(it.label)
+      unique.push(it)
     }
 
     // Avoid caching empty results; it often happens due to overly specific context
     // and would make subsequent lookups appear broken.
-    if (unique.length) cacheSet(key, unique);
+    if (unique.length) cacheSet(key, unique)
 
     // Best-effort: persist results so next time we can serve from DB.
     storeUpstreamResults({
       kind,
       region: effectiveRegion,
       city: effectiveCity,
-      suggestions: unique,
-    }).catch(() => {});
+      suggestions: unique
+    }).catch(() => {})
 
-    return res.json(unique);
+    return res.json(unique)
   } catch (err) {
-    if (process.env.NODE_ENV !== "test") {
-      console.warn("address suggest upstream failed", {
+    if (process.env.NODE_ENV !== 'test') {
+      console.warn('address suggest upstream failed', {
         kind,
         q,
-        error: err?.message || String(err),
-      });
+        error: err?.message || String(err)
+      })
     }
     // Degrade gracefully: address suggestions are optional UX.
-    return res.json([]);
+    return res.json([])
   }
-});
+})
 
-module.exports = router;
+module.exports = router

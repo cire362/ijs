@@ -1,16 +1,22 @@
+const { scaledDecimal } = require('../utils/commission')
+const { queueFileDeletion } = require('../jobs/fileCleanup')
 const { Op } = require('sequelize')
+const { sequelize } = require('../db')
+const { RESERVING_STATUSES } = require('../utils/applicationStatus')
+const { rejectPendingApplications } = require('./applicationLifecycle')
+const { paginate } = require('../utils/pagination')
 const {
   Property,
   PropertyImage,
   PropertyDocument,
   User,
-  AddressSuggestion
+  AddressSuggestion,
+  Application,
+  AuditLog
 } = require('../models')
 
 async function upsertAddressSuggestion ({ kind, label, region, city, source }) {
   if (!AddressSuggestion) return
-  // logic to normalize was in controller, but now we assume data is somewhat valid?
-  // validation for suggestions was manual. I'll keep it simple.
 
   const cleanLabel = (label || '').trim()
   if (cleanLabel.length < 2) return
@@ -79,16 +85,22 @@ async function ensureSuggestionsFromPropertyFields ({ region, city, street }) {
   }
 }
 
+function assertApprovedDeveloper (developer) {
+  if (!developer || developer.role !== 'developer') {
+    throw { status: 400, message: 'Некорректный developerId (нужен застройщик)' }
+  }
+  if (!developer.developerApproved || developer.developerRejected) {
+    throw { status: 409, message: 'Застройщик не подтверждён администратором' }
+  }
+}
+
 class PropertyService {
   async listProperties (query, user) {
     const q = (query.q || '').trim()
     const region = (query.region || '').trim()
     const city = (query.city || '').trim()
 
-    // Default filters
     let publicWhere = { saleStatus: 'available' }
-    // If agent/admin, they can see others? No, list is usually public search.
-    // Spec: "agents see all statuses?" -> "canSeeAllStatuses".
     const canSeeAllStatuses =
       user &&
       (user.role === 'agent' ||
@@ -105,7 +117,6 @@ class PropertyService {
 
     const where = { ...publicWhere }
 
-    // Developer isolation (Implicit rule from tests)
     if (user && user.role === 'developer') {
       where.developerId = user.id
     }
@@ -120,19 +131,20 @@ class PropertyService {
     if (region) where.region = region
     if (city) where.city = city
 
-    if (query.rooms) where.rooms = Number(query.rooms)
-    if (query.floors) where.floors = Number(query.floors)
+    if (query.rooms != null) where.rooms = Number(query.rooms)
+    if (query.floors != null) where.floors = Number(query.floors)
 
     // Price range
-    if (query.priceMin || query.priceMax) {
+    if (query.priceMin != null || query.priceMax != null) {
       const priceFilter = {}
-      if (query.priceMin) priceFilter[Op.gte] = Number(query.priceMin)
-      if (query.priceMax) priceFilter[Op.lte] = Number(query.priceMax)
+      if (query.priceMin != null) priceFilter[Op.gte] = Number(query.priceMin)
+      if (query.priceMax != null) priceFilter[Op.lte] = Number(query.priceMax)
       where.price = priceFilter
     }
 
-    const properties = await Property.findAll({
-      where,
+    const { options, wrap } = paginate({ where, order: [['createdAt', 'DESC'], ['id', 'DESC']] }, query)
+    return wrap(Property, {
+      ...options,
       include: [
         {
           model: User,
@@ -150,11 +162,8 @@ class PropertyService {
           as: 'images',
           attributes: ['id', 'url', 'caption']
         }
-      ],
-      order: [['createdAt', 'DESC']]
+      ]
     })
-
-    return properties
   }
 
   async getPropertyById (id, user) {
@@ -197,34 +206,16 @@ class PropertyService {
     if (user.role === 'developer') {
       payload.developerId = user.id
     } else if (user.role === 'admin') {
-      // developerId check logic done in controller? Or here?
-      // Service should ideally be self-contained but validation middleware handles types.
-      // Logic check:
       if (!payload.developerId) {
         throw {
           status: 400,
           message: 'Для администратора обязателен developerId'
         }
       }
-      const developer = await User.findByPk(payload.developerId)
-      if (!developer || developer.role !== 'developer') {
-        throw {
-          status: 400,
-          message: 'Некорректный developerId (нужен застройщик)'
-        }
-      }
+      assertApprovedDeveloper(await User.findByPk(payload.developerId))
     }
 
-    // Default saleStatus
-    if (!payload.saleStatus) {
-      // payload.saleStatus = "available"; // DB default? Or manual.
-      // Model doesn't specify default? Check model. Reference implies logic needed.
-      // Validation schema allows null/empty.
-      // Original controller: delete if empty.
-    }
-
-    // In original controller:
-    // if (payload.saleStatus === undefined || payload.saleStatus === "") { delete payload.saleStatus; }
+    if (!payload.saleStatus) delete payload.saleStatus
 
     const created = await Property.create(payload)
 
@@ -235,38 +226,52 @@ class PropertyService {
     }).catch(() => {})
 
     return this.getPropertyById(created.id, user)
-    // Optimization: reuse getById to return full object with includes
   }
 
   async updateProperty (id, data, user) {
-    const property = await Property.findByPk(id)
-    if (!property) throw { status: 404, message: 'Не найдено' }
-
-    if (user.role === 'developer' && property.developerId !== user.id) {
-      throw { status: 403, message: 'Доступ запрещён' }
-    }
-
-    const updates = { ...data }
-
-    if (updates.developerId !== undefined) {
-      if (user.role !== 'admin') {
-        throw { status: 403, message: 'Нельзя менять developerId' }
+    const property = await sequelize.transaction(async (transaction) => {
+      const property = await Property.findByPk(id, { transaction, lock: transaction.LOCK.UPDATE })
+      if (!property) throw { status: 404, message: 'Объект не найден' }
+      if (user.role === 'developer' && property.developerId !== user.id) {
+        throw { status: 403, message: 'Доступ запрещён' }
       }
-      // Validate dev exists
-      const developer = await User.findByPk(updates.developerId)
-      if (!developer || developer.role !== 'developer') {
-        throw { status: 400, message: 'Некорректный developerId' }
+      const updates = { ...data }
+      if (updates.developerId === property.developerId) delete updates.developerId
+      if (updates.developerId !== undefined) {
+        if (user.role !== 'admin') throw { status: 403, message: 'Нельзя менять developerId' }
+        assertApprovedDeveloper(await User.findByPk(updates.developerId, { transaction }))
+        if (await Application.count({ where: { propertyId: id }, transaction })) {
+          throw { status: 409, message: 'Нельзя менять застройщика у объекта с заявками' }
+        }
       }
-    }
-
-    await property.update(updates)
-
-    ensureSuggestionsFromPropertyFields({
-      region: updates.region || property.region,
-      city: updates.city || property.city,
-      street: updates.street || property.street
-    }).catch(() => {})
-
+      if (updates.saleStatus && updates.saleStatus !== property.saleStatus) {
+        const active = await Application.count({
+          where: { propertyId: id, status: { [Op.in]: RESERVING_STATUSES } }, transaction
+        })
+        const completed = await Application.count({ where: { propertyId: id, status: 'done' }, transaction })
+        if (active || completed) {
+          throw { status: 409, message: 'Статус объекта связан с заявкой. Измените статус заявки' }
+        }
+      }
+      if (updates.price !== undefined && (updates.price == null || property.price == null ? updates.price !== property.price : scaledDecimal(updates.price, 2) !== scaledDecimal(property.price, 2))) {
+        await AuditLog.create({
+          entityType: 'property',
+          entityId: property.id,
+          actorId: user.id,
+          action: 'price_changed',
+          before: { price: property.price },
+          after: { price: updates.price }
+        }, { transaction })
+      }
+      const soldNow = updates.saleStatus === 'sold' && property.saleStatus !== 'sold'
+      await property.update(updates, { transaction })
+      // A sale recorded outside a deal still closes the pending applications.
+      if (soldNow) {
+        await rejectPendingApplications(property.id, { actorId: user.id, comment: 'Объект продан', transaction })
+      }
+      return property
+    })
+    ensureSuggestionsFromPropertyFields(property).catch(() => {})
     return property
   }
 
@@ -289,32 +294,43 @@ class PropertyService {
         caption: f.originalname
       }))
     )
+    for (const file of files) file.persisted = true
 
     return this.getPropertyById(id, user)
   }
 
   async deleteProperty (id, user) {
-    const property = await Property.findByPk(id)
-    if (!property) throw { status: 404, message: 'Не найдено' }
-
-    if (user.role === 'developer' && property.developerId !== user.id) {
-      throw { status: 403, message: 'Доступ запрещён' }
-    }
-
-    await property.destroy()
+    return sequelize.transaction(async (transaction) => {
+      const property = await Property.findByPk(id, { transaction, lock: transaction.LOCK.UPDATE })
+      if (!property) throw { status: 404, message: 'Объект не найден' }
+      if (user.role === 'developer' && property.developerId !== user.id) {
+        throw { status: 403, message: 'Доступ запрещён' }
+      }
+      if (await Application.count({ where: { propertyId: id }, transaction })) {
+        throw { status: 409, message: 'Нельзя удалить объект с заявками и историей сделок' }
+      }
+      const images = await PropertyImage.findAll({ where: { propertyId: id }, transaction })
+      const docs = await PropertyDocument.findAll({ where: { propertyId: id }, transaction })
+      await queueFileDeletion([...images, ...docs].map((file) => file.url), transaction)
+      await property.destroy({ transaction })
+    })
   }
 
   async deletePropertyImage (imageId, user) {
-    const image = await PropertyImage.findByPk(imageId, {
-      include: ['property']
+    return this.deletePropertyFile(PropertyImage, imageId, user)
+  }
+
+  async deletePropertyFile (Model, id, user) {
+    return sequelize.transaction(async (transaction) => {
+      const existing = await Model.findByPk(id, { transaction })
+      if (!existing) throw { status: 404, message: 'Файл не найден' }
+      const property = await Property.findByPk(existing.propertyId, { transaction, lock: transaction.LOCK.UPDATE })
+      const file = await Model.findByPk(id, { transaction, lock: transaction.LOCK.UPDATE })
+      if (!file || !property) throw { status: 404, message: 'Файл не найден' }
+      if (user.role === 'developer' && property.developerId !== user.id) throw { status: 403, message: 'Доступ запрещён' }
+      await queueFileDeletion([file.url], transaction)
+      await file.destroy({ transaction })
     })
-    if (!image) throw { status: 404, message: 'Изображение не найдено' }
-
-    if (user.role === 'developer' && image.property.developerId !== user.id) {
-      throw { status: 403, message: 'Доступ запрещён' }
-    }
-
-    await image.destroy()
   }
 
   async addPropertyDocument (id, file, user) {
@@ -335,21 +351,13 @@ class PropertyService {
       originalName: file.originalname,
       mimeType: file.mimetype
     })
+    file.persisted = true
 
     return this.getPropertyById(id, user)
   }
 
   async deletePropertyDocument (docId, user) {
-    const doc = await PropertyDocument.findByPk(docId, {
-      include: ['property']
-    })
-    if (!doc) throw { status: 404, message: 'Документ не найден' }
-
-    if (user.role === 'developer' && doc.property.developerId !== user.id) {
-      throw { status: 403, message: 'Доступ запрещён' }
-    }
-
-    await doc.destroy()
+    return this.deletePropertyFile(PropertyDocument, docId, user)
   }
 }
 
