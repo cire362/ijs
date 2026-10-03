@@ -3,11 +3,12 @@ import { computed } from 'vue'
 import { IconBed, IconMapPin, IconRuler2, IconStairs, IconPhoto } from '@tabler/icons-vue'
 import type { Property } from '@/api/types'
 import { formatArea, formatPrice } from '@/utils/format'
+import { propertyImageUrl } from '@/utils/propertyImages'
 import { SALE_STATUS } from '@/utils/status'
 import StatusTag from '@/components/StatusTag.vue'
 
 const props = withDefaults(defineProps<{ property: Property, to?: string | null, showStatus?: boolean }>(), { to: undefined, showStatus: true })
-const cover = computed(() => props.property.images?.[0]?.url ?? null)
+const cover = computed(() => propertyImageUrl(props.property.images?.[0]?.url))
 const address = computed(() => [props.property.city, props.property.street].filter(Boolean).join(', '))
 const link = computed(() => props.to === null ? null : props.to ?? `/properties/${props.property.id}`)
 </script>

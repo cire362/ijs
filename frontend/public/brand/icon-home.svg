@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
-  <g stroke="#D4A62A" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M16 60L64 24L112 60"/>
-    <path d="M32 56V92H96V56"/>
-    <path d="M52 92V70H76V92"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#1a56a6" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+  <title>ИЖС платформа</title>
+  <!-- Tabler Icons (MIT); see LICENSE-tabler.txt. -->
+  <path d="M5 12l-2 0l9 -9l9 9l-2 0"/>
+  <path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-7"/>
+  <path d="M10 12h4v4h-4l0 -4"/>
 </svg>

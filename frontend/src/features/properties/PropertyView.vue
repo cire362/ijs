@@ -11,6 +11,7 @@ import { useAsync } from '@/composables/useAsync'
 import { confirmAction } from '@/composables/confirm'
 import { useAuthStore } from '@/stores/auth'
 import { formatArea, formatDate, formatPrice } from '@/utils/format'
+import { propertyImageUrl } from '@/utils/propertyImages'
 import { SALE_STATUS } from '@/utils/status'
 import StatusTag from '@/components/StatusTag.vue'
 import ErrorState from '@/components/ErrorState.vue'
@@ -123,13 +124,13 @@ async function removeProperty () {
         <!-- Gallery -->
         <section class="surface overflow-hidden">
           <div class="relative aspect-[16/10] bg-surface-2">
-            <img v-if="current" :src="current.url" :alt="current.caption || property.title" class="size-full object-cover">
+            <img v-if="current" :src="propertyImageUrl(current.url)" :alt="current.caption || property.title" class="size-full object-cover">
             <div v-else class="grid size-full place-items-center text-subtle"><IconPhoto :size="40" /></div>
           </div>
           <div v-if="images.length > 1 || canManage" class="flex gap-2 overflow-x-auto p-3">
             <div v-for="(image, index) in images" :key="image.id" class="group relative shrink-0">
               <button type="button" class="block size-20 overflow-hidden rounded-control ring-2 transition" :class="index === active ? 'ring-accent' : 'ring-transparent hover:ring-line-strong'" :aria-label="`Фото ${index + 1}`" @click="active = index">
-                <img :src="image.url" alt="" class="size-full object-cover" loading="lazy">
+                <img :src="propertyImageUrl(image.url)" alt="" class="size-full object-cover" loading="lazy">
               </button>
               <button v-if="canManage" type="button" class="absolute -right-1.5 -top-1.5 hidden size-6 place-items-center rounded-full bg-surface text-danger shadow-soft ring-1 ring-line group-hover:grid focus:grid" aria-label="Удалить фото" @click="removeImage(image.id)"><IconTrash :size="14" /></button>
             </div>
