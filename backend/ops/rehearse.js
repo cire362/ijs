@@ -188,7 +188,7 @@ INSERT INTO properties(title,developer_id,region,city,price,created_at,updated_a
       try {
         await require('./src/db/migrator').runPendingMigrations();
         const [rows]=await sequelize.query('SELECT title,price FROM properties');assert.equal(rows[0].price,'7654321.10');assert.equal(rows[0].title,'Исторический объект');
-        const [migrations]=await sequelize.query('SELECT name FROM "SequelizeMeta"');assert.equal(migrations.length,2);
+        const [migrations]=await sequelize.query('SELECT name FROM "SequelizeMeta"');assert.equal(migrations.length,require('fs').readdirSync('./src/db/migrations').filter(name=>name.endsWith('.js')).length);
       } finally {await sequelize.close()}
     `)
     checked('restore and migration of a populated legacy schema without data loss')
