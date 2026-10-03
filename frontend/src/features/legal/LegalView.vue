@@ -32,7 +32,7 @@ const titleByTab = computed(() => ({
 <template>
   <div class="mx-auto max-w-4xl px-4 py-10 md:px-8 md:py-14">
     <h1 class="text-3xl font-semibold text-ink md:text-4xl">Правовые документы</h1>
-    <p class="mt-2 text-muted">Актуальная редакция от 15.02.2026</p>
+    <p class="mt-2 text-muted">Актуальная редакция от 03.10.2026</p>
     <nav class="mt-8 flex gap-1 overflow-x-auto border-b border-line" aria-label="Документы">
       <button v-for="tab in tabs" :key="tab.value" type="button" class="-mb-px shrink-0 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors" :class="activeTab === tab.value ? 'border-accent text-ink' : 'border-transparent text-muted hover:text-ink'" :aria-current="activeTab === tab.value ? 'page' : undefined" @click="activeTab = tab.value">{{ tab.label }}</button>
     </nav>
@@ -157,6 +157,20 @@ const titleByTab = computed(() => ({
             инфраструктуры) в пределах заявленных целей обработки и при
             соблюдении требований законодательства РФ.
           </p>
+          <p class="mt-2">
+            Для отображения расположения объектов на карте используется
+            картографический сервис OpenFreeMap (оператор Hyperknot Software
+            Kft., Венгрия,
+            <a href="https://openfreemap.org/privacy/" target="_blank" rel="noopener" class="link">openfreemap.org</a>).
+            При просмотре страницы с картой браузер пользователя запрашивает
+            картографические данные напрямую с серверов этого сервиса. При
+            этом сервису становятся известны IP-адрес, сведения о браузере и
+            адрес страницы, с которой выполнен запрос. Сервис не использует
+            файлы cookie и, согласно его политике конфиденциальности, не
+            сохраняет IP-адреса, за исключением расследования инцидентов
+            безопасности (не более 30 дней). Иные персональные данные
+            пользователей картографическому сервису не передаются.
+          </p>
         </section>
 
         <section>
@@ -171,6 +185,14 @@ const titleByTab = computed(() => ({
             <li>
               Трансграничная передача возможна только при наличии законных
               оснований и соблюдении требований законодательства РФ.
+            </li>
+            <li>
+              При открытии страниц с картой IP-адрес и технические сведения о
+              браузере пользователя передаются картографическому сервису
+              OpenFreeMap, серверы которого находятся за пределами Российской
+              Федерации и могут использовать сеть доставки контента
+              Cloudflare. Передача происходит только при просмотре страниц, на
+              которых отображается карта.
             </li>
           </ul>
         </section>
