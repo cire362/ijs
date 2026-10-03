@@ -61,7 +61,13 @@ const deletePropertyDocument = asyncHandler(async (req, res) => {
   res.json({ success: true })
 })
 
+const getFacets = asyncHandler(async (req, res) => {
+  res.set('Cache-Control', 'private, max-age=60')
+  res.json(await propertyService.facets(req.user))
+})
+
 module.exports = {
+  getFacets,
   listProperties,
   getPropertyById,
   createProperty,

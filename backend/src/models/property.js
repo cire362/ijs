@@ -31,6 +31,10 @@ Property.init(
     },
     buildStage: { type: DataTypes.STRING },
     price: { type: DataTypes.DECIMAL(14, 2) },
+    latitude: { type: DataTypes.DOUBLE },
+    longitude: { type: DataTypes.DOUBLE },
+    geoPrecision: { type: DataTypes.SMALLINT },
+    geocodedAt: { type: DataTypes.DATE },
     description: { type: DataTypes.TEXT }
   },
   { sequelize, modelName: 'property' }

@@ -1,4 +1,5 @@
-const { User, Property, TariffPropertyRate } = require('../models')
+const { sequelize } = require('../db')
+const { User, Property, TariffPropertyRate, AuditLog } = require('../models')
 
 const CATEGORIES = ['apartments', 'commercial', 'parking', 'storage']
 
@@ -18,7 +19,7 @@ async function getTariffView ({
     'apartments'
   )
 
-  const userWhere = { role: 'developer' }
+  const userWhere = { role: 'developer', deletedAt: null }
   if (!includeUnapprovedDevelopers) userWhere.developerApproved = true
 
   const rateWhere = { category: normalizedCategory }
@@ -94,34 +95,30 @@ module.exports = {
   CATEGORIES,
   ensureIn,
   getTariffView,
-  async upsertRate ({
-    propertyId,
-    category,
-    commissionFrom,
-    commissionTo,
-    notes,
-    isActive
-  }) {
-    const [rate, created] = await TariffPropertyRate.findOrCreate({
-      where: { propertyId, category },
-      defaults: {
-        propertyId,
-        category,
+  async upsertRate ({ propertyId, category, commissionFrom, commissionTo, notes, isActive }, actorId = null) {
+    return sequelize.transaction(async (transaction) => {
+      const property = await Property.findByPk(propertyId, { transaction, lock: transaction.LOCK.UPDATE })
+      if (!property) throw { status: 404, message: 'Объект не найден' }
+      let rate = await TariffPropertyRate.findOne({ where: { propertyId, category }, transaction, lock: transaction.LOCK.UPDATE })
+      const fields = ['commissionFrom', 'commissionTo', 'notes', 'isActive']
+      const before = rate ? Object.fromEntries(fields.map((key) => [key, rate[key]])) : null
+      const values = {
         commissionFrom,
         commissionTo,
-        notes: notes != null ? String(notes) : null,
-        isActive: isActive == null ? true : Boolean(isActive)
+        notes: notes ?? null,
+        isActive: isActive ?? rate?.isActive ?? true
       }
+      if (rate) await rate.update(values, { transaction })
+      else rate = await TariffPropertyRate.create({ propertyId, category, ...values }, { transaction })
+      await AuditLog.create({
+        entityType: 'tariff_rate',
+        entityId: rate.id,
+        actorId,
+        action: before ? 'rate_changed' : 'rate_created',
+        before,
+        after: { propertyId, category, ...Object.fromEntries(fields.map((key) => [key, rate[key]])) }
+      }, { transaction })
+      return rate
     })
-
-    if (!created) {
-      rate.commissionFrom = commissionFrom
-      rate.commissionTo = commissionTo
-      rate.notes = notes != null ? String(notes) : null
-      if (isActive != null) rate.isActive = Boolean(isActive)
-      await rate.save()
-    }
-
-    return rate
   }
 }

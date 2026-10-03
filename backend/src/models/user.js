@@ -79,7 +79,9 @@ User.init(
       type: DataTypes.STRING,
       allowNull: true,
       field: 'marketing_consent_version'
-    }
+    },
+    // Set when the account was deleted at the owner's request; personal data is anonymized.
+    deletedAt: { type: DataTypes.DATE, allowNull: true }
   },
   { sequelize, modelName: 'user' }
 )

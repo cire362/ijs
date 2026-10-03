@@ -20,12 +20,12 @@ const phoneSchema = Joi.string()
   })
 
 const createApplicationSchema = Joi.object({
-  propertyId: Joi.number().integer().required().messages({
+  propertyId: Joi.number().integer().min(1).max(2147483647).required().messages({
     'any.required': 'Некорректный propertyId'
   }),
   clientFullName: Joi.string().trim().max(200).allow(null, ''),
   clientPhone: Joi.string().trim().max(50).allow(null, ''),
-  commissionAmount: Joi.number().min(0).allow(null),
+  commissionAmount: Joi.any().strip(), // Commission is determined by the server tariff.
   comment: Joi.string().max(2000).allow(null, '')
 })
 
@@ -44,7 +44,8 @@ const allowedStatuses = [
   'commission_available',
   'done',
   'rejected',
-  'expired'
+  'expired',
+  'cancelled'
 ]
 
 const updateStatusSchema = Joi.object({
@@ -62,9 +63,14 @@ const extendDeadlineSchema = Joi.object({
   days: Joi.number().integer().min(1).max(60).default(7)
 })
 
+const cancelApplicationSchema = Joi.object({
+  comment: Joi.string().trim().max(500).allow(null, '')
+})
+
 module.exports = {
   createApplicationSchema,
   updateClientInfoSchema,
   updateStatusSchema,
-  extendDeadlineSchema
+  extendDeadlineSchema,
+  cancelApplicationSchema
 }

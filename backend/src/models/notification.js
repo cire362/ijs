@@ -25,3 +25,23 @@ Notification.init(
 )
 
 module.exports = Notification
+
+function publish (notifications, options = {}) {
+  const emit = () => {
+    const { getIO } = require('../socket')
+    const io = getIO()
+    if (!io) return
+    for (const notification of notifications) {
+      io.to(`user:${notification.userId}`).emit('notification', notification.toJSON())
+    }
+  }
+  // A rolled-back operation must never appear in a user's notification stream.
+  // findOrCreate runs inside a savepoint whose hooks fire on release, so wait for the root transaction.
+  let transaction = options.transaction
+  while (transaction?.parent) transaction = transaction.parent
+  if (transaction) transaction.afterCommit(emit)
+  else emit()
+}
+
+Notification.addHook('afterCreate', 'publishNotification', (notification, options) => publish([notification], options))
+Notification.addHook('afterBulkCreate', 'publishNotifications', publish)

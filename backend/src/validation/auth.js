@@ -1,5 +1,6 @@
 const Joi = require('joi')
 const { isValidRuPhone } = require('../utils/phone')
+const { email, password } = require('./users')
 
 const consentSchema = Joi.object({
   legal: Joi.object({
@@ -29,11 +30,11 @@ const consentSchema = Joi.object({
   .unknown(false)
 
 const registerSchema = Joi.object({
-  email: Joi.string().email().required().messages({
+  email: email.required().messages({
     'string.email': 'Некорректный email',
     'any.required': 'Укажите email'
   }),
-  password: Joi.string().min(8).max(200).required().messages({
+  password: password.required().messages({
     'string.min': 'Пароль должен быть не менее 8 символов',
     'any.required': 'Укажите пароль'
   }),
@@ -76,15 +77,32 @@ const registerSchema = Joi.object({
 })
 
 const loginSchema = Joi.object({
-  email: Joi.string().trim().required().messages({
+  email: email.required().messages({
     'any.required': 'Укажите email'
   }),
-  password: Joi.string().required().messages({
+  password: Joi.string().max(200).required().messages({
     'any.required': 'Укажите пароль'
+  })
+})
+
+const forgotPasswordSchema = Joi.object({
+  email: email.required().messages({ 'any.required': 'Укажите email' })
+})
+
+const resetPasswordSchema = Joi.object({
+  token: Joi.string().trim().max(200).required().messages({
+    'any.required': 'Ссылка для смены пароля недействительна',
+    'string.empty': 'Ссылка для смены пароля недействительна'
+  }),
+  password: password.required().messages({
+    'string.min': 'Пароль должен быть не менее 8 символов',
+    'any.required': 'Укажите новый пароль'
   })
 })
 
 module.exports = {
   registerSchema,
-  loginSchema
+  loginSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema
 }

@@ -1,5 +1,6 @@
 const express = require('express')
 const router = express.Router()
+router.param('id', require('../middleware/idParam'))
 const asyncHandler = require('../utils/asyncHandler')
 const validate = require('../middleware/validate')
 const { createNewsSchema, updateNewsSchema } = require('../validation/news')
@@ -18,7 +19,7 @@ const {
 
 const { uploadNewsImages } = require('../utils/upload')
 
-router.get('/', optionalAuthenticate, asyncHandler(listNews))
+router.get('/', optionalAuthenticate, validate(require('../validation/query').newsQuery, 'query'), asyncHandler(listNews))
 router.get('/:id', optionalAuthenticate, asyncHandler(getNewsById))
 
 router.post(

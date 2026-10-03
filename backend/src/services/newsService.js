@@ -1,5 +1,6 @@
 const { Op } = require('sequelize')
 const { News, NewsImage, User } = require('../models')
+const { paginate } = require('../utils/pagination')
 
 function normalizeText (v) {
   return String(v || '')
@@ -38,8 +39,16 @@ class NewsService {
       ]
     }
 
-    return News.findAll({
+    const { options, wrap } = paginate({
       where,
+      order: [
+        ['publishedAt', 'DESC'],
+        ['createdAt', 'DESC'],
+        ['id', 'DESC']
+      ]
+    }, query)
+    return wrap(News, {
+      ...options,
       include: [
         {
           model: User,
@@ -58,10 +67,6 @@ class NewsService {
           as: 'images',
           attributes: ['id', 'url', 'caption']
         }
-      ],
-      order: [
-        ['publishedAt', 'DESC'],
-        ['createdAt', 'DESC']
       ]
     })
   }
@@ -172,6 +177,7 @@ class NewsService {
         caption: f.originalname ? f.originalname.substring(0, 255) : null
       }))
     )
+    for (const file of files) file.persisted = true
 
     return News.findByPk(item.id, {
       include: [

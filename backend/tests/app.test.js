@@ -1,4 +1,7 @@
 const request = require('supertest')
+const fs = require('fs/promises')
+const path = require('path')
+const uploadedFiles = []
 const bcrypt = require('bcryptjs')
 const app = require('../src/app')
 const { sequelize } = require('../src/db')
@@ -90,6 +93,7 @@ describe('API routes', () => {
   })
 
   afterAll(async () => {
+    await Promise.all(uploadedFiles.map(file => fs.unlink(file).catch(() => {})))
     await sequelize.close()
   })
 
@@ -287,7 +291,7 @@ describe('API routes', () => {
     expect(patchRes.status).toBe(200)
     expect(patchRes.body.firstName).toBe('Агент')
     expect(patchRes.body.lastName).toBe('Обновлённый')
-    expect(patchRes.body.phone).toBe('+79990000000')
+    expect(patchRes.body.phone).toBe('+7 999 000-00-00')
     expect(patchRes.body.role).toBe('agent')
   })
 
@@ -322,6 +326,7 @@ describe('API routes', () => {
       })
 
     expect(res.status).toBe(200)
+    if (res.body.avatarUrl) uploadedFiles.push(path.join(__dirname, '..', res.body.avatarUrl))
     expect(res.body.avatarUrl).toBeDefined()
     expect(res.body.avatarUrl).toMatch(/^\/uploads\/avatars\//)
   })
@@ -400,7 +405,7 @@ describe('API routes', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
         title: 'E3',
-        startAt: new Date().toISOString(),
+        startAt: new Date(Date.now() + 3600000).toISOString(),
         description: 'Desc',
         location: 'Loc'
       })

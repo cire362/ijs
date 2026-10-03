@@ -1,40 +1,33 @@
-const jwt = require('jsonwebtoken')
-const { User } = require('../models')
-const { getJwtSecret } = require('../utils/secrets')
+const { getSessionUser } = require('../utils/sessionUser')
 
-const jwtSecret = getJwtSecret()
+function bearerToken (req) {
+  const match = /^Bearer (\S+)$/i.exec(req.headers.authorization || '')
+  return match?.[1] || null
+}
 
 const optionalAuthenticate = async (req, res, next) => {
-  const header = req.headers.authorization
-  if (!header) return next()
-
-  const [, token] = header.split(' ')
+  const token = bearerToken(req)
   if (!token) return next()
-
   try {
-    const payload = jwt.verify(token, jwtSecret)
-    const user = await User.findByPk(payload.sub)
-    if (user) req.user = user
-  } catch (err) {
-    // ignore invalid token for optional auth
-  }
-  return next()
+    const session = await getSessionUser(token)
+    if (session) {
+      req.user = session.user
+      req.authSessionId = session.sessionId
+    }
+    next()
+  } catch (error) { next(error) }
 }
 
 const authenticate = async (req, res, next) => {
-  const header = req.headers.authorization
-  if (!header) return res.status(401).json({ error: 'Токен отсутствует' })
-
-  const [, token] = header.split(' ')
+  const token = bearerToken(req)
+  if (!token) return res.status(401).json({ error: 'Токен отсутствует' })
   try {
-    const payload = jwt.verify(token, jwtSecret)
-    const user = await User.findByPk(payload.sub)
-    if (!user) return res.status(401).json({ error: 'Пользователь не найден' })
-    req.user = user
+    const session = await getSessionUser(token)
+    if (!session) return res.status(401).json({ error: 'Сессия недействительна. Войдите снова' })
+    req.user = session.user
+    req.authSessionId = session.sessionId
     next()
-  } catch (err) {
-    return res.status(401).json({ error: 'Недействительный токен' })
-  }
+  } catch (error) { next(error) }
 }
 
 const allowRoles =
@@ -56,4 +49,4 @@ const allowRoles =
       next()
     }
 
-module.exports = { authenticate, optionalAuthenticate, allowRoles }
+module.exports = { authenticate, optionalAuthenticate, allowRoles, bearerToken }

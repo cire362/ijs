@@ -1,13 +1,16 @@
 const express = require('express')
 const router = express.Router()
+router.param('id', require('../middleware/idParam'))
 const asyncHandler = require('../utils/asyncHandler')
 const validate = require('../middleware/validate')
 const {
   createApplicationSchema,
   updateClientInfoSchema,
   updateStatusSchema,
-  extendDeadlineSchema
+  extendDeadlineSchema,
+  cancelApplicationSchema
 } = require('../validation/applications')
+const queries = require('../validation/query')
 const { authenticate, allowRoles } = require('../middleware/auth')
 const {
   listMine,
@@ -15,7 +18,9 @@ const {
   createApplication,
   updateClientInfo,
   updateStatus,
-  extendInitialDeadline
+  extendInitialDeadline,
+  cancelApplication,
+  getApplication
 } = require('../controllers/applicationController')
 
 const {
@@ -38,12 +43,14 @@ router.get(
   '/mine',
   authenticate,
   allowRoles('agent', 'individual'),
+  validate(queries.applicationListQuery, 'query'),
   asyncHandler(listMine)
 )
 router.get(
   '/incoming',
   authenticate,
   allowRoles('developer', 'admin'),
+  validate(queries.incomingQuery, 'query'),
   asyncHandler(listIncoming)
 )
 
@@ -52,6 +59,7 @@ router.get(
   '/chat/chats',
   authenticate,
   allowRoles('agent', 'individual', 'admin'),
+  validate(queries.chatListQuery, 'query'),
   asyncHandler(listChats)
 )
 router.post(
@@ -60,6 +68,13 @@ router.post(
   allowRoles('agent', 'individual'),
   validate(createApplicationSchema),
   asyncHandler(createApplication)
+)
+
+router.get(
+  '/:id',
+  authenticate,
+  allowRoles('agent', 'individual', 'developer', 'admin'),
+  asyncHandler(getApplication)
 )
 
 router.patch(
@@ -85,11 +100,20 @@ router.patch(
   asyncHandler(extendInitialDeadline)
 )
 
+router.patch(
+  '/:id/cancel',
+  authenticate,
+  allowRoles('agent', 'individual'),
+  validate(cancelApplicationSchema),
+  asyncHandler(cancelApplication)
+)
+
 // Chat per application (1 application = 1 chat)
 router.get(
   '/:id/chat/messages',
   authenticate,
   allowRoles('agent', 'individual', 'admin'),
+  validate(queries.chatMessagesQuery, 'query'),
   asyncHandler(listMessages)
 )
 

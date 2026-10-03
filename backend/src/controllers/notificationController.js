@@ -19,4 +19,8 @@ const markRead = asyncHandler(async (req, res) => {
   res.json(note)
 })
 
-module.exports = { listNotifications, markRead, unreadCount }
+const markAllRead = asyncHandler(async (req, res) => {
+  res.json({ count: await notificationService.markAllRead(req.user) })
+})
+
+module.exports = { listNotifications, markRead, markAllRead, unreadCount }

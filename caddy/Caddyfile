@@ -1,3 +1,11 @@
+{
+  servers {
+    timeouts {
+      read_header 15s
+    }
+  }
+}
+
 {$DOMAIN} {
   encode gzip zstd
 
@@ -9,24 +17,29 @@
     Permissions-Policy "geolocation=(), microphone=(), camera=()"
   }
 
-  @api path /api/*
-  handle_path @api {
-    reverse_proxy api:4000
+  request_body {
+    max_size 65MB
   }
+  @operations path /api/metrics /api/ops /api/ops/* /metrics /ops /ops/*
+  route {
+    respond @operations 404
 
-  @socket path /socket.io/*
-  handle @socket {
-    reverse_proxy api:4000
-  }
+    handle_path /api/* {
+      reverse_proxy api:4000
+    }
 
-  @uploads path /uploads/*
-  handle @uploads {
-    reverse_proxy api:4000
-  }
+    handle /socket.io/* {
+      reverse_proxy api:4000
+    }
 
-  handle {
-    root * /srv
-    try_files {path} /index.html
-    file_server
+    handle /uploads/* {
+      reverse_proxy api:4000
+    }
+
+    handle {
+      root * /srv
+      try_files {path} /index.html
+      file_server
+    }
   }
 }

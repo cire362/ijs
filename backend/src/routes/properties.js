@@ -1,5 +1,6 @@
 const express = require('express')
 const router = express.Router()
+router.param('id', require('../middleware/idParam'))
 const asyncHandler = require('../utils/asyncHandler')
 const validate = require('../middleware/validate')
 const {
@@ -20,12 +21,14 @@ const {
   deleteProperty,
   deletePropertyImage,
   addPropertyDocument,
-  deletePropertyDocument
+  deletePropertyDocument,
+  getFacets
 } = require('../controllers/propertyController')
 
 const { uploadPropertyImages, uploadPropertyDoc } = require('../utils/upload')
 
-router.get('/', optionalAuthenticate, asyncHandler(listProperties))
+router.get('/', optionalAuthenticate, validate(require('../validation/query').propertyQuery, 'query'), asyncHandler(listProperties))
+router.get('/facets', optionalAuthenticate, asyncHandler(getFacets))
 router.get('/:id', optionalAuthenticate, asyncHandler(getPropertyById))
 router.post(
   '/',

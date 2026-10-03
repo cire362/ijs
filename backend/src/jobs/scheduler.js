@@ -1,75 +1,46 @@
-function parseBool(value, fallback) {
-  if (value == null) return fallback;
-  const normalized = String(value).trim().toLowerCase();
-  if (["1", "true", "yes", "y", "on"].includes(normalized)) return true;
-  if (["0", "false", "no", "n", "off"].includes(normalized)) return false;
-  return fallback;
+const { state } = require('../ops/state')
+
+function shouldRunScheduledJobs () {
+  return process.env.NODE_ENV !== 'test' && !['false', '0'].includes(process.env.RUN_SCHEDULED_JOBS)
 }
 
-function shouldRunScheduledJobs() {
-  if (process.env.NODE_ENV === "test") return false;
-  return parseBool(process.env.RUN_SCHEDULED_JOBS, true);
-}
-
-function startScheduledJobs(definitions, logger = console) {
-  if (!shouldRunScheduledJobs()) {
-    logger.log("Scheduled jobs are disabled for this process");
-    return () => {};
+function startScheduledJobs (definitions, logger = console, { enabled = shouldRunScheduledJobs() } = {}) {
+  if (!enabled) {
+    logger.log('Scheduled jobs are disabled for this process')
+    return async () => {}
   }
-
-  const stopFns = definitions.map((definition) => {
-    const { name, intervalMs, job, runImmediately = false } = definition;
-
-    let running = false;
-
-    const execute = async (trigger) => {
-      if (running) {
-        logger.warn(
-          `Skipping job '${name}' because a previous run is still active`,
-        );
-        return;
-      }
-
-      const startedAt = Date.now();
-      running = true;
-
-      try {
-        const result = await job();
-        logger.log(
-          `Job '${name}' completed via ${trigger} in ${Date.now() - startedAt}ms`,
-          result,
-        );
-      } catch (error) {
-        logger.error(`Job '${name}' failed`, error);
-      } finally {
-        running = false;
-      }
-    };
-
-    if (runImmediately) {
-      execute("startup").catch((error) => {
-        logger.error(`Job '${name}' failed during startup`, error);
-      });
+  const running = new Set()
+  let stopping = false
+  const timers = definitions.map(({ name, intervalMs, job, runImmediately = false }) => {
+    const status = { intervalMs, startedAt: Date.now(), lastSuccessAt: null, lastError: null, failures: 0, consecutiveFailures: 0, running: false }
+    state.jobs.set(name, status)
+    const execute = (trigger) => {
+      if (stopping || status.running) return
+      status.running = true
+      const startedAt = Date.now()
+      const promise = Promise.resolve().then(job).then(result => {
+        status.lastSuccessAt = Date.now()
+        status.lastError = null
+        status.consecutiveFailures = 0
+        logger.log(`Job '${name}' completed via ${trigger}`, { durationMs: Date.now() - startedAt, result })
+      }, error => {
+        status.lastError = error?.code || error?.name || 'job_failed'
+        status.failures++
+        status.consecutiveFailures++
+        logger.error('scheduled_job_failed', { job: name, error })
+      }).finally(() => { status.running = false; running.delete(promise) })
+      running.add(promise)
     }
-
-    const timer = setInterval(() => {
-      execute("interval").catch((error) => {
-        logger.error(`Job '${name}' failed during interval dispatch`, error);
-      });
-    }, intervalMs);
-    timer.unref?.();
-
-    return () => clearInterval(timer);
-  });
-
-  return () => {
-    for (const stop of stopFns) {
-      stop();
-    }
-  };
+    if (runImmediately) execute('startup')
+    const timer = setInterval(() => execute('interval'), intervalMs)
+    timer.unref?.()
+    return timer
+  })
+  return async () => {
+    stopping = true
+    for (const timer of timers) clearInterval(timer)
+    await Promise.allSettled([...running])
+  }
 }
 
-module.exports = {
-  shouldRunScheduledJobs,
-  startScheduledJobs,
-};
+module.exports = { shouldRunScheduledJobs, startScheduledJobs }

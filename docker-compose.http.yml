@@ -1,4 +1,4 @@
-# Override for running production stack on plain HTTP.
+# Local development override; never use on a public production server.
 # Usage:
 #   docker compose -f docker-compose.prod.yml -f docker-compose.http.yml up -d --build
 
@@ -6,9 +6,10 @@ services:
   api:
     environment:
       # Force cookies without Secure flag (needed for HTTP).
+      NODE_ENV: development
       COOKIE_SECURE: "false"
 
   web:
     environment:
       # Run Caddy in plain HTTP mode (no certificates) for this override.
-      DOMAIN: ${DOMAIN:-:80}
+      DOMAIN: ${HTTP_DOMAIN:-:80}
