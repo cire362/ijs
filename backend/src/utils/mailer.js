@@ -28,7 +28,7 @@ function getTransport () {
 
 async function sendMail ({ to, subject, text, html }) {
   const mode = mailMode()
-  const message = { from: process.env.MAIL_FROM || 'ИЖС Hub <no-reply@localhost>', to, subject, text, html }
+  const message = { from: process.env.MAIL_FROM || 'ИЖС платформа <no-reply@localhost>', to, subject, text, html }
   if (mode === 'memory') {
     outbox.push(message)
     return

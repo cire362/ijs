@@ -327,7 +327,7 @@ async function seed () {
     role: 'admin',
     developerApproved: true,
     developerRejected: false,
-    companyName: 'IJSHub',
+    companyName: 'ИЖС платформа',
     lastName: 'Сидоров',
     firstName: 'Админ',
     middleName: 'Админович',

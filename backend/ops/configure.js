@@ -30,7 +30,7 @@ async function createProductionEnv ({ domain, mirrorPath, destination = path.res
     MONITOR_WEBHOOK_URL: '',
     // Password reset emails: fill in a mailbox of your provider, e.g. smtps://user:password@smtp.yandex.ru:465.
     SMTP_URL: '',
-    MAIL_FROM: `ИЖС Hub <no-reply@${domain}>`
+    MAIL_FROM: `ИЖС платформа <no-reply@${domain}>`
   }
   env.DATABASE_URL = `postgres://ijs_app:${env.APP_DB_PASSWORD}@db:5432/ijshub`
   validateEnvironment({ ...env, NODE_ENV: 'production', TRUST_PROXY: env.BACKEND_SUBNET })

@@ -90,7 +90,7 @@ describe('password reset', () => {
     expect((await login(user.email)).status).toBe(401)
     expect((await login(user.email, 'new_password_1')).status).toBe(200)
     expect((await reset(latest, 'another_password')).status).toBe(400)
-    expect(outbox.at(-1).subject).toMatch(/Пароль изменён/)
+    expect(outbox.at(-1).subject).toBe('ИЖС платформа: пароль изменён')
   })
 
   test('an expired link is rejected and old links are cleaned up', async () => {

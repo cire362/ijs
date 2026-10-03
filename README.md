@@ -1,4 +1,4 @@
-# ИЖС Hub (demo, JS)
+# ИЖС платформа
 
 Платформа объектов ИЖС и заявок: Express + Sequelize/PostgreSQL + JWT + Socket.IO, фронт на Vue 3 (Vite). Инструкция по backend, бизнес-правилам и проверкам: [backend/README.md](backend/README.md).
 

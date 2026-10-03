@@ -52,7 +52,7 @@ function validateEnvironment (env = process.env) {
     if (production && smtp.protocol === 'smtp:' && !/[?&]requireTLS=true/.test(smtp.search)) {
       throw new Error('Production SMTP must use smtps:// or smtp:// with ?requireTLS=true')
     }
-    if (!env.MAIL_FROM || !/^[^<>]*<?[^@\s<>]+@[^@\s<>]+>?$/.test(env.MAIL_FROM)) throw new Error('MAIL_FROM is required with SMTP_URL, e.g. "ИЖС Hub <no-reply@example.ru>"')
+    if (!env.MAIL_FROM || !/^[^<>]*<?[^@\s<>]+@[^@\s<>]+>?$/.test(env.MAIL_FROM)) throw new Error('MAIL_FROM is required with SMTP_URL, e.g. "ИЖС платформа <no-reply@example.ru>"')
   }
   if (production) {
     strongSecret('JWT_SECRET', env.JWT_SECRET)

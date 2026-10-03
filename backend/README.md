@@ -1,4 +1,4 @@
-# Backend ИЖС Hub
+# Backend ИЖС платформы
 
 Node.js 22+, Express, PostgreSQL 15+, Sequelize, Socket.IO. Сервер запускает миграции перед открытием порта; повторный и одновременный запуск защищены блокировкой PostgreSQL.
 
