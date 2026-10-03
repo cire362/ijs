@@ -796,14 +796,11 @@ async function seed () {
   }
 
   console.log('Seed complete.')
-  console.log('Logins:')
-  console.log('- admin@test.com / 12345')
-  console.log('- agent@test.com / 12345')
-  console.log('- dev@test.com / 12345')
-  console.log('- dev1@test.com / password')
-  console.log('- dev2@test.com / password')
-  console.log('- dev10@test.com / password')
-  console.log('- pending-dev@test.com / password (needs admin approval)')
+  // Passwords are never printed: they come from SEED_DEFAULT_PASSWORD / SEED_DEMO_PASSWORD or are random.
+  console.log('Accounts: admin@test.com, agent@test.com, dev@test.com, pending-dev@test.com (awaits approval) and generated users.')
+  console.log(process.env.SEED_DEFAULT_PASSWORD
+    ? 'Password: the value of SEED_DEFAULT_PASSWORD.'
+    : 'Password: random and not shown. Set SEED_DEFAULT_PASSWORD to choose one for local work.')
   console.log('Reset requires SEED_FORCE=1, ALLOW_DB_RESET=1 and RESET_DATABASE_NAME matching the database.')
   console.log('Tip: set SEED_RANDOM_SEED=42 to get deterministic randomness.')
 }

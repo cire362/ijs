@@ -30,7 +30,7 @@ const propertyQuery = Joi.object({
 })
 const applicationListQuery = Joi.object({ ...listPagination, status: applicationStatus }).and('page', 'limit')
 const incomingQuery = Joi.object({ ...listPagination, status: applicationStatus, developerId: id }).and('page', 'limit')
-const eventsQuery = Joi.object({ ...pagination, q: text, training: Joi.boolean() })
+const eventsQuery = Joi.object({ ...pagination, q: text, training: Joi.boolean(), period: Joi.string().valid('upcoming', 'past') })
 const registrationsQuery = Joi.object({ eventId: id, ...listPagination }).and('page', 'limit')
 const newsQuery = Joi.object({ q: text, published: Joi.boolean(), ...listPagination }).and('page', 'limit')
 const paginationQuery = Joi.object(pagination)

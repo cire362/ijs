@@ -43,6 +43,10 @@ const extendInitialDeadline = asyncHandler(async (req, res) => {
   res.json(app)
 })
 
+const getApplication = asyncHandler(async (req, res) => {
+  res.json(await applicationService.getApplication(req.params.id, req.user))
+})
+
 const cancelApplication = asyncHandler(async (req, res) => {
   const app = await applicationService.cancelApplication(req.params.id, req.user, req.body)
   res.json(app)
@@ -55,5 +59,6 @@ module.exports = {
   updateStatus,
   updateClientInfo,
   extendInitialDeadline,
-  cancelApplication
+  cancelApplication,
+  getApplication
 }

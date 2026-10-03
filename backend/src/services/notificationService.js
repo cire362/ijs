@@ -68,6 +68,11 @@ class NotificationService {
     })
   }
 
+  async markAllRead (user) {
+    const [count] = await Notification.update({ isRead: true }, { where: { userId: user.id, isRead: false } })
+    return count
+  }
+
   async markRead (id, user) {
     const note = await Notification.findByPk(id)
     if (!note || note.userId !== user.id) { throw { status: 404, message: 'Не найдено' } }

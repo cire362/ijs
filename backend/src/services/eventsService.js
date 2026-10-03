@@ -49,6 +49,10 @@ class EventsService {
 
     const where = {}
     if (trainingOnly) where.isTraining = true
+    // Upcoming events go soonest first; past events go most recent first.
+    if (query.period === 'upcoming') where.startAt = { [Op.gte]: new Date() }
+    if (query.period === 'past') where.startAt = { [Op.lt]: new Date() }
+    const direction = query.period === 'past' ? 'DESC' : 'ASC'
 
     if (q) {
       where[Op.or] = [
@@ -58,40 +62,16 @@ class EventsService {
       ]
     }
 
-    // Pagination vs List
-    if (page && limit) {
-      const offset = (page - 1) * limit
-      const result = await Event.findAndCountAll({
-        where,
-        include: [
-          { model: User, as: 'creator', attributes: ['id', 'email', 'role'] }
-        ],
-        order: [
-          ['startAt', 'ASC'],
-          ['createdAt', 'DESC']
-        ],
-        limit,
-        offset
-      })
-
-      return {
-        items: result.rows,
-        total: result.count,
-        page,
-        limit
-      }
-    }
-
-    return Event.findAll({
+    const options = {
       where,
-      include: [
-        { model: User, as: 'creator', attributes: ['id', 'email', 'role'] }
-      ],
-      order: [
-        ['startAt', 'ASC'],
-        ['createdAt', 'DESC']
-      ]
-    })
+      include: [creatorInclude],
+      order: [['startAt', direction], ['createdAt', 'DESC'], ['id', 'DESC']]
+    }
+    if (page && limit) {
+      const result = await Event.findAndCountAll({ ...options, limit, offset: (page - 1) * limit })
+      return { items: result.rows, total: result.count, page, limit }
+    }
+    return Event.findAll(options)
   }
 
   async createEvent (data, user) {

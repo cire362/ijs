@@ -47,14 +47,11 @@ npm run dev
 
 В `.env` задайте `DATABASE_URL` вида `postgres://user:pass@localhost:5432/ijshub`.
 
-Фронт (Vite) проксирует `/api` на `http://localhost:4000` — можно не задавать `VITE_API_URL`. Если нужен прямой URL, укажите `VITE_API_URL` в `frontend/.env`.
-
-Фронт:
+Фронтенд (Vite) проксирует `/api`, `/uploads` и `/socket.io` на `http://localhost:4000`, поэтому `VITE_API_URL` задавать не нужно. Подробности: [frontend/README.md](frontend/README.md).
 
 ```bash
 cd frontend
-cp .env.example .env
-npm install
+npm ci
 npm run dev
 ```
 
@@ -75,7 +72,7 @@ npm run dev
 ## Структура
 
 - backend: Express, Sequelize модели (`users`, `properties`, `applications`, `notifications`, `property_images`, `status_history`), JWT middleware, Socket.io пуши уведомлений.
-- frontend: Vue 3 + Router + Pinia + Axios; простые представления каталог/заявки/логин.
+- frontend: Vue 3 + TypeScript + Element Plus + Tailwind CSS 4, Pinia, Vue Router, Socket.IO; кабинеты агента, покупателя, застройщика и администратора, публичная витрина.
 
 ## Тесты (API)
 

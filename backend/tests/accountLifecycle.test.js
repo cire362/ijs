@@ -247,6 +247,19 @@ describe('event management', () => {
     expect((await sendEventReminders({ now: new Date(event.startAt.getTime() - 60000) })).created).toBe(0)
   })
 
+  test('events can be listed as upcoming or past', async () => {
+    await Event.destroy({ where: {} })
+    const soon = await Event.create({ title: 'Скоро', startAt: new Date(Date.now() + 3600000), createdBy: admin.id })
+    const later = await Event.create({ title: 'Позже', startAt: new Date(Date.now() + 7200000), createdBy: admin.id })
+    const recent = await Event.create({ title: 'Недавно', startAt: new Date(Date.now() - 3600000), createdBy: admin.id })
+    const older = await Event.create({ title: 'Давно', startAt: new Date(Date.now() - 7200000), createdBy: admin.id })
+    const upcoming = await request(app).get('/events?period=upcoming&page=1&limit=10')
+    expect(upcoming.body.items.map((e) => e.id)).toEqual([soon.id, later.id])
+    const past = await request(app).get('/events?period=past&page=1&limit=10')
+    expect(past.body.items.map((e) => e.id)).toEqual([recent.id, older.id])
+    expect((await request(app).get('/events?period=soon')).status).toBe(400)
+  })
+
   test('a participant cancels their own registration before the start', async () => {
     const agent = await makeUser('agent')
     const other = await makeUser('agent')

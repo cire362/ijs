@@ -161,6 +161,14 @@ describe('notifications', () => {
     expect(await notesFor(admin, 'application_chat_message')).toHaveLength(2)
   })
 
+  test('all unread notifications of the user are marked read at once', async () => {
+    await Notification.bulkCreate([1, 2, 3].map((n) => ({ userId: agent.id, type: 'test', text: `n${n}` })).concat({ userId: second.id, type: 'test', text: 'other' }))
+    const res = await call('post', '/notifications/read-all', agent)
+    expect(res.body.count).toBe(3)
+    expect(await Notification.count({ where: { userId: agent.id, isRead: false } })).toBe(0)
+    expect(await Notification.count({ where: { userId: second.id, isRead: false } })).toBe(1)
+  })
+
   test('a notification created through findOrCreate is not published when the outer transaction rolls back', async () => {
     const emit = jest.fn()
     setIO({ to: () => ({ emit }) })
@@ -174,6 +182,24 @@ describe('notifications', () => {
       await Notification.findOrCreate({ where: { userId: agent.id, key: 'commit-check' }, defaults: { type: 'test', text: 'x' }, transaction })
     })
     expect(emit).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('single application', () => {
+  test('the author, the developer of the object and administrators can open an application', async () => {
+    const created = await apply()
+    const url = `/applications/${created.body.id}`
+    const own = await call('get', url, agent)
+    expect(own.status).toBe(200)
+    expect(own.body).toMatchObject({ id: created.body.id, property: { id: property.id, developer: { id: developer.id } } })
+    expect(own.body.history).toHaveLength(1)
+    expect((await call('get', url, developer)).status).toBe(200)
+    expect((await call('get', url, admin)).status).toBe(200)
+    expect((await call('get', url, second)).status).toBe(404)
+    const other = await Property.create({ title: 'Чужой', region: 'Р', city: 'Г', developerId: pendingDeveloper.id })
+    const foreign = await Application.create({ propertyId: other.id, agentId: second.id, status: 'sent', clientPhone: '+7 999 000-55-66' })
+    expect((await call('get', `/applications/${foreign.id}`, developer)).status).toBe(404)
+    expect((await call('get', '/applications/abc', agent)).status).toBe(400)
   })
 })
 

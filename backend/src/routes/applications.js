@@ -19,7 +19,8 @@ const {
   updateClientInfo,
   updateStatus,
   extendInitialDeadline,
-  cancelApplication
+  cancelApplication,
+  getApplication
 } = require('../controllers/applicationController')
 
 const {
@@ -67,6 +68,13 @@ router.post(
   allowRoles('agent', 'individual'),
   validate(createApplicationSchema),
   asyncHandler(createApplication)
+)
+
+router.get(
+  '/:id',
+  authenticate,
+  allowRoles('agent', 'individual', 'developer', 'admin'),
+  asyncHandler(getApplication)
 )
 
 router.patch(

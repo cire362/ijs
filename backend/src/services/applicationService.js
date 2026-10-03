@@ -162,6 +162,31 @@ class ApplicationService {
     })
   }
 
+  async getApplication (id, user) {
+    const application = await Application.findByPk(id, {
+      include: [
+        {
+          model: Property,
+          include: [
+            activeRatesInclude,
+            { model: User, as: 'developer', attributes: ['id', 'firstName', 'lastName', 'middleName', 'companyName', 'email', 'phone'] }
+          ]
+        },
+        historyInclude,
+        { model: User, as: 'agent', attributes: AGENT_ATTRIBUTES }
+      ],
+      order: [[{ model: StatusHistory, as: 'history' }, 'createdAt', 'ASC']]
+    })
+    const allowed = application && (
+      user.role === 'admin' ||
+      application.agentId === user.id ||
+      (user.role === 'developer' && user.developerApproved && application.property?.developerId === user.id)
+    )
+    // Foreign applications look missing rather than forbidden.
+    if (!allowed) throw { status: 404, message: 'Заявка не найдена' }
+    return application
+  }
+
   async createApplication (data, user) {
     if (!['agent', 'individual'].includes(user.role)) {
       throw { status: 403, message: 'Доступ запрещён' }
