@@ -75,6 +75,10 @@ export interface Property {
   buildStage: string | null
   price: string | null
   description: string | null
+  latitude: number | null
+  longitude: number | null
+  /** 0 exact house or manual pin, 1 nearest house, 2 street, 3 settlement. */
+  geoPrecision: number | null
   createdAt: ISODate
   updatedAt: ISODate
   developer?: PersonRef
@@ -260,4 +264,20 @@ export interface Page<T> {
   limit: number
 }
 
-export interface AddressSuggestion { label: string, region?: string | null, city?: string | null }
+export interface AddressSuggestion {
+  label: string
+  value: string
+  region: string | null
+  city: string | null
+  street: string | null
+  house: string | null
+  lat: number | null
+  lng: number | null
+  precision: number | null
+}
+
+export interface CatalogFacets {
+  regions: { value: string, count: number }[]
+  cities: { value: string, region: string, count: number }[]
+  developers: { id: number, name: string, count: number }[]
+}

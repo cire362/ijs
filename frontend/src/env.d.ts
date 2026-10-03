@@ -12,3 +12,8 @@ declare module '*.vue' {
   const component: DefineComponent<object, object, unknown>
   export default component
 }
+
+declare module '*?worker&url' {
+  const url: string
+  export default url
+}

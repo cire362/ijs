@@ -27,8 +27,12 @@ const createPropertySchema = Joi.object({
   buildStage: Joi.string().trim().max(200).allow(null, ''), // stage
   price: Joi.number().min(0).max(999999999999.99).precision(2).empty('').allow(null),
   description: Joi.string().max(20000).allow(null, ''),
-  developerId: Joi.number().integer().min(1).max(2147483647).empty('').allow(null) // For admin
-})
+  developerId: Joi.number().integer().min(1).max(2147483647).empty('').allow(null), // For admin
+  // A point picked on the map or taken from an address suggestion; both coordinates or neither.
+  latitude: Joi.number().min(-90).max(90).allow(null),
+  longitude: Joi.number().min(-180).max(180).allow(null),
+  geoPrecision: Joi.number().integer().min(0).max(5).allow(null)
+}).and('latitude', 'longitude')
 
 // For patch/update, usually fields are optional
 const updatePropertySchema = convertToOptional(createPropertySchema).min(1)

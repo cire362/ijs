@@ -21,10 +21,23 @@ const propertyQuery = Joi.object({
   floors: Joi.number().integer().min(1),
   priceMin: Joi.number().min(0),
   priceMax: Joi.number().min(0),
+  landMin: Joi.number().min(0),
+  landMax: Joi.number().min(0),
+  houseMin: Joi.number().min(0),
+  houseMax: Joi.number().min(0),
+  developerId: id,
+  buildStage: Joi.string().trim().max(200).allow(''),
+  finishingType: Joi.string().trim().max(200).allow(''),
+  contractType: Joi.string().trim().max(200).allow(''),
+  constructionType: Joi.string().trim().max(200).allow(''),
+  readinessType: Joi.string().trim().max(200).allow(''),
+  registration: Joi.string().trim().max(200).allow(''),
   ...listPagination
 }).and('page', 'limit').custom((value, helpers) => {
-  if (value.priceMin != null && value.priceMax != null && value.priceMin > value.priceMax) {
-    return helpers.message('Минимальная цена не может быть больше максимальной')
+  for (const [min, max, label] of [['priceMin', 'priceMax', 'цена'], ['landMin', 'landMax', 'площадь участка'], ['houseMin', 'houseMax', 'площадь дома']]) {
+    if (value[min] != null && value[max] != null && value[min] > value[max]) {
+      return helpers.message(`Минимальная ${label} больше максимальной`)
+    }
   }
   return value
 })

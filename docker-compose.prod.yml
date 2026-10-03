@@ -51,6 +51,7 @@ services:
       APP_ORIGIN: ${APP_ORIGIN:?Set the canonical HTTPS application origin}
       SMTP_URL: ${SMTP_URL:-}
       MAIL_FROM: ${MAIL_FROM:-}
+      DADATA_API_KEY: ${DADATA_API_KEY:-}
       TRUST_PROXY: ${BACKEND_SUBNET:-172.30.50.0/24}
       COOKIE_SECURE: "true"
       COOKIE_SAME_SITE: ${COOKIE_SAME_SITE:-lax}

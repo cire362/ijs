@@ -1,15 +1,17 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, reactive, ref, watch } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus'
 import { propertiesApi, usersApi, type PropertyPayload } from '@/api/endpoints'
 import { errorMessage } from '@/api/http'
-import type { Property, User } from '@/api/types'
+import type { AddressSuggestion, Property, User } from '@/api/types'
 import { useAuthStore } from '@/stores/auth'
 import { personName } from '@/utils/format'
 import { BUILD_STAGES, CONSTRUCTION_TYPES, CONTRACT_TYPES, FINISHING_TYPES, READINESS_TYPES, REGISTRATIONS } from '@/utils/propertyOptions'
 import { SALE_STATUS } from '@/utils/status'
 import AddressInput from '@/components/property/AddressInput.vue'
+
+const PropertyMap = defineAsyncComponent(() => import('@/components/map/PropertyMap.vue'))
 
 const props = defineProps<{ property?: Property | null }>()
 const open = defineModel<boolean>({ required: true })
@@ -26,12 +28,52 @@ const empty = () => ({
   title: '', region: '', city: '', street: '', plotNumber: '',
   landArea: null as number | null, houseArea: null as number | null, floors: null as number | null, rooms: null as number | null,
   price: null as number | null, buildStage: '', constructionType: '', finishingType: '', contractType: '', readinessType: '', registration: '',
-  saleStatus: 'available' as Property['saleStatus'], description: '', developerId: null as number | null
+  saleStatus: 'available' as Property['saleStatus'], description: '', developerId: null as number | null,
+  latitude: null as number | null, longitude: null as number | null, geoPrecision: null as number | null
 })
 const form = reactive(empty())
 
+// Where the point came from: a suggestion follows the address, a pin on the map is kept as set.
+const addressSearch = ref('')
+const pointSource = ref<'suggestion' | 'pin' | 'saved' | null>(null)
+let filling = false
+
+function applySuggestion (item: AddressSuggestion) {
+  filling = true
+  form.region = item.region ?? form.region
+  form.city = item.city ?? form.city
+  form.street = item.street ?? form.street
+  if (item.lat != null && item.lng != null) {
+    form.latitude = item.lat
+    form.longitude = item.lng
+    form.geoPrecision = item.precision ?? 0
+    pointSource.value = 'suggestion'
+  }
+  void nextTick(() => { filling = false })
+}
+
+function pin (point: { lat: number, lng: number }) {
+  form.latitude = point.lat
+  form.longitude = point.lng
+  form.geoPrecision = 0
+  pointSource.value = 'pin'
+}
+
+function clearPoint () {
+  form.latitude = null
+  form.longitude = null
+  form.geoPrecision = null
+  pointSource.value = null
+}
+
+// A hand-edited address no longer matches a suggested point; the server will look the new one up.
+watch(() => [form.region, form.city, form.street], () => {
+  if (!filling && pointSource.value !== 'pin' && form.latitude != null) clearPoint()
+})
+
 watch(open, async (value) => {
   if (!value) return
+  filling = true
   error.value = ''
   Object.assign(form, empty())
   const p = props.property
@@ -41,9 +83,15 @@ watch(open, async (value) => {
       landArea: p.landArea, houseArea: p.houseArea, floors: p.floors, rooms: p.rooms, price: p.price == null ? null : Number(p.price),
       buildStage: p.buildStage ?? '', constructionType: p.constructionType ?? '', finishingType: p.finishingType ?? '',
       contractType: p.contractType ?? '', readinessType: p.readinessType ?? '', registration: p.registration ?? '',
-      saleStatus: p.saleStatus, description: p.description ?? '', developerId: p.developerId
+      saleStatus: p.saleStatus, description: p.description ?? '', developerId: p.developerId,
+      latitude: p.latitude, longitude: p.longitude, geoPrecision: p.geoPrecision
     })
   }
+  addressSearch.value = ''
+  // A saved exact point (precision 0) is treated as a pin and survives address edits.
+  pointSource.value = form.latitude == null ? null : form.geoPrecision === 0 ? 'pin' : 'saved'
+  await nextTick()
+  filling = false
   if (auth.isAdmin && !developers.value.length) {
     developers.value = await usersApi.developers({ status: 'approved' }).catch(() => [])
   }
@@ -98,11 +146,26 @@ async function save () {
         </el-select>
       </el-form-item>
       <el-form-item label="Название" prop="title"><el-input v-model="form.title" maxlength="255" show-word-limit /></el-form-item>
+      <el-form-item label="Найти адрес">
+        <AddressInput v-model="addressSearch" kind="address" placeholder="Начните вводить: область, населённый пункт, улица, дом" @select="applySuggestion" />
+        <p class="mt-1 w-full text-xs text-subtle">Подсказка заполнит регион, населённый пункт, улицу и точку на карте. Поля ниже можно поправить вручную.</p>
+      </el-form-item>
       <div class="grid gap-x-4 md:grid-cols-3">
         <el-form-item label="Регион" prop="region"><AddressInput v-model="form.region" kind="region" /></el-form-item>
         <el-form-item label="Город" prop="city"><AddressInput v-model="form.city" kind="city" :region="form.region" /></el-form-item>
-        <el-form-item label="Улица"><AddressInput v-model="form.street" kind="street" :region="form.region" :city="form.city" /></el-form-item>
+        <el-form-item label="Улица и дом"><AddressInput v-model="form.street" kind="street" :region="form.region" :city="form.city" /></el-form-item>
       </div>
+      <el-form-item label="Точка на карте">
+        <div class="w-full">
+          <PropertyMap class="h-64 w-full" editable :lat="form.latitude" :lng="form.longitude" :precision="form.geoPrecision" @pick="pin" />
+          <div class="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-xs text-subtle">
+            <span v-if="form.latitude == null">Точки нет: нажмите на карту, чтобы отметить участок. Без точки её найдут по адресу автоматически.</span>
+            <span v-else-if="form.geoPrecision != null && form.geoPrecision > 1">Точка примерная. Нажмите на карту или перетащите метку на участок.</span>
+            <span v-else>Перетащите метку, если участок отмечен неточно.</span>
+            <el-button v-if="form.latitude != null" link type="primary" size="small" @click="clearPoint">Убрать точку</el-button>
+          </div>
+        </div>
+      </el-form-item>
       <div class="grid gap-x-4 grid-cols-2 md:grid-cols-4">
         <el-form-item label="Цена, ₽"><el-input-number v-model="form.price" :min="0" :max="999999999999" :step="100000" :controls="false" class="!w-full" /></el-form-item>
         <el-form-item label="Площадь дома, м²"><el-input-number v-model="form.houseArea" :min="0" :controls="false" class="!w-full" /></el-form-item>

@@ -1,10 +1,11 @@
 const { scaledDecimal } = require('../utils/commission')
 const { queueFileDeletion } = require('../jobs/fileCleanup')
-const { Op } = require('sequelize')
+const { Op, fn, col } = require('sequelize')
 const { sequelize } = require('../db')
 const { RESERVING_STATUSES } = require('../utils/applicationStatus')
 const { rejectPendingApplications } = require('./applicationLifecycle')
 const { paginate } = require('../utils/pagination')
+const { geocodeInBackground } = require('../jobs/geocodeProperties')
 const {
   Property,
   PropertyImage,
@@ -94,54 +95,65 @@ function assertApprovedDeveloper (developer) {
   }
 }
 
+// Who sees what: guests see objects on sale, developers their own, everyone else the whole catalog.
+function scopeWhere (user) {
+  if (!user) return { saleStatus: 'available' }
+  if (user.role === 'developer') return { developerId: user.id }
+  return {}
+}
+
+// A point sent by the client wins; a changed address without a point clears the old one for re-geocoding.
+function applyLocation (updates, previous = null) {
+  if (updates.latitude !== undefined) {
+    const hasPoint = updates.latitude != null && updates.longitude != null
+    updates.geoPrecision = hasPoint ? (updates.geoPrecision ?? 0) : null
+    updates.geocodedAt = hasPoint ? new Date() : null
+    if (!hasPoint) { updates.latitude = null; updates.longitude = null }
+    return
+  }
+  delete updates.geoPrecision
+  const moved = previous && ['region', 'city', 'street'].some((key) => updates[key] !== undefined && (updates[key] || null) !== (previous[key] || null))
+  if (moved) Object.assign(updates, { latitude: null, longitude: null, geoPrecision: null, geocodedAt: null })
+}
+
+function range (min, max) {
+  const filter = {}
+  if (min != null) filter[Op.gte] = Number(min)
+  if (max != null) filter[Op.lte] = Number(max)
+  return Object.getOwnPropertySymbols(filter).length ? filter : null
+}
+
+function catalogWhere (query, user) {
+  const where = scopeWhere(user)
+  const q = String(query.q || '').trim()
+  if (q) {
+    where[Op.or] = [
+      { title: { [Op.iLike]: `%${q}%` } },
+      { description: { [Op.iLike]: `%${q}%` } },
+      { street: { [Op.iLike]: `%${q}%` } },
+      { city: { [Op.iLike]: `%${q}%` } }
+    ]
+  }
+  if (user && query.status) where.saleStatus = query.status
+  if (user && user.role !== 'developer' && query.developerId) where.developerId = query.developerId
+  for (const key of ['region', 'city', 'buildStage', 'finishingType', 'contractType', 'constructionType', 'readinessType', 'registration']) {
+    const value = String(query[key] || '').trim()
+    if (value) where[key] = value
+  }
+  if (query.rooms != null) where.rooms = Number(query.rooms)
+  if (query.floors != null) where.floors = Number(query.floors)
+  const price = range(query.priceMin, query.priceMax)
+  if (price) where.price = price
+  const land = range(query.landMin, query.landMax)
+  if (land) where.landArea = land
+  const house = range(query.houseMin, query.houseMax)
+  if (house) where.houseArea = house
+  return where
+}
+
 class PropertyService {
   async listProperties (query, user) {
-    const q = (query.q || '').trim()
-    const region = (query.region || '').trim()
-    const city = (query.city || '').trim()
-
-    let publicWhere = { saleStatus: 'available' }
-    const canSeeAllStatuses =
-      user &&
-      (user.role === 'agent' ||
-        user.role === 'individual' ||
-        user.role === 'admin' ||
-        user.role === 'developer')
-
-    if (canSeeAllStatuses) {
-      publicWhere = {}
-      if (query.status) {
-        publicWhere.saleStatus = query.status
-      }
-    }
-
-    const where = { ...publicWhere }
-
-    if (user && user.role === 'developer') {
-      where.developerId = user.id
-    }
-
-    if (q) {
-      where[Op.or] = [
-        { title: { [Op.iLike]: `%${q}%` } },
-        { description: { [Op.iLike]: `%${q}%` } },
-        { street: { [Op.iLike]: `%${q}%` } }
-      ]
-    }
-    if (region) where.region = region
-    if (city) where.city = city
-
-    if (query.rooms != null) where.rooms = Number(query.rooms)
-    if (query.floors != null) where.floors = Number(query.floors)
-
-    // Price range
-    if (query.priceMin != null || query.priceMax != null) {
-      const priceFilter = {}
-      if (query.priceMin != null) priceFilter[Op.gte] = Number(query.priceMin)
-      if (query.priceMax != null) priceFilter[Op.lte] = Number(query.priceMax)
-      where.price = priceFilter
-    }
-
+    const where = catalogWhere(query, user)
     const { options, wrap } = paginate({ where, order: [['createdAt', 'DESC'], ['id', 'DESC']] }, query)
     return wrap(Property, {
       ...options,
@@ -164,6 +176,43 @@ class PropertyService {
         }
       ]
     })
+  }
+
+  // Values present in the visible catalog, for filter dropdowns.
+  async facets (user) {
+    const where = scopeWhere(user)
+    const [places, developers] = await Promise.all([
+      Property.findAll({
+        where,
+        attributes: ['region', 'city', [fn('count', col('id')), 'count']],
+        group: ['region', 'city'],
+        order: [['region', 'ASC'], ['city', 'ASC']],
+        raw: true
+      }),
+      user && user.role !== 'developer'
+        ? Property.findAll({
+          where,
+          attributes: ['developerId', [fn('count', col('property.id')), 'count']],
+          include: [{ model: User, as: 'developer', attributes: ['companyName', 'firstName', 'lastName'] }],
+          group: ['developerId', 'developer.id'],
+          raw: true,
+          nest: true
+        })
+        : []
+    ])
+    const regions = new Map()
+    for (const row of places) regions.set(row.region, (regions.get(row.region) || 0) + Number(row.count))
+    return {
+      regions: [...regions].map(([value, count]) => ({ value, count })),
+      cities: places.map((row) => ({ value: row.city, region: row.region, count: Number(row.count) })),
+      developers: developers
+        .map((row) => ({
+          id: row.developerId,
+          name: row.developer?.companyName || [row.developer?.lastName, row.developer?.firstName].filter(Boolean).join(' ') || `Застройщик №${row.developerId}`,
+          count: Number(row.count)
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+    }
   }
 
   async getPropertyById (id, user) {
@@ -217,7 +266,9 @@ class PropertyService {
 
     if (!payload.saleStatus) delete payload.saleStatus
 
+    applyLocation(payload)
     const created = await Property.create(payload)
+    if (created.latitude == null) geocodeInBackground(created.id)
 
     ensureSuggestionsFromPropertyFields({
       region: payload.region,
@@ -264,6 +315,7 @@ class PropertyService {
         }, { transaction })
       }
       const soldNow = updates.saleStatus === 'sold' && property.saleStatus !== 'sold'
+      applyLocation(updates, property)
       await property.update(updates, { transaction })
       // A sale recorded outside a deal still closes the pending applications.
       if (soldNow) {
@@ -272,6 +324,7 @@ class PropertyService {
       return property
     })
     ensureSuggestionsFromPropertyFields(property).catch(() => {})
+    if (property.latitude == null) geocodeInBackground(property.id)
     return property
   }
 

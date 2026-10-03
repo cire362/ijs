@@ -40,3 +40,6 @@ Desktop.ini
 # Optional: local DB files (if any)
 *.sqlite
 *.sqlite3
+
+# Local run configuration with developer keys
+.claude/launch.json

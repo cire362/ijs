@@ -1,6 +1,6 @@
 import { http, csrfHeaders } from './http'
 import type {
-  AddressSuggestion, Application, ApplicationChatMessage, ApplicationChatSummary, ApplicationStatus,
+  AddressSuggestion, Application, CatalogFacets, ApplicationChatMessage, ApplicationChatSummary, ApplicationStatus,
   AppNotification, AuditEntry, EventRegistration, NewsItem, Page, PlatformEvent, Property,
   RegistrationStatus, SaleStatus, SupportChatSummary, SupportMessage, TariffCategory, TariffRate,
   TariffView, User
@@ -96,14 +96,26 @@ export interface PropertyFilters extends Query {
   floors?: number | null
   priceMin?: number | null
   priceMax?: number | null
+  landMin?: number | null
+  landMax?: number | null
+  houseMin?: number | null
+  houseMax?: number | null
+  developerId?: number | null
+  buildStage?: string
+  finishingType?: string
+  contractType?: string
+  constructionType?: string
+  readinessType?: string
+  registration?: string
   page?: number
   limit?: number
 }
 
-export type PropertyPayload = Partial<Omit<Property, 'id' | 'createdAt' | 'updatedAt' | 'developer' | 'images' | 'documents' | 'tariffRates' | 'price'>> & { price?: number | null }
+export type PropertyPayload = Partial<Omit<Property, 'id' | 'createdAt' | 'updatedAt' | 'developer' | 'images' | 'documents' | 'tariffRates' | 'price' | 'saleStatus'>> & { price?: number | null, saleStatus?: SaleStatus }
 
 export const propertiesApi = {
   list: (filters: PropertyFilters) => get<Page<Property>>('/properties', filters),
+  facets: () => get<CatalogFacets>('/properties/facets'),
   get: (id: number) => get<Property>(`/properties/${id}`),
   create: (payload: PropertyPayload) => send<Property>('post', '/properties', payload),
   update: (id: number, payload: PropertyPayload) => send<Property>('patch', `/properties/${id}`, payload),
@@ -212,8 +224,10 @@ export const supportApi = {
   request: (payload: { message: string, name?: string, email?: string }) => send('post', '/support', payload)
 }
 
+export type AddressKind = 'address' | 'region' | 'city' | 'street'
+
 export const addressApi = {
-  suggest: (kind: 'region' | 'city' | 'street', q: string, context: { region?: string, city?: string } = {}) =>
+  suggest: (kind: AddressKind, q: string, context: { region?: string, city?: string } = {}) =>
     get<AddressSuggestion[]>('/address/suggest', { kind, q, ...context })
 }
 

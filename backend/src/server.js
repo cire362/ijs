@@ -68,6 +68,12 @@ async function bootstrap () {
           job: require('./jobs/fileCleanup').cleanupFiles
         },
         {
+          name: 'geocode-properties',
+          intervalMs: 10 * 60 * 1000,
+          runImmediately: true,
+          job: require('./jobs/geocodeProperties').geocodeMissingProperties
+        },
+        {
           name: 'cleanup-auth-sessions',
           intervalMs: 60 * 60 * 1000,
           runImmediately: true,

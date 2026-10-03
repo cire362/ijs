@@ -45,6 +45,7 @@ function validateEnvironment (env = process.env) {
     if (env[name] != null && !['true', 'false', '1', '0'].includes(env[name])) throw new Error(`${name} must be true or false`)
   }
   if (env.COOKIE_SAME_SITE && !['lax', 'strict', 'none'].includes(env.COOKIE_SAME_SITE)) throw new Error('COOKIE_SAME_SITE is invalid')
+  if (env.DADATA_API_KEY && !/^[A-Za-z0-9]{20,64}$/.test(env.DADATA_API_KEY)) throw new Error('DADATA_API_KEY must be the API key from the DaData profile')
   if (env.SMTP_URL) {
     let smtp
     try { smtp = new URL(env.SMTP_URL) } catch { throw new Error('SMTP_URL is invalid') }

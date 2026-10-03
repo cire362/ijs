@@ -26,6 +26,8 @@ export default defineConfig({
   },
   build: {
     target: 'es2022',
+    // MapLibre (~1 MB, ~270 KB gzip) is loaded only on object pages that show a map.
+    chunkSizeWarningLimit: 1100,
     rollupOptions: {
       output: {
         manualChunks (id) {

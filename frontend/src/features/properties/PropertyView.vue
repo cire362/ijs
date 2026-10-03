@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import type { UploadRequestOptions } from 'element-plus'
-import { IconArrowLeft, IconDownload, IconEdit, IconFileText, IconHistory, IconMapPin, IconPhoto, IconPhotoPlus, IconTrash, IconUpload } from '@tabler/icons-vue'
+import { IconArrowLeft, IconDownload, IconExternalLink, IconEdit, IconFileText, IconHistory, IconMapPin, IconPhoto, IconPhotoPlus, IconTrash, IconUpload } from '@tabler/icons-vue'
 import { propertiesApi } from '@/api/endpoints'
 import { errorMessage } from '@/api/http'
 import type { Property } from '@/api/types'
@@ -17,6 +17,8 @@ import ErrorState from '@/components/ErrorState.vue'
 import SkeletonRows from '@/components/SkeletonRows.vue'
 import PropertyFormDialog from './PropertyFormDialog.vue'
 import ApplyDialog from './ApplyDialog.vue'
+
+const PropertyMap = defineAsyncComponent(() => import('@/components/map/PropertyMap.vue'))
 
 const route = useRoute()
 const router = useRouter()
@@ -35,6 +37,11 @@ const canApply = computed(() => auth.isApplicant && property.value?.saleStatus =
 const images = computed(() => property.value?.images ?? [])
 const current = computed(() => images.value[active.value] ?? images.value[0] ?? null)
 const address = computed(() => property.value ? [property.value.region, property.value.city, property.value.street].filter(Boolean).join(', ') : '')
+const hasPoint = computed(() => property.value?.latitude != null && property.value?.longitude != null)
+const yandexLink = computed(() => hasPoint.value
+  ? `https://yandex.ru/maps/?pt=${property.value!.longitude},${property.value!.latitude}&z=16&l=map`
+  : `https://yandex.ru/maps/?text=${encodeURIComponent(address.value)}`)
+
 const developerName = computed(() => {
   const dev = property.value?.developer
   return dev?.companyName || [dev?.lastName, dev?.firstName].filter(Boolean).join(' ') || ''
@@ -135,6 +142,19 @@ async function removeProperty () {
         <section v-if="property.description" class="mt-6">
           <h2 class="mb-2 text-lg font-semibold text-ink">Описание</h2>
           <p class="max-w-[70ch] whitespace-pre-line text-[15px] leading-relaxed text-ink">{{ property.description }}</p>
+        </section>
+
+        <section class="mt-6">
+          <div class="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+            <h2 class="text-lg font-semibold text-ink">Расположение</h2>
+            <a :href="yandexLink" target="_blank" rel="noopener" class="link inline-flex items-center gap-1 text-sm">Открыть в Яндекс Картах <IconExternalLink :size="15" /></a>
+          </div>
+          <p class="mb-3 text-[15px] text-ink">{{ address }}</p>
+          <PropertyMap v-if="hasPoint" class="h-80 w-full" :lat="property.latitude" :lng="property.longitude" :precision="property.geoPrecision" />
+          <div v-else class="rounded-surface bg-surface-2 px-5 py-6 text-sm text-muted">
+            Точка на карте ещё не указана.<template v-if="canManage"> Отметьте участок в <button type="button" class="link" @click="editOpen = true">редактировании объекта</button>.</template>
+          </div>
+          <p v-if="hasPoint && (property.geoPrecision ?? 0) > 1" class="mt-2 text-xs text-subtle">Точка определена по адресу приблизительно{{ property.geoPrecision === 3 ? ', по населённому пункту' : ', по улице' }}.</p>
         </section>
 
         <section v-if="specs.length" class="mt-6">

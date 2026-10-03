@@ -11,7 +11,7 @@ function serializeMeta (meta, seen = new WeakSet()) {
     if (seen.has(meta)) return '[circular]'
     seen.add(meta)
     if (Array.isArray(meta)) return meta.map(value => serializeMeta(value, seen))
-    return Object.fromEntries(Object.entries(meta).map(([key, value]) => [key, /password|secret|token|authorization|cookie|database.?url|smtp.?url/i.test(key) ? '[redacted]' : serializeMeta(value, seen)]))
+    return Object.fromEntries(Object.entries(meta).map(([key, value]) => [key, /password|secret|token|authorization|cookie|database.?url|smtp.?url|api.?key/i.test(key) ? '[redacted]' : serializeMeta(value, seen)]))
   }
   if (typeof meta === 'string') return meta.replace(/(?:postgres(?:ql)?|smtps?):\/\/[^\s]+/gi, '[redacted connection]')
 
