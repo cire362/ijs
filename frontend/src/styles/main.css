@@ -1,0 +1,181 @@
+/* Element Plus sits above the Tailwind reset and below utilities, so utilities can adjust its components. */
+@layer theme, base, element, components, utilities;
+@import "element-plus/dist/index.css" layer(element);
+@import "element-plus/theme-chalk/dark/css-vars.css" layer(element);
+@import "tailwindcss";
+@import "@fontsource-variable/onest";
+@import "@fontsource-variable/jetbrains-mono";
+
+/* Dark mode follows the `dark` class on <html>; Element Plus uses the same class. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+  Design system. One accent (cobalt from the logo), cool neutrals, status colors only for state.
+  Radius rule: controls 10px, surfaces 14px, status tags fully rounded.
+*/
+:root {
+  --bg: #f4f6f9;
+  --surface: #fcfcfd;
+  --surface-2: #eef1f5;
+  --border: #dfe4eb;
+  --border-strong: #c7cfda;
+  --text: #121822;
+  --text-muted: #556073;
+  --text-subtle: #6b7587;
+  --accent: #1a56a6;
+  --accent-hover: #15488c;
+  --accent-contrast: #f7f9fc;
+  --accent-soft: #e6edf7;
+  --success: #1c7a4a;
+  --success-soft: #e3f3ea;
+  --warning: #8f6200;
+  --warning-soft: #fbf0d5;
+  --danger: #b42318;
+  --danger-soft: #fbe7e4;
+  --shadow: 0 1px 2px rgb(18 24 34 / 0.05), 0 8px 24px -12px rgb(26 44 74 / 0.18);
+  --radius-control: 10px;
+  --radius-surface: 14px;
+  --header-h: 64px;
+  color-scheme: light;
+
+  --el-color-primary: var(--accent);
+  --el-color-primary-light-3: #5f87c0;
+  --el-color-primary-light-5: #8ca9d2;
+  --el-color-primary-light-7: #bacbe4;
+  --el-color-primary-light-8: #d1dcee;
+  --el-color-primary-light-9: var(--accent-soft);
+  --el-color-primary-dark-2: var(--accent-hover);
+  --el-color-success: var(--success);
+  --el-color-warning: var(--warning);
+  --el-color-danger: var(--danger);
+  --el-color-error: var(--danger);
+  --el-bg-color: var(--surface);
+  --el-bg-color-overlay: var(--surface);
+  --el-bg-color-page: var(--bg);
+  --el-fill-color-blank: var(--surface);
+  --el-fill-color-light: var(--surface-2);
+  --el-border-color: var(--border);
+  --el-border-color-light: var(--border);
+  --el-border-color-lighter: var(--border);
+  --el-text-color-primary: var(--text);
+  --el-text-color-regular: var(--text);
+  --el-text-color-secondary: var(--text-muted);
+  --el-text-color-placeholder: var(--text-subtle);
+  --el-border-radius-base: var(--radius-control);
+  --el-border-radius-small: 8px;
+  --el-font-family: var(--font-sans);
+  --el-font-size-base: 15px;
+  --el-component-size: 38px;
+  --el-component-size-large: 44px;
+  --el-box-shadow-light: var(--shadow);
+}
+
+html.dark {
+  --bg: #0c1016;
+  --surface: #131922;
+  --surface-2: #1a212c;
+  --border: #253041;
+  --border-strong: #34425a;
+  --text: #e5e9f0;
+  --text-muted: #a1abbb;
+  --text-subtle: #8a94a6;
+  --accent: #6ea3e6;
+  --accent-hover: #8ab6ee;
+  --accent-contrast: #0b1320;
+  --accent-soft: #172a45;
+  --success: #5cc48d;
+  --success-soft: #12301f;
+  --warning: #e3b34a;
+  --warning-soft: #33280e;
+  --danger: #f08a7e;
+  --danger-soft: #3a1a17;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 10px 30px -14px rgb(0 0 0 / 0.6);
+  color-scheme: dark;
+
+  --el-color-primary-light-3: #4f7fb8;
+  --el-color-primary-light-5: #3d6595;
+  --el-color-primary-light-7: #2a4a70;
+  --el-color-primary-light-8: #213a59;
+  --el-color-primary-dark-2: var(--accent-hover);
+}
+
+@theme {
+  --font-sans: "Onest Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-ink: var(--text);
+  --color-muted: var(--text-muted);
+  --color-subtle: var(--text-subtle);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-contrast: var(--accent-contrast);
+  --color-accent-soft: var(--accent-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --radius-control: var(--radius-control);
+  --radius-surface: var(--radius-surface);
+  --shadow-soft: var(--shadow);
+}
+
+@layer base {
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: clip;
+  }
+  a { color: inherit; text-decoration: none; }
+  h1, h2, h3 { letter-spacing: -0.02em; line-height: 1.15; margin: 0; }
+  ::selection { background: var(--accent-soft); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .tabler-icon { stroke-width: 1.75; flex-shrink: 0; }
+}
+
+@layer components {
+  .surface { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-surface); }
+  .tabular { font-variant-numeric: tabular-nums; }
+  .link { color: var(--accent); text-underline-offset: 3px; }
+  .link:hover { text-decoration: underline; }
+  .press { transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1); }
+  .press:active { transform: translateY(1px) scale(0.99); }
+}
+
+/* Element Plus fine-tuning to match the system. */
+.el-button { font-weight: 500; }
+.el-button:not(.is-text, .is-link):active { transform: translateY(1px); }
+.el-card { --el-card-border-radius: var(--radius-surface); }
+.el-dialog { --el-dialog-border-radius: var(--radius-surface); }
+.el-drawer { --el-drawer-bg-color: var(--surface); }
+.el-table { --el-table-header-bg-color: var(--surface-2); --el-table-row-hover-bg-color: var(--accent-soft); --el-table-border-color: var(--border); --el-table-bg-color: var(--surface); --el-table-tr-bg-color: var(--surface); }
+.el-table th.el-table__cell { font-weight: 600; color: var(--text-muted); font-size: 13px; }
+.el-tag { border-radius: 999px; }
+.el-message { --el-message-border-radius: var(--radius-control); }
+
+/* Loading placeholders shaped like the final content. */
+.skeleton { background: linear-gradient(90deg, var(--surface-2) 0%, var(--surface) 50%, var(--surface-2) 100%); background-size: 200% 100%; }
+@media (prefers-reduced-motion: no-preference) {
+  .skeleton { animation: skeleton-shimmer 1.4s ease-in-out infinite; }
+}
+@keyframes skeleton-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+
+/* Reveal-on-scroll used by the v-reveal directive; static under reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  [data-reveal] { opacity: 0; transform: translateY(16px); transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1); transition-delay: calc(var(--reveal-index, 0) * 70ms); }
+  [data-reveal].is-visible { opacity: 1; transform: none; }
+  .route-enter-active, .route-leave-active { transition: opacity 0.18s ease, transform 0.18s ease; }
+  .route-enter-from { opacity: 0; transform: translateY(6px); }
+  .route-leave-to { opacity: 0; }
+}
