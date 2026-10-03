@@ -12,10 +12,16 @@ const { bearerToken } = require('../middleware/auth')
 function createOperationsRouter ({ probe, storageProbe, stateRef = state, healthyJobs = jobsHealthy } = {}) {
   const router = express.Router()
   let pending
-  probe = probe || (async () => {
-    const client = new Client({ connectionString: databaseUrl(), connectionTimeoutMillis: 1000, query_timeout: 1000, statement_timeout: 1000 })
-    try { await client.connect(); await client.query('SELECT 1') } finally { await client.end().catch(() => {}) }
-  })
+  // Operational probes use their own short-lived connection: during a database outage they fail
+  // within about a second instead of waiting for a pooled connection, and never hold pool slots.
+  const direct = async (sql, timeoutMs = 1000) => {
+    const client = new Client({ connectionString: databaseUrl(), connectionTimeoutMillis: 1000, query_timeout: timeoutMs, statement_timeout: timeoutMs })
+    try {
+      await client.connect()
+      return (await client.query(sql)).rows
+    } finally { await client.end().catch(() => {}) }
+  }
+  probe = probe || (async () => { await direct('SELECT 1') })
   storageProbe = storageProbe || (async () => {
     const root = path.resolve(__dirname, '../../uploads')
     await fs.access(root, fs.constants.R_OK | fs.constants.W_OK)
@@ -47,11 +53,10 @@ function createOperationsRouter ({ probe, storageProbe, stateRef = state, health
   }
   router.get('/metrics', authorize, (req, res) => res.type('text/plain; version=0.0.4').send(metricsText()))
   router.get('/ops/status', authorize, asyncHandler(async (req, res) => {
-    const { sequelize } = require('../db')
-    const [rows] = await sequelize.query(`SELECT
+    const rows = await direct(`SELECT
       (SELECT count(*)::int FROM file_deletions) AS "pendingFiles",
       (SELECT count(*)::int FROM event_reminders WHERE status='pending' AND due_at < now() - INTERVAL '5 minutes') AS "overdueReminders",
-      (SELECT count(*)::int FROM file_deletions WHERE created_at < now() - INTERVAL '1 hour') AS "stuckFiles"`)
+      (SELECT count(*)::int FROM file_deletions WHERE created_at < now() - INTERVAL '1 hour') AS "stuckFiles"`, 3000)
     res.json({ uptimeSeconds: Math.floor(process.uptime()), jobs: Object.fromEntries(stateRef.jobs), queues: rows[0] })
   }))
   return router

@@ -197,10 +197,11 @@ INSERT INTO properties(title,developer_id,region,city,price,created_at,updated_a
       const started=Date.now();assert.equal((await fetch('http://127.0.0.1:4000/health/live')).status,200);
       assert.equal((await fetch('http://127.0.0.1:4000/health/ready')).status,503);assert(Date.now()-started<5000);
     `)
-    for (let attempt = 0; attempt < 25; attempt++) {
+    // The monitor alerts after three failed checks in a row, so allow a fixed time rather than a number of polls.
+    for (const deadline = Date.now() + 60000; ;) {
       const logs = await compose(['logs', '--no-color', 'monitor'])
       if (logs.output.includes('production_alert') && logs.output.includes('api_not_ready')) break
-      if (attempt === 24) throw new Error('Monitor failed to report the database outage')
+      if (Date.now() > deadline) throw new Error('Monitor failed to report the database outage')
       await pause(1000)
     }
     checked('database outage: liveness survives, readiness fails and monitor raises an alert')

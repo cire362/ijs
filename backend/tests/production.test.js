@@ -113,6 +113,9 @@ test('metrics and operational status require a separate bearer token', async () 
     expect(response.status).toBe(200)
     expect(response.text).toContain('ijs_process_rss_bytes')
     expect(response.text).not.toContain(process.env.OPS_TOKEN)
+    const status = await request(app).get('/ops/status').set('Authorization', `Bearer ${process.env.OPS_TOKEN}`)
+    expect(status.status).toBe(200)
+    expect(status.body.queues).toEqual({ pendingFiles: expect.any(Number), overdueReminders: expect.any(Number), stuckFiles: expect.any(Number) })
   } finally { if (original == null) delete process.env.OPS_TOKEN; else process.env.OPS_TOKEN = original }
 })
 test('shutdown waits for a running job and starts no further jobs', async () => {
